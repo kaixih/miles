@@ -1,11 +1,11 @@
 # Training Workflow - Qwen3-4B Example
 
-This document illustrates the training workflow using the `run-qwen3-4B_4xgpu.sh` configuration as a concrete example.
+This document illustrates the training workflow using the `run-qwen3-4B_4xgpu.sh` configuration as a concrete example. Repro steps can be found [here](https://gist.github.com/kaixih/a22a9081fb020d3108c12729b2b8fd2e) for GB300 4GPUs.
 
 ## Configuration Overview
 
 **Hardware Setup:**
-- 4 GPUs (CUDA_VISIBLE_DEVICES=4,5,6,7)
+- 4 GPUs (CUDA_VISIBLE_DEVICES=0,1,2,3)
 - Colocated: Training and Inference share the same GPUs
 
 **Model:** Qwen3-4B
@@ -97,29 +97,84 @@ flowchart TD
 
 ## Timeline Breakdown
 
-### Single Rollout Iteration (~1-2 minutes)
+### Single Rollout Iteration (97 seconds actual)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │  ITERATION N (e.g., rollout_id = 100)                               │
+│  Total Step Time: 97s (measured from logs)                          │
 └─────────────────────────────────────────────────────────────────────┘
 
-[0s────────10s───────20s──────30s──────40s──────50s──────60s─────→]
-│          │         │        │        │        │        │
-│  GENERATE (SGLang) │ TRAIN  │ SYNC   │ (next iteration)
-│  32 prompts        │ GRPO   │ Weights│
-│  × 8 samples       │ 4 GPUs │        │
-│  = 256 responses   │        │        │
-│                    │        │        │
-└─ GPU: Inference ──┘└─ GPU: Training ┘└─ GPU: Inference ───→
+[0s──────────────────53.6s──────────────────────────97.5s─────────→]
+│                     │                               │
+│      GENERATE       │           TRAIN               │  (next iter)
+│      (SGLang)       │     (37.63s actual)           │
+│    32 prompts       │     + 4.47s overhead          │
+│    × 8 samples      │                               │
+│   = 256 responses   │     ┌────────────────┐        │
+│   ~1.13M tokens     │     │ Data prep: 0.2s│        │
+│   4404 tok/response │     │ Ref logp:  7.1s│        │
+│   5261 tok/GPU/s    │     │ Logp:      6.4s│        │
+│                     │     │ Train:    24.0s│        │
+│   Actor waits       │     │ Offload:   2.6s│        │
+│   59.83s for this   │     │ WeightSync:1.1s│        │
+│                     │     │ Reload:    0.8s│        │
+│                     │     └────────────────┘        │
+└─── GPU: Inference ─┘└────── GPU: Training ─────────┘
+
+
+Detailed Breakdown (from logs):
+────────────────────────────────────────────────────────
+1. GENERATION PHASE (happens in parallel, actor waits):
+   • rollout_time:         53.57s  ← SGLang generates 256 responses
+   • train_wait_time:      59.83s  ← Actor waiting (includes overhead)
+   
+   Generation Stats:
+   - Tokens/GPU/sec:       5,261   ← Throughput per GPU
+   - Avg response length:  4,404 tokens
+   - Median response:      3,871 tokens
+   - Truncated (hit limit): 16.8% ← Hit 8192 max length
+   - Total tokens:         ~1.13M tokens (256 × 4404)
+
+2. TRAINING PHASE (after generation completes):
+   • data_preprocess:       0.17s  ← Prepare rollout data
+   • ref_log_probs:         7.10s  ← Reference model forward pass
+   • log_probs:             6.40s  ← Actor model forward pass
+   • actor_train:          24.02s  ← GRPO backward + optimizer
+   • train_time (total):   37.63s
+
+3. MEMORY MANAGEMENT & SYNC:
+   • sleep (offload):       2.58s  ← Offload training models
+   • update_weights:        1.10s  ← Sync weights to SGLang
+   • wake_up (reload):      0.79s  ← Reload SGLang engines
+────────────────────────────────────────────────────────
+Total Step Time:          97.47s
 
 
 Memory View (Colocated):
 ────────────────────────
-GPU 4-5: [SGLang Engine #1 (TP=2)    ]      [Freed] [Training] [SGLang]
-GPU 6-7: [SGLang Engine #2 (TP=2)    ]      [Freed] [Training] [SGLang]
-         └─ Generation Phase (10-20s) ┘      └─ Training Phase (20-30s) ┘
+GPU 0-1: [SGLang #1...............] [Freed] [Train.........] [SGLang #1]
+GPU 2-3: [SGLang #2...............] [Freed] [Train.........] [SGLang #2]
+         └──── Generation (53.57s) ┘        └─ Training (37.63s) ──┘
+         Actor waits here ────────→         Actor computes here
 ```
+
+**Performance Metrics:**
+
+*Generation (SGLang):*
+- Rollout time: 53.57s
+- Tokens/GPU/sec: 5,261
+- Total tokens generated: ~1.13M (256 samples × 4404 avg length)
+- Avg response: 4,404 tokens
+- Median response: 3,871 tokens
+- Truncated (hit 8192 limit): 16.8%
+
+*Training (Megatron):*
+- Actor Train TFLOPs: 343.7
+- Log Probs TFLOPs: 430.0  
+- Ref Log Probs TFLOPs: 387.6
+- Tokens/sec: 48,535
+- Wait Time Ratio: 61.4% (actor spends most time waiting for generation)
 
 ### Every 20 Rollouts (Evaluation + Checkpoint)
 
@@ -203,10 +258,10 @@ During TRAINING:
 ## Full Training Run
 
 ```
-Total Duration: ~50-100 hours (depends on hardware)
-├─ 3000 rollouts × ~1-2 min/rollout
-├─ 150 checkpoints (every 20 rollouts)
-├─ 150 evaluations (every 20 rollouts)
+Total Duration: ~81 hours (actual measurement)
+├─ 3000 rollouts × 97s/rollout = 291,000s ≈ 81 hours
+├─ 150 checkpoints (every 20 rollouts) + overhead
+├─ 150 evaluations (every 20 rollouts) + overhead
 └─ WandB logs: miles-dev-qwen3-radix/qwen3-4B-4xgpu
 ```
 
