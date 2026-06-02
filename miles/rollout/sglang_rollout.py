@@ -167,6 +167,9 @@ async def generate(args: Namespace, sample: Sample, sampling_params: dict[str, A
         "sampling_params": sampling_params,
         "return_logprob": True,
     }
+    opd_top_k = getattr(args, "opd_log_prob_top_k", 0) or 0
+    if getattr(args, "use_opd", False) and opd_top_k > 0:
+        payload["top_logprobs_num"] = opd_top_k
 
     if is_lora_enabled(args):
         payload["lora_path"] = LORA_ADAPTER_NAME
@@ -194,6 +197,11 @@ async def generate(args: Namespace, sample: Sample, sampling_params: dict[str, A
         headers = {"X-SMG-Routing-Key": sample.session_id}
 
     output = await post(url, payload, headers=headers)
+    if getattr(args, "use_opd", False) and opd_top_k > 0:
+        output_top_logprobs = output.get("meta_info", {}).get("output_top_logprobs")
+        if output_top_logprobs is not None:
+            sample.metadata.setdefault("opd_student_top_logprobs", [])
+            sample.metadata["opd_student_top_logprobs"].extend(output_top_logprobs)
 
     if args.use_miles_router and "RadixTreeMiddleware" in args.miles_router_middleware_paths:
         from miles.router.middleware_hub.radix_tree_middleware import postprocess_sample_with_radix_tree
