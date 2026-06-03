@@ -1,4 +1,6 @@
+import logging
 import math
+import time
 from argparse import Namespace
 from collections.abc import Iterable
 from typing import Any
@@ -7,6 +9,8 @@ import aiohttp
 import torch
 
 from miles.utils.types import Sample
+
+logger = logging.getLogger(__name__)
 
 TopLogprobs = list[list[Any]]
 LogprobMaps = list[dict[int, float]]
@@ -55,8 +59,9 @@ def _student_score_url(args: Namespace) -> str:
     return f"http://{args.sglang_router_ip}:{args.sglang_router_port}/generate"
 
 
-async def _post_json(url: str, payload: dict[str, Any]) -> dict[str, Any]:
-    async with aiohttp.ClientSession() as session:
+async def _post_json(url: str, payload: dict[str, Any], timeout_secs: int | float | None = None) -> dict[str, Any]:
+    timeout = aiohttp.ClientTimeout(total=timeout_secs)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.post(url, json=payload) as resp:
             resp.raise_for_status()
             return await resp.json()
@@ -263,8 +268,9 @@ def _compute_topk_reverse_kl(
 
 async def reward_func(args, sample, **kwargs):
     top_k = _get_opd_top_k(args)
+    request_timeout = getattr(args, "sglang_router_request_timeout_secs", None)
     if top_k == 0:
-        return await _post_json(args.rm_url, _score_payload(sample.tokens))
+        return await _post_json(args.rm_url, _score_payload(sample.tokens), timeout_secs=request_timeout)
 
     strategy = _get_top_k_strategy(args)
     student_top = _student_top_logprobs(sample, sample.response_length)
@@ -272,7 +278,9 @@ async def reward_func(args, sample, **kwargs):
     teacher_top_k = top_k if strategy != "only_stu" else 0
     teacher_token_ids = _unique_ids(student_top) if strategy in {"only_stu", "union", "union-intersection"} else None
     teacher_payload = _score_payload(sample.tokens, top_k=teacher_top_k, token_ids=teacher_token_ids)
-    teacher_response = await _post_json(args.rm_url, teacher_payload)
+    started = time.monotonic()
+    teacher_response = await _post_json(args.rm_url, teacher_payload, timeout_secs=request_timeout)
+    teacher_secs = time.monotonic() - started
 
     reward_payload = {"teacher": teacher_response}
     if strategy in {"only_tch", "union", "union-intersection"}:
@@ -281,9 +289,24 @@ async def reward_func(args, sample, **kwargs):
         reward_payload["student_on_teacher"] = await _post_json(
             _student_score_url(args),
             _score_payload(sample.tokens, token_ids=student_token_ids),
+            timeout_secs=request_timeout,
         )
 
-    return reward_payload
+    kl_started = time.monotonic()
+    sample.opd_reverse_kl = _compute_topk_reverse_kl(args, sample, reward_payload)
+    kl_secs = time.monotonic() - kl_started
+    logger.info(
+        "OPD top-k reward computed: response_length=%s teacher_token_ids=%s strategy=%s "
+        "teacher_request_secs=%.3f kl_compute_secs=%.3f total_secs=%.3f",
+        sample.response_length,
+        len(teacher_token_ids or []),
+        strategy,
+        teacher_secs,
+        kl_secs,
+        time.monotonic() - started,
+    )
+
+    return 0.0
 
 
 def post_process_rewards(args, samples: list[Sample], **kwargs):
@@ -296,14 +319,16 @@ def post_process_rewards(args, samples: list[Sample], **kwargs):
     "Rethinking On-Policy Distillation" by forming a top-k token set per
     response position and storing a precomputed weighted reverse-KL estimate.
     """
-    raw_rewards = [sample.get_reward_value(args) for sample in samples]
-    response_lengths = [sample.response_length for sample in samples]
-
     if _get_opd_top_k(args) > 0:
-        for sample, reward in zip(samples, raw_rewards, strict=False):
-            sample.opd_reverse_kl = _compute_topk_reverse_kl(args, sample, reward)
+        for sample in samples:
+            if sample.opd_reverse_kl is None:
+                reward = sample.get_reward_value(args)
+                sample.opd_reverse_kl = _compute_topk_reverse_kl(args, sample, reward)
         scalar_rewards = [0.0] * len(samples)
         return scalar_rewards, scalar_rewards
+
+    raw_rewards = [sample.get_reward_value(args) for sample in samples]
+    response_lengths = [sample.response_length for sample in samples]
 
     teacher_log_probs = [
         _teacher_sampled_log_probs(reward, response_length)
