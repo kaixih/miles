@@ -174,6 +174,8 @@ def execute(args: ScriptArgs):
         f"--dump-details {args.output_dir}/{args.run_id}/dump_details "
     )
     misc_env_vars = {}
+    if args.hardware == "B200":
+        misc_env_vars["FLASHINFER_FILTER_BF16_TRTLLM_MOE_TACTICS"] = "1"
 
     if args.rollout_int4:
         misc_env_vars |= {
