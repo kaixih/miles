@@ -102,6 +102,20 @@ headline effect is the efficiency transfer). A nonzero, shrinking `opd_reverse_k
 confirms the teacher genuinely differs from the student and the student is
 converging onto it.
 
+**Phase 2 — grounded OPD** (correctness reward + teacher reverse-KL):
+
+| step | rollout/raw_reward | train length | opd_reverse_kl |
+|------|--------------------|--------------|----------------|
+| 1 | 0.637 | 18,778 | 0.045 |
+| 2 | **0.910** | **7,665** | 0.014 |
+
+With the correctness reward kept, `rollout/raw_reward` (== accuracy) climbs while
+the student simultaneously adopts the teacher's concise responses (18.8k → 7.7k).
+The shrinking `opd_reverse_kl` (0.045 → 0.014) shows the student converging onto
+the teacher. (At lr 1e-5 the RLVR reward alone also drives accuracy up — Phase 1
+is the controlled view of that — so grounded OPD's `raw_reward` climb reflects
+RLVR + the teacher pull combined; the pure-OPD run above isolates OPD's effect.)
+
 ## Gotchas (each cost a wasted run to find)
 
 - **Reward grader.** `--rm-type deepscaler` requires a `</think>` tag and returns 0
