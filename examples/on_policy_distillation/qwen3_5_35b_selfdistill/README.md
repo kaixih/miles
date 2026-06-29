@@ -148,7 +148,11 @@ TEACHER_LOAD=/persistent/ckpt-teacher MODEL_DIR=... DATA_DIR=... \
 | 0 (base) | 0.828 | 14,070 |
 | 5        | **0.887** | **6,248** |
 
-The teacher becomes both more accurate **and** ~2× more concise.
+The teacher becomes both more accurate **and** ~2× more concise. This Phase-1
+teacher checkpoint is published at
+[**cm00cm/Qwen3.5-35B-A3B-DAPO-RLVR-teacher**](https://huggingface.co/cm00cm/Qwen3.5-35B-A3B-DAPO-RLVR-teacher)
+(weights only) and can be used directly as the Phase-2 teacher via
+`--opd-teacher-load` after `convert_hf_to_torch_dist.py`.
 
 **Phase 2 — pure OPD** (student = base, teacher = Phase-1 step-5 ckpt; reward = 0):
 
@@ -201,5 +205,6 @@ RLVR + the teacher pull combined; the pure-OPD run above isolates OPD's effect.)
   regularizer. Adding it loads a 3rd model and risks OOM.
 
 ## References
+- Phase-1 teacher checkpoint: https://huggingface.co/cm00cm/Qwen3.5-35B-A3B-DAPO-RLVR-teacher
 - ../README.md (served-teacher OPD), ../run-qwen3-8B-opd-megatron.sh (in-process teacher)
 - https://thinkingmachines.ai/blog/on-policy-distillation/
