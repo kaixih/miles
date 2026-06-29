@@ -77,6 +77,68 @@ MODE=grounded TEACHER_LOAD=/persistent/ckpt-teacher DATA_DIR=... \
 KubeRay pod the head can be recreated and wipe the container overlay (`/root`); a
 node-local disk (e.g. `/node_public`) survives and makes runs resumable.
 
+## Run on GB200 / GB300 (CUDA 13, Blackwell) — `phase2_gb200.sh`
+
+The recipe above targets a single **8×H200** node. Blackwell nodes (GB200/GB300)
+have **4 GPUs/node**, so `world = 8` becomes **2 nodes × 4 GPUs** — same parallel
+dims (`TP2 PP1 CP2 EP8 ETP1`, DP4), only the node tiling changes. `phase2_gb200.sh`
+is the GB200 variant of `phase2_opd_selfdistill.sh`; the deltas (all validated on
+2× GB200, reproducing the base eval `0.84` / `~14k`) are:
+
+- **Tiling** — `--actor-num-nodes 2 --num-gpus-per-node 4` (override via
+  `ACTOR_NUM_NODES` / `GPUS_PER_NODE`). Pin both nodes to one NVLink (MNNVL) domain
+  so the EP8 all-to-all stays on the NVLink fabric.
+- **sglang backends** (cf. `scripts/run_qwen3_5_35b_a3b_mtp_cp2_ep8.py`) —
+  `--sglang-moe-runner-backend flashinfer_cutlass`, `--sglang-attention-backend
+  trtllm_mha`, and `--moe-token-dispatcher-type flex`. The default triton fused-MoE
+  mis-shards routed experts on the megatron→sglang weight sync
+  (`fused_moe_triton ... _load_w13`: `tensor a (64) vs b (2048)`), and FA3 is SM≤90
+  only (Blackwell is SM 10.x).
+- **NCCL** — `NCCL_NVLS_ENABLE=0` (multi-node Blackwell NVLS bind fails
+  `ncclCommInitRank`); keep `NCCL_MNNVL_ENABLE=1`.
+- **k8s** — if a `prometheus` Service exists in the namespace, set
+  `PROMETHEUS_PORT=9090` (kube injects a `tcp://…:9090` URL that breaks miles'
+  `int(PROMETHEUS_PORT)`).
+
+`phase2_gb200.sh` already sets the sglang/MoE backends and folds
+`NCCL_NVLS_ENABLE=0` + `PROMETHEUS_PORT=9090` into the Ray runtime env. Run it on the
+Ray head in the CUDA-13 ARM64 miles image, with `MILES_DIR` pointing at the repo:
+
+```bash
+ACTOR_NUM_NODES=2 GPUS_PER_NODE=4 MILES_DIR=/workspace/miles \
+MODEL_DIR=... DATA_DIR=... TEACHER_LOAD=/persistent/ckpt-teacher OUTPUT_DIR=/persistent/ckpt-opd-pure \
+  bash phase2_gb200.sh          # MODE=pure (default) | MODE=grounded
+```
+
+## Run Phase 2 only (skip Phase 1)
+
+If you already have a teacher checkpoint, skip Phase 1 and run Phase 2 directly —
+point `--opd-teacher-load` (`TEACHER_LOAD`) at the teacher's **torch_dist parent
+dir** (the one containing `latest_checkpointed_iteration.txt`). You still need the
+base model (`--hf-checkpoint` + the `--ref-load` torch_dist) and the data split, but
+no Phase-1 run.
+
+If your teacher is in **HuggingFace** format, convert it to torch_dist first with
+`convert_gb200.sh` (a thin wrapper over `tools/convert_hf_to_torch_dist.py` carrying
+the Qwen3.5 `MODEL_ARGS`):
+
+```bash
+# teacher: HF safetensors -> Megatron torch_dist parent dir
+bash convert_gb200.sh /path/to/teacher-hf /persistent/ckpt-teacher
+# (and the base, if you don't have Qwen3.5-35B-A3B_torch_dist yet)
+bash convert_gb200.sh ${MODEL_DIR}/Qwen3.5-35B-A3B ${MODEL_DIR}/Qwen3.5-35B-A3B_torch_dist
+
+TEACHER_LOAD=/persistent/ckpt-teacher MODEL_DIR=... DATA_DIR=... \
+  bash phase2_gb200.sh          # or phase2_opd_selfdistill.sh on 8×H200
+```
+
+> **Teacher expert layout.** The public `Qwen/Qwen3.5-35B-A3B` ships *fused* experts
+> (`mlp.experts.gate_up_proj`); a teacher round-tripped through
+> `convert_torch_dist_to_hf` may ship *unfused* per-expert weights
+> (`mlp.experts.{i}.gate_proj.weight`). `miles_plugins/mbridge/qwen3_5.py` now
+> autodetects both for the main layers (mirroring the existing MTP-expert
+> autodetect), so either layout converts without manual re-fusing.
+
 ## Results (DAPO-math, held-out 512, eval @ 24k cap, temp 0.6)
 
 **Phase 1 — RLVR teacher** (lr 1e-5):
