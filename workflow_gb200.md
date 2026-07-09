@@ -1,6 +1,6 @@
 # Two-Node GB200 Pure-OPD Workflow
 
-This document records the working two-node GB200 workflow for the Qwen3.5-35B-A3B pure-OPD experiment. It describes the exact checkout, mounts, runtime shims, launch sequence, and the reason for each local change.
+This document records the validated two-node GB200 workflow for the Qwen3.5-35B-A3B pure-OPD experiment. It describes the exact checkout, mounts, runtime shims, launch sequence, and the reason for each local change. The Miles/HybridEP fixes were healthy through ten updates; a separate SGLang CUDA graph replay hang is documented below.
 
 ## 1. Checkout and Branch
 
@@ -98,16 +98,25 @@ They must be AArch64 shared objects. `phase2_gb200.sh` passes their container pa
 
 The allocation must contain two `gb200nvl72` nodes with four GPUs per node. The local launcher starts one container per node, creates a Ray head on task 0, joins task 1 as a worker, and submits the Phase-2 payload from `/workspace/miles`.
 
-Run the current accuracy-focused recipe:
+Run the B200-comparable curve recipe. Invoke the lower-level launcher so the CUDA graph list is explicit; the current local `04_run_long_8k_hybridep.sh` still pins the now-unsafe size 4.
 
 ```bash
 cd /home/scratch.kaixih_ent/repo/miles-opd-gb200-main
 
 RUN_ID="opd-gb200-$(date +%m%d-%H%M)" \
 NUM_ROLLOUT=12 \
-SKIP_EVAL_BEFORE_TRAIN=1 \
-EVAL_INTERVAL=2 \
-bash lab/opd_gb200/04_run_long_8k_hybridep.sh
+SKIP_EVAL_BEFORE_TRAIN=0 \
+EVAL_INTERVAL=5 \
+SAVE_INTERVAL=none \
+ROLLOUT_BATCH_SIZE=32 \
+N_SAMPLES_PER_PROMPT=8 \
+OVER_SAMPLING_BATCH_SIZE=32 \
+GLOBAL_BATCH_SIZE=256 \
+MAX_TOKENS_PER_GPU=8192 \
+MOE_FLEX_DISPATCHER_BACKEND=hybridep \
+SGLANG_CUDA_GRAPH_BS="1 2" \
+WANDB_GROUP=qwen3.5-35b-gb200-pure-opd-8k-long \
+bash lab/opd_gb200/01_launch_phase2_pure.sh
 ```
 
 The effective settings are:
@@ -118,11 +127,12 @@ TP=2, CP=2, EP=8
 Flex dispatcher with HybridEP
 global batch size=256
 max tokens per GPU=8192
-CUDA graph capture sizes=1 2 4
+CUDA graph capture sizes=1 2; larger batches use eager decode
+baseline eval enabled; evaluate every 5 updates
 checkpoint saving disabled
 ```
 
-CUDA graph sizes larger than 4 currently use eager decode. This is a conservative mitigation for a separate replay hang after online weight handoff; it is not a final SGLang fix.
+Do not include CUDA graph size 4 in a long run. In `opd8k-b200curve-0709-0648`, rollout 11 stopped making decode progress immediately after the active batch dropped from 5 (eager) to 4 (CUDA graph). Health checks continued, but the token count never advanced and the launcher eventually timed out. Size 8 had shown the same class of replay hang earlier. Using only sizes 1 and 2 is the current conservative workaround, not a final SGLang fix.
 
 ## 5. What Changed and Why
 
@@ -193,6 +203,14 @@ A healthy run must have all of the following:
 - successful online weight synchronization and the next rollout;
 - response length and reverse-KL move toward the teacher behavior.
 
-The validated run changed mean response length from about 18.8k to 6.6k tokens after the first update, reduced truncation from 0.367 to 0.043, and reduced per-token OPD reverse-KL from 0.0448 to 0.0130 while keeping the training diagnostics healthy.
+The B200-comparable run `opd8k-b200curve-0709-0648` validated the learning curve through update 10:
+
+- baseline held-out DAPO was `0.8477`, with mean response length `14.15k` and truncation `0.123`;
+- after five updates, held-out DAPO was `0.8633`, with mean response length `5.91k` and truncation `0.0137`;
+- after ten updates, held-out DAPO was `0.8887`, with mean response length `6.99k` and truncation `0.0195`;
+- rollout 10 had mean response length `5.39k` and per-token reverse-KL `0.00968`;
+- update 10 remained healthy: gradient norm `0.0543`, OIS `1.0`, ESS `1.0`, and TIS `0.99998`.
+
+The subsequent rollout 11 hit the CUDA graph size-4 hang described above. This failure occurred on the rollout/SGLang side after ten healthy HybridEP updates; it was not a HybridEP timeout or an unstable optimizer update.
 
 No Megatron, PyTorch, torch-memory-saver, or SGLang installed source file is modified by this workflow. The active code consists of the mounted Miles checkout, the two external runtime shims, and recipe flags.
