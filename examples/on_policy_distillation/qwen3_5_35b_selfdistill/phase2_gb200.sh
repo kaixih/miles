@@ -130,7 +130,12 @@ WANDB_ARGS=( --use-wandb --wandb-project miles-opd --wandb-group qwen3.5-35b-opd
 # during cross-node ncclCommInitRank ("unhandled cuda error" / CUDA 999), which
 # kills the EP8 sglang engine spanning both nodes. MNNVL stays enabled (pod env)
 # for the NVLink fabric itself; only NVLS multicast is disabled.
-RUNTIME_ENV_JSON="{\"env_vars\": {\"PYTHONPATH\": \"${MILES_DIR}:/root/Megatron-LM/\", \"CUDA_DEVICE_MAX_CONNECTIONS\": \"1\", \"WANDB_API_KEY\": \"${WANDB_API_KEY}\", \"PROMETHEUS_PORT\": \"9090\", \"NCCL_NVLS_ENABLE\": \"0\"}}"
+# NCCL_GRAPH_REGISTER=0: TMS preserves each CUDA VA across pause/resume but maps
+# a new physical allocation at that VA. NCCL graph registration can otherwise
+# reuse a NET/IB/GDRDMA MR created for the old backing, hanging retained-graph
+# replay after resume. Disable graph user-buffer registration until its
+# lifetime follows the backing allocation rather than the VA alone.
+RUNTIME_ENV_JSON="{\"env_vars\": {\"PYTHONPATH\": \"${MILES_DIR}:/root/Megatron-LM/\", \"CUDA_DEVICE_MAX_CONNECTIONS\": \"1\", \"WANDB_API_KEY\": \"${WANDB_API_KEY}\", \"PROMETHEUS_PORT\": \"9090\", \"NCCL_NVLS_ENABLE\": \"0\", \"NCCL_GRAPH_REGISTER\": \"0\"}}"
 
 cd "${MILES_DIR}"
 ray job submit --address="${RAY_ADDRESS}" --submission-id qwen3.5-opd-${MODE} --no-wait \
