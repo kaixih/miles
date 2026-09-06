@@ -8,18 +8,19 @@ description: "Multi-teacher OPD with Qwen3.6 specialists on short, locally verif
 
 Train two Qwen3.6 specialists on Reasoning Gym's Countdown and graph-coloring
 puzzles, then distill them into a fresh student through the existing Miles OPD
-teacher routes. The example imports puzzle generation, answer extraction, and
-graph verification from Reasoning Gym; Miles supplies rollout and evaluation.
+teacher routes. Reasoning Gym generates the puzzles; Miles supplies rollout and
+evaluation. The small local verifiers use only the Python standard library.
 
 ## Setup and data
 
 Use a Qwen3.6-capable Miles runtime, eight H200s for training, and additional
 GPUs for the frozen teachers. Place `Qwen/Qwen3.6-35B-A3B` and its converted
 `Qwen3.6-35B-A3B_torch_dist` checkpoint under `/root/models`, or set `--model-dir`.
-Install the example dependency in the environment used by rollout workers:
+Install Reasoning Gym only in the data-preparation environment. Training and
+evaluation workers consume the generated JSONL files without this dependency:
 
 ```bash
-pip install -r examples/mopd_puzzles/requirements.txt
+pip install "reasoning-gym @ git+https://github.com/open-thought/reasoning-gym.git@49b07130b3fcd12f2d064bba7c43869543a0e7e7"
 python -m examples.mopd_puzzles.prepare --output /root/datasets/mopd_puzzles \
   --configs countdown4 graph12 --splits train --size 10000
 python -m examples.mopd_puzzles.prepare --output /root/datasets/mopd_puzzles \
@@ -33,15 +34,15 @@ cat /root/datasets/mopd_puzzles/countdown4-train.jsonl \
 
 Keep all splits in that directory and generate them in order: the adapter checks
 oracle answers and deduplicates puzzle identities against existing JSONL files.
-It preserves each upstream entry in `metadata.reasoning_gym_entry` and adds the
-Miles prompt, label, and teacher route. Existing split files are never overwritten.
+It adds the Miles prompt, label, and teacher route. Existing split files are
+never overwritten.
 The data-source adapter uses Miles' buffering/resume support and alternates domains
 for equal batches; Reasoning Gym's weighted sampling does not guarantee that count.
 
 Answers use one `<answer>...</answer>` block, with thinking disabled and a
 256-token cap. The reward adapter retains two differences from the pinned
 library: exact, bounded four-operator arithmetic for Countdown, and strict JSON
-keys/integer colors before calling the graph verifier. Reasoning Gym's Countdown
+keys/integer colors for graph coloring. Reasoning Gym's Countdown
 scorer uses general SymPy parsing and partial rewards. These checks preserve the
 binary scoring rules used for the results below.
 

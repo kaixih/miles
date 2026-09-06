@@ -1,1 +1,0 @@
-reasoning-gym @ git+https://github.com/open-thought/reasoning-gym.git@49b07130b3fcd12f2d064bba7c43869543a0e7e7
