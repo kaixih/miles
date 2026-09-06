@@ -88,7 +88,7 @@ def _training_args(args: ScriptArgs):
         f'--hf-checkpoint {q(model)} --ref-load {q(model + "_torch_dist")} '
         f'--prompt-data {q(args.data_dir + "/" + dataset)} --input-key prompt --label-key label '
         "--metadata-key metadata --apply-chat-template --apply-chat-template-kwargs '{\"enable_thinking\":false}' "
-        "--rollout-skip-special-tokens --rollout-shuffle --rollout-function-path examples.mopd_puzzles.rollout.generate_rollout "
+        "--rollout-skip-special-tokens --rollout-shuffle --rollout-function-path miles.rollout.sglang_rollout.generate_rollout "
         f"--num-rollout {args.num_rollout} --rollout-batch-size {args.rollout_batch_size} "
         f"--n-samples-per-prompt {args.n_samples_per_prompt} --global-batch-size {args.global_batch_size} "
         f"--rollout-max-response-len {args.max_response_len} --rollout-temperature 1 --rollout-top-p 1 "
@@ -140,7 +140,7 @@ def _training_args(args: ScriptArgs):
             "--data-source-path examples.mopd_puzzles.data_source.BalancedPuzzleDataSource "
             "--use-opd --opd-type sglang --opd-kl-coef 1 "
             f"--sglang-router-request-timeout-secs {args.teacher_timeout_seconds} "
-            "--custom-rm-path examples.mopd_puzzles.rollout.reward_func "
+            "--custom-rm-path miles.rollout.on_policy_distillation.reward_func "
             "--custom-reward-post-process-path miles.rollout.on_policy_distillation.post_process_rewards "
             f"--opd-loss-mode {args.loss_mode} --opd-log-prob-top-k {args.candidate_top_k} "
             f"--opd-domain-balance {args.domain_balance} --opd-domain-targets countdown=0.5 graph_color=0.5 "

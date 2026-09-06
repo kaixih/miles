@@ -149,8 +149,8 @@ pure distillation objective; task verifier rewards are used for evaluation.
 The [short-puzzle example](../examples/mopd-puzzles.md) includes a Qwen3.6
 launcher, strict local verifiers, and score/gradient validation. In the current
 Qwen3.6 runtime, small chunked scoring prefills showed replica-dependent scores;
-use the example's validated teacher configuration and scoring checks before
-starting a learning comparison.
+use the example's validated teacher configuration and SGLang's scoring checks
+before starting a learning comparison.
 
 ### Megatron Mode (`--opd-type megatron`)
 

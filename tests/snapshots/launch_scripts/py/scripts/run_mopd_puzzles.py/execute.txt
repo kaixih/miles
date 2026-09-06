@@ -61,7 +61,7 @@ export no_proxy=127.0.0.1 && export PYTHONUNBUFFERED=1 && ray job submit
   --apply-chat-template-kwargs '{"enable_thinking":false}'
   --rollout-skip-special-tokens
   --rollout-shuffle
-  --rollout-function-path examples.mopd_puzzles.rollout.generate_rollout
+  --rollout-function-path miles.rollout.sglang_rollout.generate_rollout
   --num-rollout 50
   --rollout-batch-size 64
   --n-samples-per-prompt 8
