@@ -1,8 +1,13 @@
+"""Adapt Reasoning Gym puzzles to the example's strict answer contract."""
+
 import ast
 import json
 import re
 from collections import Counter
 from fractions import Fraction
+
+from reasoning_gym.algorithmic.graph_color import verify_graph_coloring_solution
+from reasoning_gym.utils import extract_answer as extract_gym_answer
 
 SYSTEM_PROMPT = (
     "Solve the puzzle. Output only one <answer>...</answer> block. " "Do not include reasoning or explanation."
@@ -12,18 +17,17 @@ SYSTEM_PROMPT = (
 def extract_answer(response: str) -> str | None:
     if not isinstance(response, str) or len(response) > 20000:
         return None
-    # Miles can retain Qwen's terminal token in decoded text, while the native
-    # screening API omits it. Normalize that transport difference before scoring.
+    # Qwen can retain its terminal token in decoded text.
     response = response.strip().removesuffix("<|im_end|>").rstrip()
     if "<answer>" not in response and "</answer>" not in response:
         return response.strip()
-    matches = re.findall(r"<answer>(.*?)</answer>", response, flags=re.DOTALL)
-    if len(matches) != 1 or response.count("<answer>") != 1 or response.count("</answer>") != 1:
+    if response.count("<answer>") != 1 or response.count("</answer>") != 1:
         return None
-    return matches[0].strip()
+    return extract_gym_answer(response)
 
 
 def check_countdown(answer: str, numbers: list[int], target: int) -> bool:
+    """Restrict operators and use exact arithmetic, unlike the upstream SymPy scorer."""
     if len(answer) > 256 or not re.fullmatch(r"[\d\s()+*/-]+", answer):
         return False
     used = []
@@ -73,9 +77,9 @@ def check_graph_color(answer: str, puzzle: dict) -> bool:
         colors = json.loads(answer, object_pairs_hook=_unique_object)
         if not isinstance(colors, dict) or set(colors) != {str(v) for v in puzzle["vertices"]}:
             return False
-        if any(type(c) is not int or c not in puzzle["color_options"] for c in colors.values()):
+        if any(type(c) is not int for c in colors.values()):
             return False
-        return all(colors[str(u)] != colors[str(v)] for u, v in puzzle["edges"])
+        return verify_graph_coloring_solution(puzzle, colors)[0]
     except (ValueError, TypeError, RecursionError):
         return False
 

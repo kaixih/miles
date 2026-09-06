@@ -44,7 +44,13 @@ def _row(entry, domain, config_name, split, index):
         prompt=[dict(role="system", content=SYSTEM_PROMPT), dict(role="user", content=problem)],
         label=json.dumps(label),
         metadata=dict(
-            opd_teacher=domain, domain=domain, config=config_name, split=split, source_index=index, puzzle_id=identity
+            opd_teacher=domain,
+            domain=domain,
+            config=config_name,
+            split=split,
+            source_index=index,
+            puzzle_id=identity,
+            reasoning_gym_entry=entry,
         ),
     )
 
