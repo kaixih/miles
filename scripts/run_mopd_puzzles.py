@@ -7,6 +7,10 @@ scoring endpoints; per-position scoring requires the accompanying SGLang patch.
 Args:
     mode: Train a verifier-reward teacher or a distilled student.
     domain: Teacher specialization: countdown or graph_color.
+    actor_gpus: Total learner GPUs, also used as the learner expert-parallel size.
+    actor_num_nodes: Learner nodes, excluding any nodes reserved for external teachers.
+    hf_checkpoint: HF input checkpoint; defaults to Qwen3.6-35B-A3B under model_dir.
+    ref_load: Converted initial Megatron checkpoint; defaults to hf_checkpoint + "_torch_dist".
     teacher_urls: Space-separated NAME=URL routes in student mode.
     colocate: Share the node between learner and rollout engines.
     optimizer_cpu_offload: Trade learner speed for lower GPU memory use.
@@ -20,7 +24,7 @@ Example:
 
 import os
 import shlex
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 import typer
@@ -33,6 +37,8 @@ class ScriptArgs(U.ExecuteTrainConfig):
     mode: Literal["teacher", "student"] = "teacher"
     domain: Literal["countdown", "graph_color"] = "countdown"
     model_dir: str = "/root/models"
+    hf_checkpoint: str | None = None
+    ref_load: str | None = None
     data_dir: str = "/root/datasets/mopd_puzzles"
     checkpoint_dir: str = "/root/checkpoints/mopd_puzzles"
     megatron_path: str = "/root/Megatron-LM"
@@ -44,6 +50,8 @@ class ScriptArgs(U.ExecuteTrainConfig):
     sparse_scoring: bool = True
     cleanup_processes: bool = True
     actor_gpus: int = 8
+    actor_num_nodes: int = 1
+    actor_gpus_per_node: int = field(init=False)
     rollout_gpus: int = 8
     num_rollout: int = 50
     rollout_batch_size: int | None = None
@@ -68,6 +76,15 @@ class ScriptArgs(U.ExecuteTrainConfig):
     extra_args: str = ""
 
     def __post_init__(self):
+        if self.actor_gpus < 1 or self.actor_num_nodes < 1 or self.num_gpus_per_node < 1:
+            raise ValueError("Learner GPU counts and actor_num_nodes must be positive")
+        if self.actor_gpus % self.actor_num_nodes:
+            raise ValueError("actor_gpus must be divisible by actor_num_nodes")
+        self.actor_gpus_per_node = self.actor_gpus // self.actor_num_nodes
+        if self.actor_gpus_per_node > self.num_gpus_per_node:
+            raise ValueError("Learner GPUs per node exceed num_gpus_per_node")
+        self.hf_checkpoint = self.hf_checkpoint or f"{self.model_dir}/Qwen3.6-35B-A3B"
+        self.ref_load = self.ref_load or self.hf_checkpoint + "_torch_dist"
         if self.resident_models and not self.colocate:
             raise ValueError("Resident models require the colocated layout")
         if self.rollout_batch_size is None:
@@ -80,12 +97,11 @@ class ScriptArgs(U.ExecuteTrainConfig):
 
 def _training_args(args: ScriptArgs):
     q = shlex.quote
-    model = f"{args.model_dir}/Qwen3.6-35B-A3B"
     task = {"countdown": "countdown4", "graph_color": "graph12"}[args.domain]
     dataset = f"{task}-train.jsonl" if args.mode == "teacher" else "mixed-train.jsonl"
     run_name = f'{args.mode}-{args.domain if args.mode == "teacher" else args.loss_mode}-{args.run_id}'
     train_args = (
-        f'--hf-checkpoint {q(model)} --ref-load {q(model + "_torch_dist")} '
+        f"--hf-checkpoint {q(args.hf_checkpoint)} --ref-load {q(args.ref_load)} "
         f'--prompt-data {q(args.data_dir + "/" + dataset)} --input-key prompt --label-key label '
         "--metadata-key metadata --apply-chat-template --apply-chat-template-kwargs '{\"enable_thinking\":false}' "
         "--rollout-skip-special-tokens --rollout-shuffle --rollout-function-path miles.rollout.sglang_rollout.generate_rollout "
@@ -102,7 +118,7 @@ def _training_args(args: ScriptArgs):
         f"--use-dynamic-batch-size --max-tokens-per-gpu {args.max_tokens_per_gpu} --balance-data "
         "--attention-dropout 0 --hidden-dropout 0 --accumulate-allreduce-grads-in-fp32 "
         "--attention-softmax-in-fp32 --attention-backend flash --moe-token-dispatcher-type alltoall "
-        f"--actor-num-nodes 1 --actor-num-gpus-per-node {args.actor_gpus} "
+        f"--actor-num-nodes {args.actor_num_nodes} --actor-num-gpus-per-node {args.actor_gpus_per_node} "
         f"--num-gpus-per-node {args.num_gpus_per_node} "
         f"--rollout-num-gpus-per-engine {args.rollout_gpus} --sglang-ep-size {args.rollout_gpus} "
         f"--sglang-mem-fraction-static 0.65 --sglang-max-running-requests {128 if args.resident_models else 256} "

@@ -92,6 +92,79 @@ For an existing Ray cluster, set `MILES_SCRIPT_EXTERNAL_RAY=1` and pass
 `--no-cleanup-processes`. W&B authentication uses `NETRC`; `--wandb-project` and
 `--wandb-team` set its destination.
 
+### Multi-node GB200 student
+
+On four-GPU GB200 nodes, place the student learner and rollout engine across
+**two nodes**, and serve the two frozen TP1 teachers on two GPUs of a third node.
+Join only the student nodes to Ray, each advertising four GPUs; the teacher node
+stays outside that cluster and is reached through its HTTP endpoints. The launcher
+submits to the existing cluster; it does not allocate nodes or join Ray workers.
+
+Use the same Miles/Megatron sources and input paths on both student nodes. Convert
+the initial HF checkpoint with `tools/convert_hf_to_torch_dist.py` and the
+`qwen3.6-35B-A3B` model definition before training. Confirm that
+`latest_checkpointed_iteration.txt` contains `release`, and make the **complete**
+converted checkpoint available on both nodes. Identical node-local paths do not
+imply shared storage. The HF input, converted input, and training outputs may live
+separately through `--hf-checkpoint`, `--ref-load`, and `--checkpoint-dir`.
+
+Set `MASTER_ADDR` to the student Ray head's reachable IP. Set `RAY_ADDRESS` if
+its dashboard does not use the default local port 8265. After starting and
+checking both teacher servers as above, submit from that head:
+
+```bash
+MILES_SCRIPT_EXTERNAL_RAY=1 NCCL_NVLS_ENABLE=0 \
+python scripts/run_mopd_puzzles.py --mode student \
+  --num-nodes 2 --actor-num-nodes 2 --num-gpus-per-node 4 \
+  --actor-gpus 8 --rollout-gpus 8 \
+  --hf-checkpoint /root/models/Qwen3.6-35B-A3B \
+  --ref-load /root/models/Qwen3.6-35B-A3B_torch_dist \
+  --data-dir /root/datasets/mopd_puzzles --checkpoint-dir /scratch/mopd/checkpoints \
+  --teacher-urls 'countdown=http://teacher-node:30000/generate graph_color=http://teacher-node:30001/generate' \
+  --candidate-top-k 16 --loss-mode topk-candidate --reward-refresh \
+  --domain-balance static --resident-models --no-cleanup-processes \
+  --num-rollout 40 --rollout-batch-size 128 --n-samples-per-prompt 1 \
+  --global-batch-size 128 --eval-interval 10 --save-interval 40 \
+  --extra-args '--sglang-device cuda --sglang-moe-runner-backend triton'
+```
+
+`--actor-gpus` is the total across learner nodes: this gives four learner GPUs per
+node, learner TP1/EP8, and one TP8/EP8 rollout engine spanning both nodes.
+`--actor-num-nodes` selects learner placement; `--num-nodes` sets the inherited
+cluster node count instead of inferring it from an allocation that also contains
+teachers. The launcher checks positive counts, divisibility, and per-node capacity.
+Input overrides are optional: by default the HF input remains under `--model-dir`,
+and `--ref-load` defaults to the resolved HF path with `_torch_dist` appended.
+The objective is unchanged. With 128 responses per rollout and global batch 128,
+microbatches accumulate gradients within one optimizer update per rollout.
+
+The recorded 40-update GB200 run used an ARM64 Miles runtime, BF16, SGLang
+`37c72e91762789bc39ab5fcef534375f81bfca6b`, and NCCL runtime **2.31.2** with
+`NCCL_NVLS_ENABLE=0`. Qualify these dependencies in the actual training containers:
+
+- Keep the teacher scoring prerequisites and prefill flags above. Selecting the
+  student MoE backend does not replace the SGLang scoring fixes.
+- Explicit CUDA avoids device auto-detection in a CPU-only Ray launch manager.
+  Triton avoids the packed expert-weight layout used by plain
+  `flashinfer_trtllm` in the tested stack, which failed learner-to-rollout weight
+  synchronization despite working for initial inference. Check weight refresh
+  and inference with the actual TP8/EP8 layout; no SGLang source patch was needed
+  for this Triton workaround.
+- Verify the **loaded** NCCL runtime, not only package or compile-time versions.
+  Check cross-node collectives, including CUDA-graph replay, before training.
+  If Gloo selects loopback, set `GLOO_SOCKET_IFNAME` to a reachable interface on
+  each student node; do not reuse another cluster's interface name blindly.
+- For containers without a writable home, set `CUPY_CACHE_DIR`,
+  `TILELANG_CACHE_DIR`, and `TILELANG_TMP_DIR` to writable run-local paths before
+  checkpoint conversion and Ray startup. Ensure learner workers receive them;
+  `--extra-env-vars` accepts a JSON object for explicit worker environment values.
+  Keep the runtime user and cache locations consistent across nodes.
+- If using W&B, make the restricted `NETRC` file available at the same configured
+  path in both student containers. The launcher forwards its path, not its contents.
+
+The GPU run used the earlier example revision `fa3783be`; these placement/path
+changes are carried onto the simplified example without a new GPU training run.
+
 ## Evaluate with Miles
 
 Use the same launcher with zero rollouts to evaluate an existing TP1 server.
