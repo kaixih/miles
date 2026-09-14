@@ -1,0 +1,148 @@
+# syntax=docker/dockerfile:1
+# Experimental core Miles / Megatron BF16 image for Vera Rubin (linux/arm64).
+# Build from the Miles repository root; see docker/README.rubin.md for scope.
+ARG SGLANG_IMAGE=lmsysorg/sglang:nightly-cu134-20260911-a4ff563@sha256:4af3254b070e087afdf8cabebe895132bb4d1d6cf6fd5b5c60f0a3da07c1b468
+FROM ${SGLANG_IMAGE}
+
+SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
+ARG TARGETARCH
+ARG MAX_JOBS=8
+ARG NVCC_THREADS=2
+ARG TE_COMMIT=5e52befd5262c06289106338c308079d6adb391f
+ARG APEX_COMMIT=10417aceddd7d5d05d7cbf7b0fc2daad1105f8b4
+ARG FA2_COMMIT=a8aa52b1ab3e9ca574c8a33b3f35afc017ffa2e2
+ARG SGLANG_COMMIT=aea7fb92c047c9c096eae66460acb25dec9ae5a9
+ARG MEGATRON_COMMIT=73b54618f7e58e0f25f619bcfecbe2640765475a
+
+ENV CUDA_HOME=/usr/local/cuda \
+    TORCH_CUDA_ARCH_LIST=10.7 \
+    MAX_JOBS=${MAX_JOBS} \
+    NVCC_THREADS=${NVCC_THREADS} \
+    CPLUS_INCLUDE_PATH=/usr/local/cuda/include/cccl \
+    C_INCLUDE_PATH=/usr/local/cuda/include/cccl \
+    PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/nightly/cu134 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN test "$(uname -m)" = aarch64 && \
+    apt-get update && apt-get install -y --no-install-recommends \
+      build-essential cmake ninja-build git curl ca-certificates patch \
+      python3.12-dev libnuma-dev libopenmpi-dev libibverbs-dev \
+      rsync tmux dnsutils ethtool && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY docker/rubin_build.py docker/verify_rubin_build.py /opt/miles-rubin/
+# Capture native dist versions BEFORE running a dependency resolver.
+RUN python3 /opt/miles-rubin/rubin_build.py snapshot
+ENV PIP_CONSTRAINT=/opt/miles-rubin/native-constraints.txt
+RUN python3 -m pip install 'setuptools<80' wheel packaging pybind11 ninja cmake \
+      'nvidia-cudnn-frontend==1.28.0' einops onnx onnxscript pydantic nvdlfw-inspect
+
+# Torch's extension headers include cuDNN directly. The pip cuDNN layout is
+# outside the system compiler's default search paths in this pinned base.
+ENV CUDNN_PATH=/opt/sglang/lib/python3.12/site-packages/nvidia/cudnn
+ENV CPLUS_INCLUDE_PATH=/usr/local/cuda/include/cccl:${CUDNN_PATH}/include \
+    C_INCLUDE_PATH=/usr/local/cuda/include/cccl:${CUDNN_PATH}/include \
+    LIBRARY_PATH=${CUDNN_PATH}/lib
+
+# Build TE 2.19 in this exact Torch environment, targeting Rubin only. Its CMake
+# accepts 107a for both ordinary and architecture-specific sources. NCCL-EP is
+# optional and off here. Miles' TE2.17 source patches are already upstream.
+RUN --mount=type=cache,id=miles-te-${TE_COMMIT}-torch215-cu134,target=/opt/build/te,sharing=locked \
+    if ! test -d /opt/build/te/src/.git; then \
+      python3 /opt/miles-rubin/rubin_build.py checkout \
+        https://github.com/NVIDIA/TransformerEngine.git /opt/build/te/src ${TE_COMMIT}; \
+    fi && \
+    test "$(git -C /opt/build/te/src rev-parse HEAD)" = "${TE_COMMIT}" && \
+    test -z "$(git -C /opt/build/te/src diff --name-only HEAD)" && \
+    python3 -m pip uninstall -y transformer-engine transformer-engine-cu12 \
+      transformer-engine-cu13 transformer-engine-torch && \
+    NVTE_FRAMEWORK=pytorch NVTE_CUDA_ARCHS=107a NVTE_WITH_NCCL_EP=0 \
+      python3 -m pip install /opt/build/te/src --no-deps --no-build-isolation -v
+
+# Apex is rebuilt rather than using the cu130/Torch2.13 Miles wheel.
+RUN python3 /opt/miles-rubin/rubin_build.py checkout \
+      https://github.com/NVIDIA/apex.git /opt/build/apex ${APEX_COMMIT} && \
+    python3 /opt/miles-rubin/rubin_build.py patch-apex /opt/build/apex && \
+    APEX_CPP_EXT=1 APEX_CUDA_EXT=1 \
+      NVCC_APPEND_FLAGS="--threads ${NVCC_THREADS}" \
+      python3 -m pip install /opt/build/apex --no-deps --no-build-isolation -v && \
+    rm -rf /opt/build/apex
+
+# FA2 2.8.3.post1: explicit SM107 target and C++20 for Torch2.15 headers.
+# FA3's Hopper-only wheel is intentionally absent.
+RUN python3 /opt/miles-rubin/rubin_build.py checkout \
+      https://github.com/Dao-AILab/flash-attention.git /opt/build/fa2 ${FA2_COMMIT} && \
+    python3 /opt/miles-rubin/rubin_build.py patch-fa2 /opt/build/fa2 && \
+    FLASH_ATTENTION_FORCE_BUILD=TRUE FLASH_ATTN_CUDA_ARCHS=100 \
+      python3 -m pip install /opt/build/fa2 --no-deps --no-build-isolation -v && \
+    rm -rf /opt/build/fa2
+
+RUN python3 /opt/miles-rubin/rubin_build.py checkout \
+      https://github.com/radixark/Megatron-LM.git /opt/Megatron-LM ${MEGATRON_COMMIT} && \
+    python3 -m pip install -e /opt/Megatron-LM --no-deps --no-build-isolation && \
+    python3 -m pip install --no-deps --no-build-isolation \
+      git+https://github.com/ISEEKYAN/mbridge.git@89eb10887887bc74853f89a4de258c0702932a1c && \
+    TMS_CUDA_MAJOR=13 python3 -m pip install --force-reinstall --no-deps --no-build-isolation \
+      git+https://github.com/fzyzcjy/torch_memory_saver.git@f05a8754daf68238d54e4cf31cb3ba866684bbaf
+
+# Megatron's build metadata requires setuptools<80. Restore a runtime version
+# that satisfies the inherited ModelOpt>=80 requirement and keeps pkg_resources.
+RUN python3 -m pip install --no-deps setuptools==80.9.0
+
+# Keep the Miles SGLang behavior, while retaining all cu134 native components.
+# Reconcile its dependency metadata before the editable install; a plain checkout
+# restores the ordinary cu130/Torch2.13 pins.
+RUN if git -C /sgl-workspace/sglang config --local --get-all 'http.https://github.com/.extraheader' >/dev/null; then \
+      git -C /sgl-workspace/sglang config --local --unset-all 'http.https://github.com/.extraheader'; \
+    fi && \
+    git -C /sgl-workspace/sglang remote set-url origin https://github.com/sgl-project/sglang.git && \
+    python3 /opt/miles-rubin/rubin_build.py checkout-sglang ${SGLANG_COMMIT} && \
+    SGLANG_BUILD_RUST_EXTS=none python3 -m pip install \
+      -e '/sgl-workspace/sglang/python[all]' --no-deps --no-build-isolation
+
+# Explicit Torch spec keeps pip's prerelease filtering from discarding the
+# already-installed nightly while resolving ordinary requirements such as ray.
+COPY requirements.txt /opt/miles-rubin/miles-requirements.txt
+RUN python3 -m pip install 'torch==2.15.0.dev20260818+cu134' \
+      'setuptools==80.9.0' -r /opt/miles-rubin/miles-requirements.txt && \
+    python3 /opt/miles-rubin/rubin_build.py verify-native
+
+# The inherited FA4 beta imports CuTe APIs removed by Rubin's DSL4.8. TE eagerly
+# imports any installed FA4, even when its runtime backend is disabled. This
+# core image uses cuDNN/FA2 training and FlashInfer rollout instead.
+RUN python3 - <<'PY'
+import difflib
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+path = Path('/sgl-workspace/sglang/python/pyproject.toml')
+original = path.read_text()
+requirement = '  "flash-attn-4>=4.0.0b18",\n'
+assert original.count(requirement) == 1, 'Inspect the pinned SGLang FA4 dependency'
+updated = original.replace(requirement, '')
+path.write_text(updated)
+Path('/opt/miles-rubin/sglang-no-fa4.patch').write_text(''.join(difflib.unified_diff(
+    original.splitlines(keepends=True), updated.splitlines(keepends=True),
+    fromfile='a/python/pyproject.toml', tofile='b/python/pyproject.toml',
+)))
+subprocess.check_call([sys.executable, '-m', 'pip', 'uninstall', '-y', 'flash-attn-4'])
+subprocess.check_call([
+    sys.executable, '-m', 'pip', 'install', '-e', '/sgl-workspace/sglang/python[all]',
+    '--no-deps', '--no-build-isolation',
+], env={**os.environ, 'SGLANG_BUILD_RUST_EXTS': 'none'})
+PY
+
+# Install this branch's working tree, so the resulting image contains the
+# actual proposed changes instead of cloning Miles main during the build.
+COPY . /opt/miles
+COPY docker/verify_rubin.py docker/verify_rubin_rollout.py docker/verify_rubin_attention.py /opt/miles-smoke/
+WORKDIR /opt/miles
+RUN python3 -m pip install -e . --no-deps --no-build-isolation && \
+    python3 /opt/miles-rubin/verify_rubin_build.py && \
+    python3 -m pip freeze > /opt/miles-rubin/final-freeze.txt
+
+LABEL ai.miles.hardware="Vera Rubin SM107 / aarch64" \
+      ai.miles.support="experimental core Megatron BF16; see docker/README.rubin.md"
+CMD ["/bin/bash"]
