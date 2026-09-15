@@ -5,17 +5,20 @@ two nodes with four visible Rubin GPUs each. It configures the ordinary synchron
 `train.py` driver for two complete rollout / Megatron optimizer / weight-update
 iterations. The second rollout therefore consumes weights from the first update.
 
-Full validation remains in progress on job `2179787`. Attempt 2 used cross-node
-`P2P/MNNVL`, completed initial weight synchronization in about 7.7 seconds, and
-generated all 16 rollout-0 samples in 24.7376 seconds. Its first training backward
-failed in TE/cuDNN with `No valid execution plans built`; Ray reported `FAILED`.
+**PASS:** attempt 3 completed both iterations on eight SM10.7 GPUs across two
+nodes, confirmed at 2026-09-15 01:12:12 UTC. Both rollouts generated 16 samples; all eight
+ranks completed a valid optimizer step in each iteration and all three weight
+synchronizations. Ray reported `SUCCEEDED`, and both launcher exit records were
+zero. This validates BF16 training with TP2/PP1/CP1/EP8, two TP4 SGLang engines,
+and the existing colocate/offload schedule over cross-node MNNVL.
 
-The current recipe selects FlashAttention 2 through TE and includes a narrowly
-scoped SM107 compatibility patch. Direct FA2 and TE-wrapped forward/backward
-probes passed, including in the new standalone image. Attempt 3 is running
-with that image; two complete rollout/train/weight-update iterations
-and Ray `SUCCEEDED` are still required. See [RESULTS.md](RESULTS.md) for evidence
-and the distinction between kernel validation and full-run completion.
+The passing recipe uses FlashAttention 2 through TE with the scoped SM107 patch
+below. Rollouts 0 and 1 took 23.8681 and 10.7653 seconds, using weight versions 1
+and 2. All responses hit the 256-token limit; rewards and gradient norms were
+zero. This establishes execution, without claiming learning or parameter-value
+changes. See [validation-summary.json](validation-summary.json) for the compact
+result and [RESULTS.md](RESULTS.md) for proof, runtime source/image identities,
+and the retained earlier failures.
 
 ## Preserved images
 
@@ -144,7 +147,7 @@ patch. The pinned TMS preload intercepts `cudaMalloc/cudaFree`, so NCCL's
 `cuMem*` allocations bypass its allocation tracking; Miles also destroys its
 reloadable NCCL process groups before pausing training memory.
 See the [TMS hooks](https://github.com/fzyzcjy/torch_memory_saver/blob/f05a8754daf68238d54e4cf31cb3ba866684bbaf/csrc/entrypoint.cpp#L55).
-Complete offload/onload and training continuity still require the full run.
+The completed two-iteration run exercised this offload/onload schedule.
 
 ## Changes from the existing example
 
@@ -168,11 +171,10 @@ schedule under `--colocate` is retained, as are real backward/optimizer and weig
 synchronization operations. W&B is off by default and can be enabled with
 `--enable-wandb` using the existing Miles helper.
 
-Short responses may receive zero math reward; this run establishes execution,
-not learning quality. Success requires both rollout IDs to finish generation,
-finite training metrics and optimizer steps, and weight updates after each step,
-with the Ray job exiting successfully. An import test or a successful first
-generation alone is insufficient.
+For a rerun, require both rollout IDs to finish generation, finite training
+metrics and valid optimizer steps on every rank, all three weight
+synchronizations, and Ray `SUCCEEDED` plus launcher exit 0. Weight version
+increments alone do not establish that parameter values changed.
 
 The pinned SGLang hybrid-GDN guard treats SM major 10 as Blackwell and rejects
 the `flashinfer` full-attention backend for this model. This recipe therefore
@@ -230,8 +232,8 @@ ports span 26400–26999 to accommodate worker startup. Each status probe has a
 Local validation: Python syntax checks and an isolated recording of the resolved
 training argv passed; the recording used stubbed command execution and did not
 start Ray or GPUs. The image also passed `train.py --help` and the launcher's
-`--print-only` check. Full GPU execution remains in progress as described above; the
-full Miles launcher test suite has not been run for this recipe.
+`--print-only` check. The full two-node GPU run passed as recorded in RESULTS;
+the full Miles launcher test suite has not been run for this recipe.
 
 `launch_plan.json`, if present in a working copy, is an early review artifact,
 not the execution record: it omits the cluster environment and source identity.

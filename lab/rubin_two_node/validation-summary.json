@@ -1,0 +1,120 @@
+{
+  "status": "PASS",
+  "scope": "Two-node, eight-GPU BF16 Qwen3.5-35B-A3B execution smoke: two rollout/train/weight-sync iterations.",
+  "completed_at": "2026-09-15T01:12:08.965000+00:00",
+  "runtime_source_commit": "7ada69f96ee7678d81bc98881386117f793d050a",
+  "image": {
+    "repository": "gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin",
+    "tag": "qwen35-fa2-cu134-20260915",
+    "manifest_digest": "sha256:a03106bdd90c5d6067fbff246fff25df979f9da8486eb0dac795a315a2346d6c",
+    "image_id": "sha256:3054a5be3f8233acac5e91c700803b3aeb1bd4ed6d1d792f2981091727b1efaf"
+  },
+  "allocation": {
+    "job_id": 2179787,
+    "nodes": [
+      "vr-nvl72-ts2-l11-038-c17",
+      "vr-nvl72-ts2-l11-038-c18"
+    ],
+    "gpus_per_node": 4,
+    "compute_capability": "10.7"
+  },
+  "ray": {
+    "submission_id": "raysubmit_8Q9uwHZXQjqUKhhL",
+    "status": "SUCCEEDED",
+    "launcher_exit_code": 0,
+    "orchestrator_exit_code": 0,
+    "api_exit_code": null
+  },
+  "mnnvl": {
+    "standalone_numerical_gate": "PASS",
+    "training_mnnvl_log_lines": 6144,
+    "cross_node_ring_edge_log_lines": 640,
+    "socket_data_edges": 0,
+    "nccl_warn_lines": 0,
+    "NCCL_CUMEM_ENABLE": 1,
+    "NCCL_NVLS_ENABLE": 0,
+    "fabric_health": "Limited Capacity / Bandwidth Degraded; timings are not a performance baseline"
+  },
+  "rollouts": [
+    {
+      "rollout": 0,
+      "samples": 16,
+      "generation_seconds": 23.868077993392944,
+      "weight_version": 1.0,
+      "response_length_mean": 256.0,
+      "reward": 0.0,
+      "optimizer_marker_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "step_outcome": "NORMAL",
+      "valid_step": true,
+      "loss": 0.0,
+      "grad_norm": 0.0,
+      "logprob_abs_diff": 0.011050954461097717,
+      "train_rollout_kl": 0.0005785448011010885
+    },
+    {
+      "rollout": 1,
+      "samples": 16,
+      "generation_seconds": 10.765292167663574,
+      "weight_version": 2.0,
+      "response_length_mean": 256.0,
+      "reward": 0.0,
+      "optimizer_marker_ranks": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "step_outcome": "NORMAL",
+      "valid_step": true,
+      "loss": 0.0,
+      "grad_norm": 0.0,
+      "logprob_abs_diff": 0.013166152872145176,
+      "train_rollout_kl": 0.000734147964976728
+    }
+  ],
+  "weight_sync": {
+    "phases": [
+      "initial",
+      "after_rollout_0",
+      "after_rollout_1"
+    ],
+    "successful_completions_per_rank": {
+      "0": 3,
+      "1": 3,
+      "2": 3,
+      "3": 3,
+      "4": 3,
+      "5": 3,
+      "6": 3,
+      "7": 3
+    },
+    "order_verified": true
+  },
+  "fatal_marker_count": 0,
+  "evidence": {
+    "run_directory": "/home/scratch.kaixih_ent/repro/miles-rubin-two-node/20260914-j2179787",
+    "log": "logs/qwen35_train.log",
+    "log_sha256": "23a321c10fb40de05a38578d8f45a479d7ce1fa940c952dd265e74900e8b3738",
+    "detailed_validation": "evidence-attempt3-fa2.json",
+    "ray_status": "ray-job-attempt3-fa2.json",
+    "source_identity": "recipe-commit-attempt3-fa2.json"
+  },
+  "limitations": [
+    "All responses hit the 256-token limit; rewards, advantages, losses and gradient norms were zero.",
+    "Backward and optimizer execution passed; parameter-value changes and useful RL learning were not established.",
+    "Validated recipe uses TE FA2 with the scoped SM107 patch and Triton MoE/GDN; it does not establish support for other backends, precisions or packing layouts."
+  ]
+}

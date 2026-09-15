@@ -1,9 +1,46 @@
 # Two-node Rubin validation
 
-Registry preservation, MNNVL communication, and the scoped FA2 kernel checks
-passed. Attempt 2 failed during the first training backward after a successful
-rollout. Attempt 3 is running with the FA2 fix; the two-iteration
-Qwen3.5 run has not yet passed.
+**PASS:** attempt 3 completed the two-iteration Qwen3.5-35B-A3B Miles run,
+confirmed at 2026-09-15 01:12:12 UTC. The validated configuration is two nodes with four
+SM10.7 GPUs each, BF16 training TP2/PP1/CP1/EP8, two TP4 SGLang rollout engines,
+real HF/checkpoint loading, and colocate/offload with cross-node MNNVL.
+The compact result is in [validation-summary.json](validation-summary.json).
+
+## Final execution evidence
+
+| Rollout | Generated samples | Generation time | Served weight version | Valid optimizer-step ranks |
+| --- | --- | --- | --- | --- |
+| 0 | 16 | 23.8680779934 s | 1 | 0–7 |
+| 1 | 16 | 10.7652921677 s | 2 | 0–7 |
+
+Each rank logged `outcome=NORMAL valid_step=true` for both optimizer steps.
+Rank-0 training metrics were finite. Each of the eight ranks completed three
+`update_weights` calls with `ok=true`: initial synchronization, after rollout 0,
+and after rollout 1. The evidence collector reported `log_evidence_status=complete`,
+`all_required_log_evidence_present=true`, zero fatal markers, and zero rejected
+events.
+
+Across the final run and communicator reloads, the training log contained 6,144
+`P2P/MNNVL` lines, including 640 explicit cross-node ring-edge lines for
+3→4 and 7→0. There were zero Socket data edges and zero NCCL warning lines.
+These are log-line counts across repeated communicator creation, not counts of
+unique physical links.
+
+Ray API job `raysubmit_8Q9uwHZXQjqUKhhL` reported `SUCCEEDED`. Both the outer
+launcher exit file and `train_exit.json` recorded exit 0. The API's separate
+`exit_code` field was unavailable (`null`), so the exit-code evidence comes from
+those two files.
+
+All responses reached 256 tokens, all math rewards were zero, and both training
+gradient norms were zero. This proves the rollout/backward/optimizer/offload/
+weight-synchronization workflow executed; it does not establish learning or
+changes to parameter values.
+
+Runtime source commit was `7ada69f96ee7678d81bc98881386117f793d050a`;
+`recipe-commit-attempt3-fa2.json` confirms all five recorded runtime file hashes
+matched that commit. The final training log SHA256 is
+`23a321c10fb40de05a38578d8f45a479d7ce1fa940c952dd265e74900e8b3738`.
+The run used the FA2 image digest below.
 
 ## Preserved containers
 
@@ -24,7 +61,7 @@ the Torch ABI remain unchanged; no native libraries were recompiled.
 
 ## MNNVL: PASS
 
-Job `2179787` holds `vr-nvl72-ts2-l11-038-c17` and `c18`, four SM10.7 GPUs each.
+Job `2179787` used `vr-nvl72-ts2-l11-038-c17` and `c18`, four SM10.7 GPUs each.
 The unchanged `mnnvl-comm-smoke` launcher and Python test at commit
 `36b106a4a2135e3267541610376af908fbb0b5cc` ran one Pyxis rank per GPU.
 `NCCL_MNNVL_ENABLE` was unset and `NCCL_NVLS_ENABLE=0`.
@@ -49,7 +86,7 @@ Runtime checks verified Python `/opt/sglang/bin/python3`, Torch
 Both Pyxis and Docker writer probes used UID28644:GID30; the normal user could
 read and delete container-created shared output. All probe artifacts were removed.
 
-## Qwen3.5 execution: not yet complete
+## Earlier attempts and fixes
 
 The recipe uses 32 Ray CPUs and four GPUs per node, with 600 worker ports.
 An earlier bootstrap exhausted its original 200-port range when Ray detected
@@ -67,8 +104,9 @@ colocate/offload configuration:
 
 - The checkpoint loaded and resharded from TP1/PP8 to TP2/PP1; both SGLang engines
   loaded real HF weights and became healthy.
-- Actual training communicators reported 256 `P2P/MNNVL` edges, including
+- Initial training communicator logs contained 256 `P2P/MNNVL` edges, including
   cross-node 3→4 and 7→0, with no Socket edges or NCCL warnings.
+  This is an initialization count, not a total across later communicator reloads.
 - Initial weight synchronization completed all 132 buckets in about 7.7 seconds.
 - Rollout 0 generated all 16 samples in 24.7376 seconds using weight version 1.
   Responses reached the 256-token limit and math rewards were zero.
@@ -103,12 +141,9 @@ additional dummy sequence. TE therefore infers `pad_between_seqs=False`.
 An explicit gap-padding probe returned `NoBackend`, an unsupported boundary
 retained by the patch. No extra packing change is required for this recipe.
 
-Attempt 3 retains real HF loading, the same model/layout/offload, and cuMem/MNNVL
-settings, changing the image and training attention backend. Success still
-requires both rollout IDs, completed backward/optimizer steps with finite
-metrics, initial plus two post-training weight synchronizations, and Ray
-`SUCCEEDED`. Zero reward or zero gradient must not be reported as evidence that
-parameter values changed or learning improved.
+Attempt 3 retained real HF loading, the same model/layout/offload and cuMem/MNNVL
+settings, changing the image and training attention backend. Its full-run PASS
+is documented above; the gap-padding boundary remains outside this recipe.
 
 ## Durable evidence
 
@@ -118,6 +153,13 @@ All detailed logs are under:
 
 Key evidence includes:
 
+- `evidence-attempt3-fa2.json`: per-rollout/per-rank completion checks and proof excerpts.
+- `ray-job-attempt3-fa2.json`, `train-launcher-attempt3-fa2.exit`, and
+  `train_exit.json`: Ray `SUCCEEDED` and independent zero launcher exits.
+- `logs/qwen35_train.log`: final successful attempt, with SHA256 recorded above.
+- `recipe-commit-attempt3-fa2.json` and `recipe-source-attempt3-fa2.json`:
+  exact runtime source identity and file hashes.
+- `attention-probe-final-image.log`: numerical probes in the independently built image.
 - `mnnvl-default.log` and `mnnvl-default-summary.json`: eight-GPU communication gate.
 - `logs/qwen35_train-attempt1-socket.log` and `ray-job-attempt1-socket.json`:
   intentionally stopped first attempt.
@@ -127,8 +169,7 @@ Key evidence includes:
 - `attention_probe.py`, `attention-probe-direct-fa2.log`,
   `attention-probe-te-flash-before-patch.log`, and
   `attention-probe-te-flash-patched.log`: numerical probes and backend selection.
-- `bootstrap.json`, `logs/qwen35_train.log`, and eventual `train_exit.json`:
-  current attempt; inspect Ray job status as well as the launcher exit code.
+- `bootstrap.json`: final two-node container and Ray setup.
 
 Original image build and push logs are in the sibling experiment
 `/home/scratch.kaixih_ent/repro/miles-rubin-container/20260914-j2170666`.
