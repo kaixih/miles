@@ -1,5 +1,9 @@
 # Qwen3.5 on two Rubin nodes
 
+For the newer **single-node Qwen3-30B-A3B GSM8K comparison using Miles on
+Rubin and GB300**, see [QWEN3_GSM8K.md](QWEN3_GSM8K.md). The results below remain
+the earlier two-node Qwen3.5 functional experiments.
+
 This is a short adaptation of Miles `scripts/run_qwen3_5_35b_a3b_mtp.py` for
 two nodes with four visible Rubin GPUs each. It configures the ordinary synchronous
 `train.py` driver for two complete rollout / Megatron optimizer / weight-update

@@ -10,7 +10,8 @@ Example:
   python3 orchestrate_rubin.py bootstrap --nodes NODE_C17 NODE_C18
   python3 orchestrate_rubin.py train --nodes NODE_C17 NODE_C18 --gate-log GATE_LOG
 
-bootstrap starts Ray only. train requires a successful eight-rank MNNVL log.
+bootstrap starts Ray only. train requires a successful communication log for
+the selected GPU count, including MNNVL transport when using two nodes.
 No allocation, checkpoint download, image build, or existing-container cleanup
 is performed. All created persistent output uses the host user's UID/GID.
 """
@@ -30,8 +31,8 @@ from pathlib import Path
 def _parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["plan", "bootstrap", "status", "train"])
-    parser.add_argument("--nodes", nargs=2, required=True, metavar=("HEAD_NODE", "WORKER_NODE"))
-    parser.add_argument("--node-ips", nargs=2, default=["10.102.74.84", "10.102.74.85"])
+    parser.add_argument("--nodes", nargs="+", required=True, metavar="NODE")
+    parser.add_argument("--node-ips", nargs="+", default=["10.102.74.84", "10.102.74.85"])
     parser.add_argument("--job-id", default="2179787")
     parser.add_argument("--uid", type=int, default=28644)
     parser.add_argument("--gid", type=int, default=30)
@@ -47,6 +48,8 @@ def _parser():
     parser.add_argument("--container-prefix", default="miles-rubin-qwen35-j2179787")
     parser.add_argument("--gate-log", type=Path)
     parser.add_argument("--num-rollout", type=int, default=2)
+    parser.add_argument("--recipe", choices=["qwen35-smoke", "qwen3-gsm8k"], default="qwen35-smoke",
+                        help="Training recipe; the GSM8K recipe uses the Qwen3 baseline model")
     parser.add_argument("--launcher-args", default="",
                         help="Additional shell-quoted arguments forwarded to the training launcher")
     parser.add_argument("--env", action="append", default=[], metavar="KEY=VALUE",
@@ -125,10 +128,13 @@ def _ray(args, rank):
 
 
 def _training_command(args):
+    launcher = ("run_qwen3_30b_a3b_gsm8k_rubin.py" if args.recipe == "qwen3-gsm8k"
+                else "run_qwen3_5_35b_a3b_rubin.py")
     return ["docker", "exec", _name(args, 0), "python3",
-            "/opt/miles/lab/rubin_two_node/run_qwen3_5_35b_a3b_rubin.py",
+            f"/opt/miles/lab/rubin_two_node/{launcher}",
             "--model-dir", args.models, "--data-dir", args.models,
             "--output-dir", "/run-output", "--megatron-path", "/opt/Megatron-LM",
+            "--num-nodes", str(len(args.nodes)),
             "--num-rollout", str(args.num_rollout), *shlex.split(args.launcher_args)]
 
 
@@ -206,7 +212,7 @@ def _cluster_status(args):
 ray.init(address=ADDRESS,logging_level='ERROR')
 nodes=[{'ip':n['NodeManagerAddress'],'gpus':n['Resources'].get('GPU',0)} for n in ray.nodes() if n['Alive']]
 print(json.dumps({'nodes':nodes,'resources':ray.cluster_resources()},sort_keys=True))
-assert sorted((n['ip'],n['gpus']) for n in nodes)==sorted(EXPECTED), 'Expected exactly two four-GPU nodes'
+assert sorted((n['ip'],n['gpus']) for n in nodes)==sorted(EXPECTED), 'Unexpected Ray node/GPU layout'
 """.replace("ADDRESS", repr(f"{args.node_ips[0]}:{args.ray_port}")).replace("EXPECTED", repr([(ip, 4) for ip in args.node_ips]))
     return _ssh(args.nodes[0], ["docker", "exec", _name(args, 0), "timeout", "--kill-after=5s", "40s",
                                "python3", "-c", code], capture=True, check=False)
@@ -215,7 +221,7 @@ assert sorted((n['ip'],n['gpus']) for n in nodes)==sorted(EXPECTED), 'Expected e
 def _bootstrap(args):
     _check_allocation(args)
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-        image_ids = list(pool.map(lambda rank: _prepare_node(args, rank), range(2)))
+        image_ids = list(pool.map(lambda rank: _prepare_node(args, rank), range(len(args.nodes))))
     if len(set(image_ids)) != 1:
         raise RuntimeError(f"The two nodes resolved different images: {image_ids}")
     for rank, node in enumerate(args.nodes):
@@ -234,21 +240,25 @@ def _bootstrap(args):
                 "cache_dir_per_node": args.cache_dir, "uid": args.uid, "gid": args.gid,
                 "state": "ray_ready_training_not_started"}
     Path(args.run_dir, "bootstrap.json").write_text(json.dumps(metadata, indent=2) + "\n")
-    print("RAY_READY_8_GPUS; training has not been started", flush=True)
+    print(f"RAY_READY_{len(args.nodes) * 4}_GPUS; training has not been started", flush=True)
 
 
 def _train(args):
     _check_allocation(args)
     if args.gate_log is None:
-        raise RuntimeError("train requires --gate-log from the successful eight-rank MNNVL check")
+        raise RuntimeError("train requires --gate-log from a successful communication check")
     text = args.gate_log.read_text(errors="replace")
-    for marker in ["ALLREDUCE_OK", "P2P/MNNVL", "world=8"]:
+    markers = ["ALLREDUCE_OK", f"world={len(args.nodes) * 4}"]
+    if len(args.nodes) > 1:
+        markers.append("P2P/MNNVL")
+    for marker in markers:
         if marker not in text:
             raise RuntimeError(f"Communication log lacks {marker!r}: {args.gate_log}")
     result = _cluster_status(args)
     if result.returncode:
         raise RuntimeError(result.stderr + result.stdout)
-    log_path = Path(args.run_dir, "logs", "qwen35_train.log")
+    log_name = "qwen3_train.log" if args.recipe == "qwen3-gsm8k" else "qwen35_train.log"
+    log_path = Path(args.run_dir, "logs", log_name)
     command = ["ssh", "-o", "BatchMode=yes", args.nodes[0], shlex.join(_training_command(args))]
     print("+ " + shlex.join(command), flush=True)
     with log_path.open("x") as log:
@@ -264,6 +274,10 @@ def _train(args):
 
 def main():
     args = _parser().parse_args()
+    if len(args.nodes) not in {1, 2} or len(args.nodes) != len(args.node_ips):
+        raise ValueError("Provide one or two nodes and one IP per node")
+    if args.recipe == "qwen35-smoke" and len(args.nodes) != 2:
+        raise ValueError("The Qwen3.5 smoke recipe requires two nodes")
     for value in args.node_ips:
         ip = ipaddress.ip_address(value)
         if ip.is_loopback or ip.is_unspecified:

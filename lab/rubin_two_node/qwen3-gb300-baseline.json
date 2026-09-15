@@ -1,0 +1,3052 @@
+{
+  "schema_version": 1,
+  "source_log": "/Users/kaixih/Downloads/qwen3_30b_a3b-1x-gsm8k-performance-2026_09_10_03_21_53.log",
+  "source_log_sha256": "a371b9ebbb1b1d1610f2ed1b30031ea09a6be8fb6a563e7a1c81b1d33deaa8fc",
+  "source_task": "AMD vs NVIDIA",
+  "line_number_method": "one-based enumerate(log_bytes.split(b'\\n')); preserves carriage returns and Unicode line separators, never str.splitlines()",
+  "historical_verl_commit": "c423ebcdba576a65cfd4a9027bffcfe24e013b70",
+  "historical_scorer_source_verified": false,
+  "reviewable_scorer_reference": {
+    "commit": "152c599303dd4364aa8d581d405a84922dc8c713",
+    "path": "verl/utils/reward_score/gsm8k.py",
+    "sha256": "497c6e32b708d0bc8803b5a048ca5983de7756eb9c146abdc56e6f5d28767189"
+  },
+  "configuration": {
+    "model": "Qwen/Qwen3-30B-A3B",
+    "model_snapshot": "ad44e777bcd18fa416d9da3bd8f70d33ebb85d39",
+    "dataset": "gsm8k",
+    "train_path": "/opt/hf-cache/gsm8k/train.parquet",
+    "validation_path": "/opt/hf-cache/gsm8k/test.parquet",
+    "train_batch_prompts": 256,
+    "responses_per_prompt": 8,
+    "responses_per_rollout": 2048,
+    "ppo_mini_batch_prompts": 64,
+    "responses_per_optimizer_minibatch": 512,
+    "ppo_epochs": 1,
+    "expected_optimizer_updates_per_rollout": 4,
+    "optimizer_updates_note": "Derived from configured batch sizes and current VeRL batch semantics, not independently counted historical optimizer events.",
+    "rollout_steps": 50,
+    "total_generated_response_budget": 102400,
+    "prompt_max_tokens": 512,
+    "response_max_tokens": 1024,
+    "temperature": 1.0,
+    "top_p": 1.0,
+    "top_k": -1,
+    "group_filter": false,
+    "apply_chat_template_kwargs": {},
+    "thinking_note": "Not explicitly disabled; raw response artifacts unavailable.",
+    "optimizer": "adam",
+    "lr": 1e-06,
+    "lr_decay_style": "constant",
+    "lr_warmup_steps": 0,
+    "betas": [
+      0.9,
+      0.999
+    ],
+    "weight_decay": 0.1,
+    "clip_grad": 1.0,
+    "actor_kl_loss": true,
+    "actor_kl_loss_coef": 0.001,
+    "actor_kl_loss_type": "low_var_kl",
+    "kl_in_reward": false,
+    "loss_agg_mode": "token-mean",
+    "reward_manager": "naive",
+    "custom_reward_function_path": null,
+    "val_before_train": false,
+    "test_freq": -1,
+    "num_nodes": 1,
+    "gpus_per_node": 4,
+    "gpu": "GB300"
+  },
+  "configuration_source_lines": {
+    "full_argv": 148,
+    "actor_kl": 193,
+    "optimizer": 257,
+    "ppo_epochs": 299,
+    "ppo_minibatch": 303,
+    "use_kl_loss": 354,
+    "group_filter": 678,
+    "kl_in_reward": 700,
+    "template_kwargs": 899,
+    "prompt_max_tokens": 909,
+    "response_max_tokens": 910,
+    "dataset": 923,
+    "reward_manager": 1042,
+    "test_freq": 1170,
+    "total_steps": 1172,
+    "val_before_train": 1192,
+    "optimizer_after_override": 1295
+  },
+  "metric_semantics": {
+    "reward_mean": "Training rollout mean; not held-out validation accuracy. All 50 recorded reward means equal raw score means.",
+    "response_length_clip_ratio": "VeRL response_length equals padded response capacity (1024); differs slightly from engine finish_reason. All recorded aborted ratios are zero.",
+    "actor_grad_norm": "Logged aggregation over optimizer minibatches; not a per-update trace.",
+    "step_alignment": "Rollout rewards describe samples collected before that rollout training update; step is not optimizer-update count.",
+    "limitations": [
+      "Historical exact reward source and original parquet bytes were not recovered.",
+      "Old GSM8K prompt requests ####; the current boxed math scorer is not equivalent.",
+      "Training reward gains can include answer-format learning; no held-out evaluation was enabled."
+    ]
+  },
+  "checks": {
+    "unique_rollout_steps": 50,
+    "all_grad_norms_finite_and_nonzero": true,
+    "all_reward_equal_score": true
+  },
+  "windows": [
+    {
+      "first_step": 1,
+      "last_step": 5,
+      "reward_mean": 0.57421875,
+      "response_length_clip_ratio": 0.3369140625,
+      "response_length_mean_tokens": 773.92412109375,
+      "actor_grad_norm": 0.1795031290501356
+    },
+    {
+      "first_step": 6,
+      "last_step": 10,
+      "reward_mean": 0.7525390625,
+      "response_length_clip_ratio": 0.22041015625,
+      "response_length_mean_tokens": 700.151953125,
+      "actor_grad_norm": 0.15626789443194866
+    },
+    {
+      "first_step": 11,
+      "last_step": 20,
+      "reward_mean": 0.852099609375,
+      "response_length_clip_ratio": 0.12744140625,
+      "response_length_mean_tokens": 611.92138671875,
+      "actor_grad_norm": 0.12544007354881614
+    },
+    {
+      "first_step": 21,
+      "last_step": 30,
+      "reward_mean": 0.912109375,
+      "response_length_clip_ratio": 0.069384765625,
+      "response_length_mean_tokens": 539.721240234375,
+      "actor_grad_norm": 0.10382931949570776
+    },
+    {
+      "first_step": 31,
+      "last_step": 40,
+      "reward_mean": 0.934521484375,
+      "response_length_clip_ratio": 0.047021484375,
+      "response_length_mean_tokens": 506.666259765625,
+      "actor_grad_norm": 0.09549205716466531
+    },
+    {
+      "first_step": 41,
+      "last_step": 50,
+      "reward_mean": 0.94248046875,
+      "response_length_clip_ratio": 0.037060546875,
+      "response_length_mean_tokens": 481.881396484375,
+      "actor_grad_norm": 0.08586186342872679
+    }
+  ],
+  "steps": [
+    {
+      "rollout_step": 1,
+      "physical_line": 1566,
+      "metric_line_sha256_without_lf": "aa120c0edbc62674b1037634d5d72495beb716635e74288184fbb12d548c1a46",
+      "reward_mean": 0.47314453125,
+      "score_mean": 0.47314453125,
+      "response_length_clip_ratio": 0.37646484375,
+      "response_length_mean_tokens": 801.43212890625,
+      "response_length_min_tokens": 212.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.19038903340697289,
+      "actor_pg_loss": 0.015836086502531543,
+      "actor_loss": 0.015838422812521458,
+      "actor_kl_loss": 0.0023397812292387243,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 145.49565267562866,
+        "actor/perf/max_memory_reserved_gb": 147.392578125,
+        "actor/perf/cpu_memory_used_gb": 297.1507263183594,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 32.39955803799967,
+        "timing_s/old_log_prob": 40.655157139997755,
+        "timing_s/ref": 11.90752334100398,
+        "timing_s/adv": 0.6799766760013881,
+        "timing_s/update_actor": 58.276492644996324,
+        "timing_s/update_weights": 4.573982657995657,
+        "timing_s/step": 165.75074809799844,
+        "timing_per_token_ms/ref": 0.006554620449827448,
+        "timing_per_token_ms/gen": 0.019739783479647135,
+        "timing_per_token_ms/adv": 0.0003743002552492667,
+        "timing_per_token_ms/update_actor": 0.03207890335345798,
+        "perf/total_num_tokens": 1816661.0,
+        "perf/time_per_step": 165.75074809799844,
+        "perf/throughput": 2740.0494731491613
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 175328,
+        "response_tokens": 1641333,
+        "total_input_plus_output_tokens": 1816661
+      }
+    },
+    {
+      "rollout_step": 2,
+      "physical_line": 1571,
+      "metric_line_sha256_without_lf": "accbcb802bdffe324823cc03456a5e88391602f76e7e4cb985abd4a69edbab7f",
+      "reward_mean": 0.4951171875,
+      "score_mean": 0.4951171875,
+      "response_length_clip_ratio": 0.38232421875,
+      "response_length_mean_tokens": 795.552734375,
+      "response_length_min_tokens": 220.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.1887107901275158,
+      "actor_pg_loss": 0.022478434997537988,
+      "actor_loss": 0.02248213067650795,
+      "actor_kl_loss": 0.0036942355982318986,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 154.53125,
+        "actor/perf/cpu_memory_used_gb": 298.06788635253906,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 28.622844409001118,
+        "timing_s/old_log_prob": 27.722436340998684,
+        "timing_s/ref": 13.282164561998798,
+        "timing_s/adv": 1.1503693389968248,
+        "timing_s/update_actor": 35.30787139599852,
+        "timing_s/update_weights": 2.6991076089980197,
+        "timing_s/step": 108.97563836299378,
+        "timing_per_token_ms/ref": 0.007377750687107036,
+        "timing_per_token_ms/gen": 0.017567657859365367,
+        "timing_per_token_ms/adv": 0.0006389875792905765,
+        "timing_per_token_ms/update_actor": 0.019612215406320344,
+        "perf/total_num_tokens": 1800300.0,
+        "perf/time_per_step": 108.97563836299378,
+        "perf/throughput": 4130.051512071138
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 171008,
+        "response_tokens": 1629292,
+        "total_input_plus_output_tokens": 1800300
+      }
+    },
+    {
+      "rollout_step": 3,
+      "physical_line": 1573,
+      "metric_line_sha256_without_lf": "6f3a361dd36265e9791c45979dabf37ed6815609fc50e4304c26a9c5251c3216",
+      "reward_mean": 0.57421875,
+      "score_mean": 0.57421875,
+      "response_length_clip_ratio": 0.341796875,
+      "response_length_mean_tokens": 782.82861328125,
+      "response_length_min_tokens": 260.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.19692370295524597,
+      "actor_pg_loss": 0.016403384768636897,
+      "actor_loss": 0.016407768242061138,
+      "actor_kl_loss": 0.004381610291602556,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 154.634765625,
+        "actor/perf/cpu_memory_used_gb": 296.99134826660156,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 28.444076858999324,
+        "timing_s/old_log_prob": 7.847831077997398,
+        "timing_s/ref": 11.107804313003726,
+        "timing_s/adv": 0.6953088590016705,
+        "timing_s/update_actor": 23.229053062001185,
+        "timing_s/update_weights": 2.790218925998488,
+        "timing_s/step": 74.30062056499446,
+        "timing_per_token_ms/ref": 0.006266302411961766,
+        "timing_per_token_ms/gen": 0.01774169871690473,
+        "timing_per_token_ms/adv": 0.00039224813990644975,
+        "timing_per_token_ms/update_actor": 0.013104324412665501,
+        "perf/total_num_tokens": 1772625.0,
+        "perf/time_per_step": 74.30062056499446,
+        "perf/throughput": 5964.368085086841
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 169392,
+        "response_tokens": 1603233,
+        "total_input_plus_output_tokens": 1772625
+      }
+    },
+    {
+      "rollout_step": 4,
+      "physical_line": 1575,
+      "metric_line_sha256_without_lf": "1ef8d75b5bc0dbe864428f7bb241f81b7a5e65a6f51cc8730ede00160aef37c5",
+      "reward_mean": 0.62451171875,
+      "score_mean": 0.62451171875,
+      "response_length_clip_ratio": 0.3349609375,
+      "response_length_mean_tokens": 767.318359375,
+      "response_length_min_tokens": 228.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.16557469218969345,
+      "actor_pg_loss": 0.017923273142514518,
+      "actor_loss": 0.017929081805050373,
+      "actor_kl_loss": 0.005812215349578764,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 154.98828125,
+        "actor/perf/cpu_memory_used_gb": 302.28387451171875,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 29.441909968998516,
+        "timing_s/old_log_prob": 7.5655733210005565,
+        "timing_s/ref": 11.654567042998679,
+        "timing_s/adv": 0.6913573029960389,
+        "timing_s/update_actor": 22.20405134199973,
+        "timing_s/update_weights": 2.831567509994784,
+        "timing_s/step": 74.5746397039984,
+        "timing_per_token_ms/ref": 0.006684673057156323,
+        "timing_per_token_ms/gen": 0.01873529080388434,
+        "timing_per_token_ms/adv": 0.00039653961568501025,
+        "timing_per_token_ms/update_actor": 0.012735507309535508,
+        "perf/total_num_tokens": 1743476.0,
+        "perf/time_per_step": 74.5746397039984,
+        "perf/throughput": 5844.7349089456
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 172008,
+        "response_tokens": 1571468,
+        "total_input_plus_output_tokens": 1743476
+      }
+    },
+    {
+      "rollout_step": 5,
+      "physical_line": 1584,
+      "metric_line_sha256_without_lf": "1fcf8c9bcc5723f1af6e1138d99c614e7d73d539478e10a03468b5c747598d9b",
+      "reward_mean": 0.7041015625,
+      "score_mean": 0.7041015625,
+      "response_length_clip_ratio": 0.2490234375,
+      "response_length_mean_tokens": 722.48876953125,
+      "response_length_min_tokens": 258.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.15591742657124996,
+      "actor_pg_loss": 0.020123983835219406,
+      "actor_loss": 0.020131122320890427,
+      "actor_kl_loss": 0.00713782524690032,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 154.98828125,
+        "actor/perf/cpu_memory_used_gb": 302.2304992675781,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 28.436482020006224,
+        "timing_s/old_log_prob": 7.060215159006475,
+        "timing_s/ref": 10.575766246001876,
+        "timing_s/adv": 1.133803224998701,
+        "timing_s/update_actor": 22.253624673001468,
+        "timing_s/update_weights": 3.0276510510011576,
+        "timing_s/step": 73.10994393299916,
+        "timing_per_token_ms/ref": 0.006424815210188245,
+        "timing_per_token_ms/gen": 0.01921829317200285,
+        "timing_per_token_ms/adv": 0.0006887894489995941,
+        "timing_per_token_ms/update_actor": 0.01351915529855546,
+        "perf/total_num_tokens": 1646081.0,
+        "perf/time_per_step": 73.10994393299916,
+        "perf/throughput": 5628.786289005137
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 166424,
+        "response_tokens": 1479657,
+        "total_input_plus_output_tokens": 1646081
+      }
+    },
+    {
+      "rollout_step": 6,
+      "physical_line": 1592,
+      "metric_line_sha256_without_lf": "d96c801061043a3b606a8f20715e2b06b2fe0a49ec6f2e0f9368d8e46a0c2e0e",
+      "reward_mean": 0.7080078125,
+      "score_mean": 0.7080078125,
+      "response_length_clip_ratio": 0.26220703125,
+      "response_length_mean_tokens": 722.71435546875,
+      "response_length_min_tokens": 215.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.15058991871774197,
+      "actor_pg_loss": 0.01950012562883785,
+      "actor_loss": 0.019508425146341324,
+      "actor_kl_loss": 0.00830179599870462,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 155.37890625,
+        "actor/perf/cpu_memory_used_gb": 299.46998596191406,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 27.497184369000024,
+        "timing_s/old_log_prob": 7.682691075999173,
+        "timing_s/ref": 11.146428457999718,
+        "timing_s/adv": 0.699125607003225,
+        "timing_s/update_actor": 21.564532233001955,
+        "timing_s/update_weights": 3.103103084002214,
+        "timing_s/step": 71.88295303199993,
+        "timing_per_token_ms/ref": 0.006754760273403786,
+        "timing_per_token_ms/gen": 0.018577684881418335,
+        "timing_per_token_ms/adv": 0.000423671662550836,
+        "timing_per_token_ms/update_actor": 0.013068154179689324,
+        "perf/total_num_tokens": 1650159.0,
+        "perf/time_per_step": 71.88295303199993,
+        "perf/throughput": 5739.048447499797
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 170040,
+        "response_tokens": 1480119,
+        "total_input_plus_output_tokens": 1650159
+      }
+    },
+    {
+      "rollout_step": 7,
+      "physical_line": 1594,
+      "metric_line_sha256_without_lf": "b4eb0b7b1f84dad253a27a9d9b898f5ce9a148aa89ec3783302c885cb5c66bb9",
+      "reward_mean": 0.7421875,
+      "score_mean": 0.7421875,
+      "response_length_clip_ratio": 0.23583984375,
+      "response_length_mean_tokens": 719.17578125,
+      "response_length_min_tokens": 224.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.16437641717493534,
+      "actor_pg_loss": 0.021616806465317495,
+      "actor_loss": 0.021626724861562252,
+      "actor_kl_loss": 0.009918225259752944,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 155.37890625,
+        "actor/perf/cpu_memory_used_gb": 292.23866271972656,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 28.470889814998372,
+        "timing_s/old_log_prob": 7.103402312997787,
+        "timing_s/ref": 11.227119108996703,
+        "timing_s/adv": 0.7078594530030387,
+        "timing_s/update_actor": 21.335661363002146,
+        "timing_s/update_weights": 2.797749144003319,
+        "timing_s/step": 71.83438054399448,
+        "timing_per_token_ms/ref": 0.006815285155375382,
+        "timing_per_token_ms/gen": 0.019330186068442046,
+        "timing_per_token_ms/adv": 0.0004296974117142738,
+        "timing_per_token_ms/update_actor": 0.01295155193025995,
+        "perf/total_num_tokens": 1647344.0,
+        "perf/time_per_step": 71.83438054399448,
+        "perf/throughput": 5733.132197719361
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 174472,
+        "response_tokens": 1472872,
+        "total_input_plus_output_tokens": 1647344
+      }
+    },
+    {
+      "rollout_step": 8,
+      "physical_line": 1596,
+      "metric_line_sha256_without_lf": "b283e98cc7be5331121a65afe680e9e862b50f6a0909db7644e737179c1421bd",
+      "reward_mean": 0.708984375,
+      "score_mean": 0.708984375,
+      "response_length_clip_ratio": 0.25048828125,
+      "response_length_mean_tokens": 725.126953125,
+      "response_length_min_tokens": 208.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.14722501300275326,
+      "actor_pg_loss": 0.01724608526455995,
+      "actor_loss": 0.017257553292438388,
+      "actor_kl_loss": 0.011467379910754971,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 155.828125,
+        "actor/perf/cpu_memory_used_gb": 294.8782653808594,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 29.735972237001988,
+        "timing_s/old_log_prob": 7.00088720000349,
+        "timing_s/ref": 11.508657391997986,
+        "timing_s/adv": 1.1492242280000937,
+        "timing_s/update_actor": 21.591142923003645,
+        "timing_s/update_weights": 2.7152355639991583,
+        "timing_s/step": 74.32250318099977,
+        "timing_per_token_ms/ref": 0.006962605293406101,
+        "timing_per_token_ms/gen": 0.02002341470176423,
+        "timing_per_token_ms/adv": 0.0006952674339534629,
+        "timing_per_token_ms/update_actor": 0.013062393021701932,
+        "perf/total_num_tokens": 1652924.0,
+        "perf/time_per_step": 74.32250318099977,
+        "perf/throughput": 5559.971506794469
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 167864,
+        "response_tokens": 1485060,
+        "total_input_plus_output_tokens": 1652924
+      }
+    },
+    {
+      "rollout_step": 9,
+      "physical_line": 1602,
+      "metric_line_sha256_without_lf": "34c0d6256c4c00710a810850724d37a0225cc9fdb1d281f8dadd17ce0886d9ae",
+      "reward_mean": 0.791015625,
+      "score_mean": 0.791015625,
+      "response_length_clip_ratio": 0.1982421875,
+      "response_length_mean_tokens": 674.05517578125,
+      "response_length_min_tokens": 227.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.16288603469729424,
+      "actor_pg_loss": 0.020580381948093418,
+      "actor_loss": 0.020593811757862568,
+      "actor_kl_loss": 0.01343070121947676,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 155.828125,
+        "actor/perf/cpu_memory_used_gb": 292.63916015625,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 27.459661348002555,
+        "timing_s/old_log_prob": 7.0826828939971165,
+        "timing_s/ref": 10.605204633997346,
+        "timing_s/adv": 0.7561380070037558,
+        "timing_s/update_actor": 20.796677668004122,
+        "timing_s/update_weights": 2.753255204996094,
+        "timing_s/step": 69.64538668800378,
+        "timing_per_token_ms/ref": 0.006837475369121349,
+        "timing_per_token_ms/gen": 0.019891602719375394,
+        "timing_per_token_ms/adv": 0.00048750355858017666,
+        "timing_per_token_ms/update_actor": 0.013408206274369358,
+        "perf/total_num_tokens": 1551041.0,
+        "perf/time_per_step": 69.64538668800378,
+        "perf/throughput": 5567.637261274487
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 170576,
+        "response_tokens": 1380465,
+        "total_input_plus_output_tokens": 1551041
+      }
+    },
+    {
+      "rollout_step": 10,
+      "physical_line": 1607,
+      "metric_line_sha256_without_lf": "8f408199686dfa2b1ecd1566671f556a23eecda656a9ea2c6db7484690d5b777",
+      "reward_mean": 0.8125,
+      "score_mean": 0.8125,
+      "response_length_clip_ratio": 0.1552734375,
+      "response_length_mean_tokens": 659.6875,
+      "response_length_min_tokens": 214.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.1562620885670185,
+      "actor_pg_loss": 0.01949864404014079,
+      "actor_loss": 0.019515387248247862,
+      "actor_kl_loss": 0.01674026160617359,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 155.828125,
+        "actor/perf/cpu_memory_used_gb": 292.75425720214844,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 26.421652225995786,
+        "timing_s/old_log_prob": 6.563137801000266,
+        "timing_s/ref": 10.633766667997406,
+        "timing_s/adv": 0.9232747779969941,
+        "timing_s/update_actor": 19.83959351300291,
+        "timing_s/update_weights": 2.7902979780046735,
+        "timing_s/step": 67.36392967100255,
+        "timing_per_token_ms/ref": 0.006986228712359607,
+        "timing_per_token_ms/gen": 0.019556528471396693,
+        "timing_per_token_ms/adv": 0.0006065779854707655,
+        "timing_per_token_ms/update_actor": 0.013034321907703357,
+        "perf/total_num_tokens": 1522104.0,
+        "perf/time_per_step": 67.36392967100255,
+        "perf/throughput": 5648.809412670013
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 171064,
+        "response_tokens": 1351040,
+        "total_input_plus_output_tokens": 1522104
+      }
+    },
+    {
+      "rollout_step": 11,
+      "physical_line": 1609,
+      "metric_line_sha256_without_lf": "762b29a451ea4bfbb17ad691c26e20d86f05869234cc7f0672e159fbcf07f869",
+      "reward_mean": 0.76806640625,
+      "score_mean": 0.76806640625,
+      "response_length_clip_ratio": 0.19921875,
+      "response_length_mean_tokens": 675.9013671875,
+      "response_length_min_tokens": 194.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.1358000710606575,
+      "actor_pg_loss": 0.02083734671577986,
+      "actor_loss": 0.020855240058153868,
+      "actor_kl_loss": 0.017896475474117324,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 155.828125,
+        "actor/perf/cpu_memory_used_gb": 292.7568054199219,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 26.453722957994614,
+        "timing_s/old_log_prob": 6.6800628260025405,
+        "timing_s/ref": 10.615543496998725,
+        "timing_s/adv": 1.13570555899787,
+        "timing_s/update_actor": 20.219130937002774,
+        "timing_s/update_weights": 2.937997273002111,
+        "timing_s/step": 68.67472437800461,
+        "timing_per_token_ms/ref": 0.00682890308085723,
+        "timing_per_token_ms/gen": 0.01911056485479793,
+        "timing_per_token_ms/adv": 0.0007305912498008172,
+        "timing_per_token_ms/update_actor": 0.013006822079999108,
+        "perf/total_num_tokens": 1554502.0,
+        "perf/time_per_step": 68.67472437800461,
+        "perf/throughput": 5658.930611223106
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 170256,
+        "response_tokens": 1384246,
+        "total_input_plus_output_tokens": 1554502
+      }
+    },
+    {
+      "rollout_step": 12,
+      "physical_line": 1619,
+      "metric_line_sha256_without_lf": "81517889780465e31a6eb5347f9f247e37ff58f6d47d6059eb823f47f8d2518a",
+      "reward_mean": 0.8310546875,
+      "score_mean": 0.8310546875,
+      "response_length_clip_ratio": 0.15185546875,
+      "response_length_mean_tokens": 628.13671875,
+      "response_length_min_tokens": 242.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.10949797136709094,
+      "actor_pg_loss": 0.009837240409979131,
+      "actor_loss": 0.009857507655397058,
+      "actor_kl_loss": 0.02026722428854555,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 155.828125,
+        "actor/perf/cpu_memory_used_gb": 290.0614318847656,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 25.440943400994,
+        "timing_s/old_log_prob": 6.8899718950051465,
+        "timing_s/ref": 10.087692199005687,
+        "timing_s/adv": 0.6987612049997551,
+        "timing_s/update_actor": 20.004943264000758,
+        "timing_s/update_weights": 2.8975624940067064,
+        "timing_s/step": 66.21206962199358,
+        "timing_per_token_ms/ref": 0.006955685935823211,
+        "timing_per_token_ms/gen": 0.01977648380393556,
+        "timing_per_token_ms/adv": 0.0004818112398983335,
+        "timing_per_token_ms/update_actor": 0.01379384895606418,
+        "perf/total_num_tokens": 1450280.0,
+        "perf/time_per_step": 66.21206962199358,
+        "perf/throughput": 5475.889850142452
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 163856,
+        "response_tokens": 1286424,
+        "total_input_plus_output_tokens": 1450280
+      }
+    },
+    {
+      "rollout_step": 13,
+      "physical_line": 1634,
+      "metric_line_sha256_without_lf": "63218568e243d935589812ea74ffdcc10347551a8f993f9643208c2a4545312a",
+      "reward_mean": 0.81884765625,
+      "score_mean": 0.81884765625,
+      "response_length_clip_ratio": 0.1572265625,
+      "response_length_mean_tokens": 647.48779296875,
+      "response_length_min_tokens": 262.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.154266020283103,
+      "actor_pg_loss": 0.018793168015690753,
+      "actor_loss": 0.018815042451024055,
+      "actor_kl_loss": 0.02187682216754183,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 291.0769958496094,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 26.42860228900099,
+        "timing_s/old_log_prob": 6.7662593240020215,
+        "timing_s/ref": 10.098640913995041,
+        "timing_s/adv": 1.3481974259993876,
+        "timing_s/update_actor": 20.149708124001336,
+        "timing_s/update_weights": 2.8157948040025076,
+        "timing_s/step": 67.79786934299773,
+        "timing_per_token_ms/ref": 0.006749674945373772,
+        "timing_per_token_ms/gen": 0.01993024594681291,
+        "timing_per_token_ms/adv": 0.0009011008971587982,
+        "timing_per_token_ms/update_actor": 0.01346755283601452,
+        "perf/total_num_tokens": 1496167.0,
+        "perf/time_per_step": 67.79786934299773,
+        "perf/throughput": 5517.013346063679
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 170112,
+        "response_tokens": 1326055,
+        "total_input_plus_output_tokens": 1496167
+      }
+    },
+    {
+      "rollout_step": 14,
+      "physical_line": 1651,
+      "metric_line_sha256_without_lf": "59046881f500e49dd5419dfc6fb31a1a4ca75c011cf979505b419ded49024b10",
+      "reward_mean": 0.87109375,
+      "score_mean": 0.87109375,
+      "response_length_clip_ratio": 0.119140625,
+      "response_length_mean_tokens": 610.248046875,
+      "response_length_min_tokens": 203.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.11595244938507676,
+      "actor_pg_loss": 0.014732219475263264,
+      "actor_loss": 0.014756663236767054,
+      "actor_kl_loss": 0.024442910391371697,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 290.3650817871094,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 26.444932399004756,
+        "timing_s/old_log_prob": 6.947534074999567,
+        "timing_s/ref": 9.992142374998366,
+        "timing_s/adv": 0.7074764349963516,
+        "timing_s/update_actor": 19.181464487002813,
+        "timing_s/update_weights": 2.7233141620017705,
+        "timing_s/step": 66.18985645799694,
+        "timing_per_token_ms/ref": 0.007040785788270949,
+        "timing_per_token_ms/gen": 0.02115953457626794,
+        "timing_per_token_ms/adv": 0.0004985107139308274,
+        "timing_per_token_ms/update_actor": 0.01351587852633409,
+        "perf/total_num_tokens": 1419180.0,
+        "perf/time_per_step": 66.18985645799694,
+        "perf/throughput": 5360.262417628106
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 169392,
+        "response_tokens": 1249788,
+        "total_input_plus_output_tokens": 1419180
+      }
+    },
+    {
+      "rollout_step": 15,
+      "physical_line": 1653,
+      "metric_line_sha256_without_lf": "330a9f759a5052cc39d84344d544ba18d909cc9f45b0bd24719239481a34dda9",
+      "reward_mean": 0.85205078125,
+      "score_mean": 0.85205078125,
+      "response_length_clip_ratio": 0.12451171875,
+      "response_length_mean_tokens": 622.94677734375,
+      "response_length_min_tokens": 166.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.12500119023025036,
+      "actor_pg_loss": 0.016982529719825834,
+      "actor_loss": 0.017009368166327477,
+      "actor_kl_loss": 0.026838798774406314,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 290.5487365722656,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 24.630825000000186,
+        "timing_s/old_log_prob": 6.499985099995683,
+        "timing_s/ref": 10.451258093999058,
+        "timing_s/adv": 0.7007846479973523,
+        "timing_s/update_actor": 19.066561557003297,
+        "timing_s/update_weights": 2.7052583579934435,
+        "timing_s/step": 64.24561723000079,
+        "timing_per_token_ms/ref": 0.007229007513803708,
+        "timing_per_token_ms/gen": 0.01930625609913833,
+        "timing_per_token_ms/adv": 0.0004847241777370274,
+        "timing_per_token_ms/update_actor": 0.013188107643913111,
+        "perf/total_num_tokens": 1445739.0,
+        "perf/time_per_step": 64.24561723000079,
+        "perf/throughput": 5625.8273417477685
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 169944,
+        "response_tokens": 1275795,
+        "total_input_plus_output_tokens": 1445739
+      }
+    },
+    {
+      "rollout_step": 16,
+      "physical_line": 1655,
+      "metric_line_sha256_without_lf": "8b5dfa7c0d2133f3f6081888e094151390898df9e71b807694fe3e6024d2f1d5",
+      "reward_mean": 0.880859375,
+      "score_mean": 0.880859375,
+      "response_length_clip_ratio": 0.09423828125,
+      "response_length_mean_tokens": 596.0791015625,
+      "response_length_min_tokens": 231.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.12897808570414782,
+      "actor_pg_loss": 0.013994642227771692,
+      "actor_loss": 0.014024482341483235,
+      "actor_kl_loss": 0.02983955736272037,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 290.57725524902344,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 24.4211991580014,
+        "timing_s/old_log_prob": 6.120574157001101,
+        "timing_s/ref": 9.89630212100019,
+        "timing_s/adv": 1.3686168029962573,
+        "timing_s/update_actor": 18.324745532001543,
+        "timing_s/update_weights": 2.8509401959963725,
+        "timing_s/step": 63.605218876000436,
+        "timing_per_token_ms/ref": 0.007124880394794007,
+        "timing_per_token_ms/gen": 0.020004750409988285,
+        "timing_per_token_ms/adv": 0.0009853408786865288,
+        "timing_per_token_ms/update_actor": 0.013192970322065248,
+        "perf/total_num_tokens": 1388978.0,
+        "perf/time_per_step": 63.605218876000436,
+        "perf/throughput": 5459.371198406842
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 168208,
+        "response_tokens": 1220770,
+        "total_input_plus_output_tokens": 1388978
+      }
+    },
+    {
+      "rollout_step": 17,
+      "physical_line": 1657,
+      "metric_line_sha256_without_lf": "f81e271069dbb2a40b8b03f22b37102abd92b5ec572000945d711902e488d88b",
+      "reward_mean": 0.8623046875,
+      "score_mean": 0.8623046875,
+      "response_length_clip_ratio": 0.11865234375,
+      "response_length_mean_tokens": 609.58251953125,
+      "response_length_min_tokens": 194.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.12522628041915596,
+      "actor_pg_loss": 0.015946324361721054,
+      "actor_loss": 0.015979275689460337,
+      "actor_kl_loss": 0.03295025433180854,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 290.8016357421875,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 24.437619652002468,
+        "timing_s/old_log_prob": 6.956193894002354,
+        "timing_s/ref": 9.844877274001192,
+        "timing_s/adv": 0.7063930180011084,
+        "timing_s/update_actor": 19.038882271001057,
+        "timing_s/update_weights": 2.7414185220040963,
+        "timing_s/step": 63.92115804999776,
+        "timing_per_token_ms/ref": 0.006963489691856394,
+        "timing_per_token_ms/gen": 0.01957475991910004,
+        "timing_per_token_ms/adv": 0.0004996467058294637,
+        "timing_per_token_ms/update_actor": 0.013466603670997399,
+        "perf/total_num_tokens": 1413785.0,
+        "perf/time_per_step": 63.92115804999776,
+        "perf/throughput": 5529.409365886988
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 165360,
+        "response_tokens": 1248425,
+        "total_input_plus_output_tokens": 1413785
+      }
+    },
+    {
+      "rollout_step": 18,
+      "physical_line": 1659,
+      "metric_line_sha256_without_lf": "75239888704c3ea069d0e9e396dc6a59641340592264635fd2d7e6d3a10451f3",
+      "reward_mean": 0.87255859375,
+      "score_mean": 0.87255859375,
+      "response_length_clip_ratio": 0.10986328125,
+      "response_length_mean_tokens": 573.33203125,
+      "response_length_min_tokens": 231.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.1253119232133031,
+      "actor_pg_loss": 0.015595971490256488,
+      "actor_loss": 0.015630652895197272,
+      "actor_kl_loss": 0.034683480858802795,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 289.8426971435547,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 23.453574776001915,
+        "timing_s/old_log_prob": 6.036696374998428,
+        "timing_s/ref": 10.42384795799444,
+        "timing_s/adv": 0.7104132169988588,
+        "timing_s/update_actor": 17.810738955995475,
+        "timing_s/update_weights": 2.6357828129985137,
+        "timing_s/step": 61.26628409499972,
+        "timing_per_token_ms/ref": 0.0077473540571594505,
+        "timing_per_token_ms/gen": 0.01997436072711084,
+        "timing_per_token_ms/adv": 0.0005280029736767906,
+        "timing_per_token_ms/update_actor": 0.013237539655968668,
+        "perf/total_num_tokens": 1345472.0,
+        "perf/time_per_step": 61.26628409499972,
+        "perf/throughput": 5490.262792475329
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 171288,
+        "response_tokens": 1174184,
+        "total_input_plus_output_tokens": 1345472
+      }
+    },
+    {
+      "rollout_step": 19,
+      "physical_line": 1668,
+      "metric_line_sha256_without_lf": "f3e98d22ad1ab198d80a84887d1ddde417b9e92bbeb0dc0f234a0963884236fc",
+      "reward_mean": 0.89111328125,
+      "score_mean": 0.89111328125,
+      "response_length_clip_ratio": 0.09716796875,
+      "response_length_mean_tokens": 581.876953125,
+      "response_length_min_tokens": 197.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.11821654345840216,
+      "actor_pg_loss": 0.014670122880488634,
+      "actor_loss": 0.014708429109305143,
+      "actor_kl_loss": 0.03830628842115402,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 289.9955291748047,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 23.472745263003162,
+        "timing_s/old_log_prob": 6.233463370001118,
+        "timing_s/ref": 9.77098529200157,
+        "timing_s/adv": 1.1410817809955915,
+        "timing_s/update_actor": 17.924428856000304,
+        "timing_s/update_weights": 2.7947116430004826,
+        "timing_s/step": 61.973504633999255,
+        "timing_per_token_ms/ref": 0.007159930483134142,
+        "timing_per_token_ms/gen": 0.019697122108716037,
+        "timing_per_token_ms/adv": 0.0008361558208656058,
+        "timing_per_token_ms/update_actor": 0.013134567366906361,
+        "perf/total_num_tokens": 1364676.0,
+        "perf/time_per_step": 61.973504633999255,
+        "perf/throughput": 5505.078372037579
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 172992,
+        "response_tokens": 1191684,
+        "total_input_plus_output_tokens": 1364676
+      }
+    },
+    {
+      "rollout_step": 20,
+      "physical_line": 1676,
+      "metric_line_sha256_without_lf": "db3ee690fbee6f9780c729c4a4d77d4d9986b6364e4231c77a5107bc2e5b43b3",
+      "reward_mean": 0.873046875,
+      "score_mean": 0.873046875,
+      "response_length_clip_ratio": 0.1025390625,
+      "response_length_mean_tokens": 573.62255859375,
+      "response_length_min_tokens": 191.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.11615020036697388,
+      "actor_pg_loss": 0.015078783399076201,
+      "actor_loss": 0.01511911815032363,
+      "actor_kl_loss": 0.04033644637092948,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 290.30714416503906,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 24.882116405002307,
+        "timing_s/old_log_prob": 6.647939066999243,
+        "timing_s/ref": 10.086471294998773,
+        "timing_s/adv": 0.8895949380021193,
+        "timing_s/update_actor": 18.124472517003596,
+        "timing_s/update_weights": 2.7286049940012163,
+        "timing_s/step": 63.55752785000368,
+        "timing_per_token_ms/ref": 0.007489106773069561,
+        "timing_per_token_ms/gen": 0.021180252970986295,
+        "timing_per_token_ms/adv": 0.0006605155837585595,
+        "timing_per_token_ms/update_actor": 0.013457244453043502,
+        "perf/total_num_tokens": 1346819.0,
+        "perf/time_per_step": 63.55752785000368,
+        "perf/throughput": 5297.637610994344
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 172040,
+        "response_tokens": 1174779,
+        "total_input_plus_output_tokens": 1346819
+      }
+    },
+    {
+      "rollout_step": 21,
+      "physical_line": 1678,
+      "metric_line_sha256_without_lf": "a447f8bc82bc8b6b378b8f975b1fc4dc386e7a86f941b3a47874be8988623273",
+      "reward_mean": 0.9052734375,
+      "score_mean": 0.9052734375,
+      "response_length_clip_ratio": 0.078125,
+      "response_length_mean_tokens": 537.8095703125,
+      "response_length_min_tokens": 159.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.09795159753412008,
+      "actor_pg_loss": 0.008290218612273748,
+      "actor_loss": 0.00833412486827001,
+      "actor_kl_loss": 0.04390684294048697,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 290.43968200683594,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 21.572673593997024,
+        "timing_s/old_log_prob": 5.800214766000863,
+        "timing_s/ref": 10.01833625400468,
+        "timing_s/adv": 0.7085455140040722,
+        "timing_s/update_actor": 17.524629627005197,
+        "timing_s/update_weights": 2.7252547120006057,
+        "timing_s/step": 58.54667627299932,
+        "timing_per_token_ms/ref": 0.007908068243284272,
+        "timing_per_token_ms/gen": 0.019585988442337013,
+        "timing_per_token_ms/adv": 0.0005592970864775405,
+        "timing_per_token_ms/update_actor": 0.013833231737778898,
+        "perf/total_num_tokens": 1266850.0,
+        "perf/time_per_step": 58.54667627299932,
+        "perf/throughput": 5409.572671951356
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 165416,
+        "response_tokens": 1101434,
+        "total_input_plus_output_tokens": 1266850
+      }
+    },
+    {
+      "rollout_step": 22,
+      "physical_line": 1680,
+      "metric_line_sha256_without_lf": "83d0320e739d7be23a8e60297e528adfa244182511bee870e58c5893b9ee20cc",
+      "reward_mean": 0.92138671875,
+      "score_mean": 0.92138671875,
+      "response_length_clip_ratio": 0.0537109375,
+      "response_length_mean_tokens": 549.60546875,
+      "response_length_min_tokens": 196.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.09396625543013215,
+      "actor_pg_loss": 0.011573208998015616,
+      "actor_loss": 0.011619872064329684,
+      "actor_kl_loss": 0.04666456545237452,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 289.8720703125,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 22.435666673001833,
+        "timing_s/old_log_prob": 5.9195104539976455,
+        "timing_s/ref": 9.5427642210052,
+        "timing_s/adv": 1.1338578829963808,
+        "timing_s/update_actor": 17.068109750005533,
+        "timing_s/update_weights": 2.7155242090011598,
+        "timing_s/step": 59.45818589699775,
+        "timing_per_token_ms/ref": 0.007356750076325527,
+        "timing_per_token_ms/gen": 0.01993232598757084,
+        "timing_per_token_ms/adv": 0.0008741187431745287,
+        "timing_per_token_ms/update_actor": 0.013158222795622948,
+        "perf/total_num_tokens": 1297144.0,
+        "perf/time_per_step": 59.45818589699775,
+        "perf/throughput": 5454.017728724118
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 171552,
+        "response_tokens": 1125592,
+        "total_input_plus_output_tokens": 1297144
+      }
+    },
+    {
+      "rollout_step": 23,
+      "physical_line": 1682,
+      "metric_line_sha256_without_lf": "61e3565cc6663166115fea9163fe75fe6c00f5139d885e055c204a0ab13a963e",
+      "reward_mean": 0.8642578125,
+      "score_mean": 0.8642578125,
+      "response_length_clip_ratio": 0.107421875,
+      "response_length_mean_tokens": 559.29931640625,
+      "response_length_min_tokens": 176.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.11639532120898366,
+      "actor_pg_loss": 0.016210493733524345,
+      "actor_loss": 0.01625621784478426,
+      "actor_kl_loss": 0.04572401684708893,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 289.73724365234375,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 24.640952756999468,
+        "timing_s/old_log_prob": 6.513652296998771,
+        "timing_s/ref": 10.06154537799739,
+        "timing_s/adv": 0.7159998089991859,
+        "timing_s/update_actor": 17.384382829004608,
+        "timing_s/update_weights": 2.8796292539991555,
+        "timing_s/step": 62.389316945002065,
+        "timing_per_token_ms/ref": 0.007648590874638926,
+        "timing_per_token_ms/gen": 0.021512122150779363,
+        "timing_per_token_ms/adv": 0.0005442891126178458,
+        "timing_per_token_ms/update_actor": 0.013215269312199763,
+        "perf/total_num_tokens": 1315477.0,
+        "perf/time_per_step": 62.389316945002065,
+        "perf/throughput": 5271.242996455747
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 170032,
+        "response_tokens": 1145445,
+        "total_input_plus_output_tokens": 1315477
+      }
+    },
+    {
+      "rollout_step": 24,
+      "physical_line": 1697,
+      "metric_line_sha256_without_lf": "1c826fbcb050cbdafd7689f8e96e15662db7589f92c4d7d445df3eb43bfea31d",
+      "reward_mean": 0.93603515625,
+      "score_mean": 0.93603515625,
+      "response_length_clip_ratio": 0.0537109375,
+      "response_length_mean_tokens": 522.28125,
+      "response_length_min_tokens": 139.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.09112314600497484,
+      "actor_pg_loss": 0.00923662785498891,
+      "actor_loss": 0.009286960354074836,
+      "actor_kl_loss": 0.050332088372670114,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.4542694091797,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 288.88246154785156,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 21.54681659799826,
+        "timing_s/old_log_prob": 5.685133248996863,
+        "timing_s/ref": 9.822829946999263,
+        "timing_s/adv": 0.702694593994238,
+        "timing_s/update_actor": 16.594937236004625,
+        "timing_s/update_weights": 2.6555823239978054,
+        "timing_s/step": 57.210105875004956,
+        "timing_per_token_ms/ref": 0.00795793550825318,
+        "timing_per_token_ms/gen": 0.020144139851835264,
+        "timing_per_token_ms/adv": 0.0005692858668201392,
+        "timing_per_token_ms/update_actor": 0.013444337426199363,
+        "perf/total_num_tokens": 1234344.0,
+        "perf/time_per_step": 57.210105875004956,
+        "perf/throughput": 5393.907165181824
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 164712,
+        "response_tokens": 1069632,
+        "total_input_plus_output_tokens": 1234344
+      }
+    },
+    {
+      "rollout_step": 25,
+      "physical_line": 1699,
+      "metric_line_sha256_without_lf": "3ee4b70d5eb9f68aa8e5046bc956b3b3de5a836ea9f84dab81ad8b63bbe78226",
+      "reward_mean": 0.9248046875,
+      "score_mean": 0.9248046875,
+      "response_length_clip_ratio": 0.0576171875,
+      "response_length_mean_tokens": 539.8212890625,
+      "response_length_min_tokens": 203.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.10199835151433945,
+      "actor_pg_loss": 0.010458927907166071,
+      "actor_loss": 0.01050909492187202,
+      "actor_kl_loss": 0.05016715091187507,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 288.7290954589844,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 23.443035095995583,
+        "timing_s/old_log_prob": 6.498275623001973,
+        "timing_s/ref": 9.510343018002459,
+        "timing_s/adv": 1.145669909004937,
+        "timing_s/update_actor": 17.058898915995087,
+        "timing_s/update_weights": 2.7116145469990443,
+        "timing_s/step": 60.562948642000265,
+        "timing_per_token_ms/ref": 0.007455665880624638,
+        "timing_per_token_ms/gen": 0.021204785199090758,
+        "timing_per_token_ms/adv": 0.0008981518368851155,
+        "timing_per_token_ms/update_actor": 0.013373382050285192,
+        "perf/total_num_tokens": 1275586.0,
+        "perf/time_per_step": 60.562948642000265,
+        "perf/throughput": 5265.537876715039
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 170032,
+        "response_tokens": 1105554,
+        "total_input_plus_output_tokens": 1275586
+      }
+    },
+    {
+      "rollout_step": 26,
+      "physical_line": 1701,
+      "metric_line_sha256_without_lf": "ec193904f99d4807fa4acdd717ec66803a661bbb41be14ddc04a116f24328d2a",
+      "reward_mean": 0.9140625,
+      "score_mean": 0.9140625,
+      "response_length_clip_ratio": 0.0732421875,
+      "response_length_mean_tokens": 517.06982421875,
+      "response_length_min_tokens": 169.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.08535632584244013,
+      "actor_pg_loss": 0.004921754707538639,
+      "actor_loss": 0.0049741711700335145,
+      "actor_kl_loss": 0.05241564370226115,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 289.5841369628906,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 21.441317765995336,
+        "timing_s/old_log_prob": 6.642057776996808,
+        "timing_s/ref": 9.468994539995037,
+        "timing_s/adv": 0.7027305769952363,
+        "timing_s/update_actor": 16.299440649003373,
+        "timing_s/update_weights": 2.6762579650021507,
+        "timing_s/step": 57.426025462002144,
+        "timing_per_token_ms/ref": 0.007763004445956158,
+        "timing_per_token_ms/gen": 0.02024754288503647,
+        "timing_per_token_ms/adv": 0.0005761224774691036,
+        "timing_per_token_ms/update_actor": 0.01336283696123855,
+        "perf/total_num_tokens": 1219759.0,
+        "perf/time_per_step": 57.426025462002144,
+        "perf/throughput": 5310.131557019798
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 160800,
+        "response_tokens": 1058959,
+        "total_input_plus_output_tokens": 1219759
+      }
+    },
+    {
+      "rollout_step": 27,
+      "physical_line": 1703,
+      "metric_line_sha256_without_lf": "579fc0257b56f25678f0aad253235097410d1f29d4ad0c5c0e1465b129f42909",
+      "reward_mean": 0.92822265625,
+      "score_mean": 0.92822265625,
+      "response_length_clip_ratio": 0.05908203125,
+      "response_length_mean_tokens": 531.38232421875,
+      "response_length_min_tokens": 169.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.10002171387895942,
+      "actor_pg_loss": 0.010764252001536079,
+      "actor_loss": 0.01081598293967545,
+      "actor_kl_loss": 0.05173276143614203,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 288.35626220703125,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 21.477785306000442,
+        "timing_s/old_log_prob": 5.77755697700195,
+        "timing_s/ref": 9.865207050002937,
+        "timing_s/adv": 0.7204449249984464,
+        "timing_s/update_actor": 16.814992751998943,
+        "timing_s/update_weights": 2.6894857059960486,
+        "timing_s/step": 57.541371576997335,
+        "timing_per_token_ms/ref": 0.007841983220974688,
+        "timing_per_token_ms/gen": 0.01973569570998441,
+        "timing_per_token_ms/adv": 0.000572691174634039,
+        "timing_per_token_ms/update_actor": 0.013366459553623606,
+        "perf/total_num_tokens": 1257999.0,
+        "perf/time_per_step": 57.541371576997335,
+        "perf/throughput": 5465.6283189072265
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 169728,
+        "response_tokens": 1088271,
+        "total_input_plus_output_tokens": 1257999
+      }
+    },
+    {
+      "rollout_step": 28,
+      "physical_line": 1705,
+      "metric_line_sha256_without_lf": "bcc9be126a7c28145be33025f49195514b9d6c36e51eac2a25c406d0ac69dfd3",
+      "reward_mean": 0.92919921875,
+      "score_mean": 0.92919921875,
+      "response_length_clip_ratio": 0.0537109375,
+      "response_length_mean_tokens": 539.33935546875,
+      "response_length_min_tokens": 195.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.1096196910366416,
+      "actor_pg_loss": 0.016237813973930315,
+      "actor_loss": 0.01628980482928455,
+      "actor_kl_loss": 0.05198948655743152,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 288.6012268066406,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 20.40907738000533,
+        "timing_s/old_log_prob": 6.188855843000056,
+        "timing_s/ref": 9.832039544002328,
+        "timing_s/adv": 0.7078550349979196,
+        "timing_s/update_actor": 17.426269921998028,
+        "timing_s/update_weights": 2.9757697570021264,
+        "timing_s/step": 58.21736730699922,
+        "timing_per_token_ms/ref": 0.007750606435218078,
+        "timing_per_token_ms/gen": 0.018476993591158643,
+        "timing_per_token_ms/adv": 0.0005580028197509754,
+        "timing_per_token_ms/update_actor": 0.013737145705610597,
+        "perf/total_num_tokens": 1268551.0,
+        "perf/time_per_step": 58.21736730699922,
+        "perf/throughput": 5447.476666672832
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 163984,
+        "response_tokens": 1104567,
+        "total_input_plus_output_tokens": 1268551
+      }
+    },
+    {
+      "rollout_step": 29,
+      "physical_line": 1714,
+      "metric_line_sha256_without_lf": "65bb21917db9881fb6a4a77eaa364ac8d93b5ac9518e0774d94c76e53ad0616a",
+      "reward_mean": 0.900390625,
+      "score_mean": 0.900390625,
+      "response_length_clip_ratio": 0.08154296875,
+      "response_length_mean_tokens": 563.87451171875,
+      "response_length_min_tokens": 183.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.10444799531251192,
+      "actor_pg_loss": 0.012573902156873373,
+      "actor_loss": 0.012625560630112886,
+      "actor_kl_loss": 0.051656334893777966,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 288.82696533203125,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 22.44863318699936,
+        "timing_s/old_log_prob": 5.942750120993878,
+        "timing_s/ref": 10.420562112994958,
+        "timing_s/adv": 0.7034663390004425,
+        "timing_s/update_actor": 17.52726175099815,
+        "timing_s/update_weights": 2.852462081005797,
+        "timing_s/step": 60.09076925899717,
+        "timing_per_token_ms/ref": 0.007850740101779097,
+        "timing_per_token_ms/gen": 0.01943915968098731,
+        "timing_per_token_ms/adv": 0.0005299840198596756,
+        "timing_per_token_ms/update_actor": 0.013204851639562093,
+        "perf/total_num_tokens": 1327335.0,
+        "perf/time_per_step": 60.09076925899717,
+        "perf/throughput": 5522.2083872776475
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 172520,
+        "response_tokens": 1154815,
+        "total_input_plus_output_tokens": 1327335
+      }
+    },
+    {
+      "rollout_step": 30,
+      "physical_line": 1722,
+      "metric_line_sha256_without_lf": "fc374d2339dd95692db21b0d4bdfc7f555a63e5b8e12d1dfebf165b8309a42b0",
+      "reward_mean": 0.8974609375,
+      "score_mean": 0.8974609375,
+      "response_length_clip_ratio": 0.07568359375,
+      "response_length_mean_tokens": 536.7294921875,
+      "response_length_min_tokens": 176.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.13741279719397426,
+      "actor_pg_loss": 0.012975367471881327,
+      "actor_loss": 0.013031145674176514,
+      "actor_kl_loss": 0.0557773900218308,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 287.10923767089844,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 22.527581062997342,
+        "timing_s/old_log_prob": 6.05343842900038,
+        "timing_s/ref": 9.782395332003944,
+        "timing_s/adv": 1.1603660250038956,
+        "timing_s/update_actor": 17.490758992003975,
+        "timing_s/update_weights": 3.0346162490022834,
+        "timing_s/step": 60.3925480540056,
+        "timing_per_token_ms/ref": 0.007704529856803248,
+        "timing_per_token_ms/gen": 0.020494114076135068,
+        "timing_per_token_ms/adv": 0.0009138942335743065,
+        "timing_per_token_ms/update_actor": 0.013775570327971918,
+        "perf/total_num_tokens": 1269694.0,
+        "perf/time_per_step": 60.3925480540056,
+        "perf/throughput": 5256.004428164652
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 170472,
+        "response_tokens": 1099222,
+        "total_input_plus_output_tokens": 1269694
+      }
+    },
+    {
+      "rollout_step": 31,
+      "physical_line": 1724,
+      "metric_line_sha256_without_lf": "aec146b7b1090aee3df115934288b2ede8ad7a2f5d565e8d8cc85ada9405fe59",
+      "reward_mean": 0.92724609375,
+      "score_mean": 0.92724609375,
+      "response_length_clip_ratio": 0.04931640625,
+      "response_length_mean_tokens": 496.37060546875,
+      "response_length_min_tokens": 180.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.10755051672458649,
+      "actor_pg_loss": 0.007880940051109064,
+      "actor_loss": 0.007940107490867376,
+      "actor_kl_loss": 0.05916830583009869,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 287.3516387939453,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 22.427385793998837,
+        "timing_s/old_log_prob": 6.006035697995685,
+        "timing_s/ref": 9.467179434002901,
+        "timing_s/adv": 0.768541367004218,
+        "timing_s/update_actor": 16.48426409100648,
+        "timing_s/update_weights": 2.771631780997268,
+        "timing_s/step": 58.121641275,
+        "timing_per_token_ms/ref": 0.007975027806351176,
+        "timing_per_token_ms/gen": 0.02206188652002164,
+        "timing_per_token_ms/adv": 0.0006474091692163342,
+        "timing_per_token_ms/update_actor": 0.013886127902133581,
+        "perf/total_num_tokens": 1187103.0,
+        "perf/time_per_step": 58.121641275,
+        "perf/throughput": 5106.114409189144
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 170536,
+        "response_tokens": 1016567,
+        "total_input_plus_output_tokens": 1187103
+      }
+    },
+    {
+      "rollout_step": 32,
+      "physical_line": 1726,
+      "metric_line_sha256_without_lf": "48f09a884db497852f62c8b8a1e2b2447186f72704cd87d59102e405e19edf27",
+      "reward_mean": 0.92431640625,
+      "score_mean": 0.92431640625,
+      "response_length_clip_ratio": 0.0615234375,
+      "response_length_mean_tokens": 532.95654296875,
+      "response_length_min_tokens": 168.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.11008714977651834,
+      "actor_pg_loss": 0.011220664251595736,
+      "actor_loss": 0.011279832164291292,
+      "actor_kl_loss": 0.05916901270393282,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 287.0599670410156,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 22.429814133996842,
+        "timing_s/old_log_prob": 5.79160136399878,
+        "timing_s/ref": 9.743213198002195,
+        "timing_s/adv": 0.7109197489990038,
+        "timing_s/update_actor": 17.034487930999603,
+        "timing_s/update_weights": 2.6867879550045473,
+        "timing_s/step": 58.59035769000184,
+        "timing_per_token_ms/ref": 0.007684946335909278,
+        "timing_per_token_ms/gen": 0.020549626094482194,
+        "timing_per_token_ms/adv": 0.0005607369980691463,
+        "timing_per_token_ms/update_actor": 0.01343592949770088,
+        "perf/total_num_tokens": 1267831.0,
+        "perf/time_per_step": 58.59035769000184,
+        "perf/throughput": 5409.725465016018
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 176336,
+        "response_tokens": 1091495,
+        "total_input_plus_output_tokens": 1267831
+      }
+    },
+    {
+      "rollout_step": 33,
+      "physical_line": 1728,
+      "metric_line_sha256_without_lf": "15fd28a123765d47079ae1108633f59d19acf1b52d3ae3cf00a49451ed2c3215",
+      "reward_mean": 0.92578125,
+      "score_mean": 0.92578125,
+      "response_length_clip_ratio": 0.05029296875,
+      "response_length_mean_tokens": 514.72021484375,
+      "response_length_min_tokens": 151.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.09107932914048433,
+      "actor_pg_loss": 0.004583575573633425,
+      "actor_loss": 0.004644997359719127,
+      "actor_kl_loss": 0.06142087501939386,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 287.810546875,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 22.42723229099647,
+        "timing_s/old_log_prob": 5.640307624998968,
+        "timing_s/ref": 9.302705570997205,
+        "timing_s/adv": 1.1443464629992377,
+        "timing_s/update_actor": 16.703906130001997,
+        "timing_s/update_weights": 2.9879364910011645,
+        "timing_s/step": 58.823451503005344,
+        "timing_per_token_ms/ref": 0.0076226005591536,
+        "timing_per_token_ms/gen": 0.021275241774625808,
+        "timing_per_token_ms/adv": 0.0009376730158932013,
+        "timing_per_token_ms/update_actor": 0.01368711534884723,
+        "perf/total_num_tokens": 1220411.0,
+        "perf/time_per_step": 58.823451503005344,
+        "perf/throughput": 5186.753619590174
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 166264,
+        "response_tokens": 1054147,
+        "total_input_plus_output_tokens": 1220411
+      }
+    },
+    {
+      "rollout_step": 34,
+      "physical_line": 1737,
+      "metric_line_sha256_without_lf": "da549f0f5920fff21c0b8a2fa356efece50019109939d7846fccf28842014fcc",
+      "reward_mean": 0.931640625,
+      "score_mean": 0.931640625,
+      "response_length_clip_ratio": 0.048828125,
+      "response_length_mean_tokens": 506.6591796875,
+      "response_length_min_tokens": 156.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.08044811803847551,
+      "actor_pg_loss": 0.008685685446835123,
+      "actor_loss": 0.008749415632337332,
+      "actor_kl_loss": 0.0637296955101192,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 287.5475311279297,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 21.43895057500049,
+        "timing_s/old_log_prob": 5.995959363994189,
+        "timing_s/ref": 9.441699966002489,
+        "timing_s/adv": 0.7019684990009409,
+        "timing_s/update_actor": 16.435005759994965,
+        "timing_s/update_weights": 2.6499247520041536,
+        "timing_s/step": 56.85732891099906,
+        "timing_per_token_ms/ref": 0.007824124764036131,
+        "timing_per_token_ms/gen": 0.020661300545084596,
+        "timing_per_token_ms/adv": 0.0005817055335779652,
+        "timing_per_token_ms/update_actor": 0.01361932025237786,
+        "perf/total_num_tokens": 1206742.0,
+        "perf/time_per_step": 56.85732891099906,
+        "perf/throughput": 5306.009019034992
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 169104,
+        "response_tokens": 1037638,
+        "total_input_plus_output_tokens": 1206742
+      }
+    },
+    {
+      "rollout_step": 35,
+      "physical_line": 1739,
+      "metric_line_sha256_without_lf": "fea47760beed066287b62714c07c44fcdc8eb64c2674282c4ddba6198083883f",
+      "reward_mean": 0.93505859375,
+      "score_mean": 0.93505859375,
+      "response_length_clip_ratio": 0.05224609375,
+      "response_length_mean_tokens": 521.14794921875,
+      "response_length_min_tokens": 186.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.09951404959429055,
+      "actor_pg_loss": 0.0038718129508197308,
+      "actor_loss": 0.003935703673050739,
+      "actor_kl_loss": 0.06389088532887399,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 288.59967041015625,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 21.45056400899921,
+        "timing_s/old_log_prob": 5.9230627860015375,
+        "timing_s/ref": 10.18545339499542,
+        "timing_s/adv": 0.8810673080006381,
+        "timing_s/update_actor": 16.72744902699924,
+        "timing_s/update_weights": 2.9901438829983817,
+        "timing_s/step": 58.351954737001506,
+        "timing_per_token_ms/ref": 0.008238958301479403,
+        "timing_per_token_ms/gen": 0.020097763453200808,
+        "timing_per_token_ms/adv": 0.0007126905921518118,
+        "timing_per_token_ms/update_actor": 0.013530743274647414,
+        "perf/total_num_tokens": 1236255.0,
+        "perf/time_per_step": 58.351954737001506,
+        "perf/throughput": 5296.544929694015
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 168944,
+        "response_tokens": 1067311,
+        "total_input_plus_output_tokens": 1236255
+      }
+    },
+    {
+      "rollout_step": 36,
+      "physical_line": 1741,
+      "metric_line_sha256_without_lf": "1765c9f6b42d5830c02e5062c123a7e1f8a631c9f471def576a7f8a7b67d2d00",
+      "reward_mean": 0.939453125,
+      "score_mean": 0.939453125,
+      "response_length_clip_ratio": 0.037109375,
+      "response_length_mean_tokens": 509.64501953125,
+      "response_length_min_tokens": 160.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.10284852189943194,
+      "actor_pg_loss": 0.005138815467944369,
+      "actor_loss": 0.00520608015358448,
+      "actor_kl_loss": 0.06726706714835018,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 289.0287780761719,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 21.44408775500051,
+        "timing_s/old_log_prob": 5.694609488004062,
+        "timing_s/ref": 9.476627739997639,
+        "timing_s/adv": 1.2178431979991728,
+        "timing_s/update_actor": 16.27435742400121,
+        "timing_s/update_weights": 2.756801520998124,
+        "timing_s/step": 57.06508139200014,
+        "timing_per_token_ms/ref": 0.007807192373248741,
+        "timing_per_token_ms/gen": 0.020545174725246786,
+        "timing_per_token_ms/adv": 0.0010033037477142018,
+        "timing_per_token_ms/update_actor": 0.013407410594374357,
+        "perf/total_num_tokens": 1213833.0,
+        "perf/time_per_step": 57.06508139200014,
+        "perf/throughput": 5317.757244845379
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 170080,
+        "response_tokens": 1043753,
+        "total_input_plus_output_tokens": 1213833
+      }
+    },
+    {
+      "rollout_step": 37,
+      "physical_line": 1743,
+      "metric_line_sha256_without_lf": "b0e8311f24e974863cfa7fe48ca18d2eb7841862975004e188946a36adfcfccb",
+      "reward_mean": 0.9423828125,
+      "score_mean": 0.9423828125,
+      "response_length_clip_ratio": 0.04296875,
+      "response_length_mean_tokens": 491.60791015625,
+      "response_length_min_tokens": 159.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.08644257206469774,
+      "actor_pg_loss": 0.005644350814691279,
+      "actor_loss": 0.005711408477509394,
+      "actor_kl_loss": 0.06705741432961076,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 288.132568359375,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 20.423582413997792,
+        "timing_s/old_log_prob": 5.896780767994642,
+        "timing_s/ref": 9.339609215996461,
+        "timing_s/adv": 0.6975806049958919,
+        "timing_s/update_actor": 16.443153125001118,
+        "timing_s/update_weights": 2.7567772250040434,
+        "timing_s/step": 55.75368568099657,
+        "timing_per_token_ms/ref": 0.007967229954622818,
+        "timing_per_token_ms/gen": 0.02028537813277917,
+        "timing_per_token_ms/adv": 0.0005950768349459476,
+        "timing_per_token_ms/update_actor": 0.01402696612847322,
+        "perf/total_num_tokens": 1172253.0,
+        "perf/time_per_step": 55.75368568099657,
+        "perf/throughput": 5256.392405639463
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 165440,
+        "response_tokens": 1006813,
+        "total_input_plus_output_tokens": 1172253
+      }
+    },
+    {
+      "rollout_step": 38,
+      "physical_line": 1745,
+      "metric_line_sha256_without_lf": "69db091a22e06b7862d34c34acae0ab0fb9496118c12d1fd46e202aa1b8fedec",
+      "reward_mean": 0.93310546875,
+      "score_mean": 0.93310546875,
+      "response_length_clip_ratio": 0.048828125,
+      "response_length_mean_tokens": 495.052734375,
+      "response_length_min_tokens": 185.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.10012721735984087,
+      "actor_pg_loss": 0.0064221548673231155,
+      "actor_loss": 0.006490285508334637,
+      "actor_kl_loss": 0.0681294979294762,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 288.3904571533203,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 20.431198778998805,
+        "timing_s/old_log_prob": 5.599347367002338,
+        "timing_s/ref": 9.710258645005524,
+        "timing_s/adv": 0.703037036000751,
+        "timing_s/update_actor": 16.06773379000515,
+        "timing_s/update_weights": 2.681244147999678,
+        "timing_s/step": 55.3895224959997,
+        "timing_per_token_ms/ref": 0.008224878489343963,
+        "timing_per_token_ms/gen": 0.020151734524611494,
+        "timing_per_token_ms/adv": 0.0005954933237117109,
+        "timing_per_token_ms/update_actor": 0.013609849423515877,
+        "perf/total_num_tokens": 1180596.0,
+        "perf/time_per_step": 55.3895224959997,
+        "perf/throughput": 5328.6070487665975
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 166728,
+        "response_tokens": 1013868,
+        "total_input_plus_output_tokens": 1180596
+      }
+    },
+    {
+      "rollout_step": 39,
+      "physical_line": 1754,
+      "metric_line_sha256_without_lf": "cba59bce8f73a86302809c02e927996a3f2fe5420981269e15d83f4dc3c702ad",
+      "reward_mean": 0.94140625,
+      "score_mean": 0.94140625,
+      "response_length_clip_ratio": 0.04150390625,
+      "response_length_mean_tokens": 494.64013671875,
+      "response_length_min_tokens": 177.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.07974115083925426,
+      "actor_pg_loss": 0.008227811136748642,
+      "actor_loss": 0.008295513689517975,
+      "actor_kl_loss": 0.067702965461649,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 289.00682067871094,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 21.433885377002298,
+        "timing_s/old_log_prob": 5.4874297120040865,
+        "timing_s/ref": 9.148597018000146,
+        "timing_s/adv": 1.169564461997652,
+        "timing_s/update_actor": 15.709702940002899,
+        "timing_s/update_weights": 2.682944103005866,
+        "timing_s/step": 56.25546175900672,
+        "timing_per_token_ms/ref": 0.007748747109020117,
+        "timing_per_token_ms/gen": 0.021158340311130445,
+        "timing_per_token_ms/adv": 0.0009906064531956006,
+        "timing_per_token_ms/update_actor": 0.01330592166213068,
+        "perf/total_num_tokens": 1180655.0,
+        "perf/time_per_step": 56.25546175900672,
+        "perf/throughput": 5246.846097619013
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 167632,
+        "response_tokens": 1013023,
+        "total_input_plus_output_tokens": 1180655
+      }
+    },
+    {
+      "rollout_step": 40,
+      "physical_line": 1762,
+      "metric_line_sha256_without_lf": "560436fc2d76375ce4079dd17b00eddf997820021559ee7a20d84c09b30ac211",
+      "reward_mean": 0.94482421875,
+      "score_mean": 0.94482421875,
+      "response_length_clip_ratio": 0.03759765625,
+      "response_length_mean_tokens": 503.8623046875,
+      "response_length_min_tokens": 164.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.09708194620907307,
+      "actor_pg_loss": 0.0072332424415435526,
+      "actor_loss": 0.007303351070731878,
+      "actor_kl_loss": 0.07010803348384798,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 288.4872741699219,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 22.42865290199552,
+        "timing_s/old_log_prob": 6.030228848998377,
+        "timing_s/ref": 9.546309085002576,
+        "timing_s/adv": 0.6979659740027273,
+        "timing_s/update_actor": 16.97852813499776,
+        "timing_s/update_weights": 2.7309138309938135,
+        "timing_s/step": 58.60774069600302,
+        "timing_per_token_ms/ref": 0.00796126832842344,
+        "timing_per_token_ms/gen": 0.02173508629821934,
+        "timing_per_token_ms/adv": 0.0005820777803931363,
+        "timing_per_token_ms/update_actor": 0.014159463841031445,
+        "perf/total_num_tokens": 1199094.0,
+        "perf/time_per_step": 58.60774069600302,
+        "perf/throughput": 5114.913088953866
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 167184,
+        "response_tokens": 1031910,
+        "total_input_plus_output_tokens": 1199094
+      }
+    },
+    {
+      "rollout_step": 41,
+      "physical_line": 1770,
+      "metric_line_sha256_without_lf": "1709561fe714ae06d389f86a22b87bee646f53677a9f4361a79f35ca508c73b0",
+      "reward_mean": 0.92529296875,
+      "score_mean": 0.92529296875,
+      "response_length_clip_ratio": 0.04443359375,
+      "response_length_mean_tokens": 506.3056640625,
+      "response_length_min_tokens": 158.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.09373871050775051,
+      "actor_pg_loss": 0.006077205602196045,
+      "actor_loss": 0.006147334352135658,
+      "actor_kl_loss": 0.07012944854795933,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 286.3526306152344,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 22.435070141000324,
+        "timing_s/old_log_prob": 5.657311019996996,
+        "timing_s/ref": 10.090013867993548,
+        "timing_s/adv": 0.7749291209984221,
+        "timing_s/update_actor": 16.67601004500466,
+        "timing_s/update_weights": 2.692533884997829,
+        "timing_s/step": 58.52220813599706,
+        "timing_per_token_ms/ref": 0.008370774065729607,
+        "timing_per_token_ms/gen": 0.021636384638456345,
+        "timing_per_token_ms/adv": 0.0006428887684098058,
+        "timing_per_token_ms/update_actor": 0.013834580827224358,
+        "perf/total_num_tokens": 1205386.0,
+        "perf/time_per_step": 58.52220813599706,
+        "perf/throughput": 5149.267425106633
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 168472,
+        "response_tokens": 1036914,
+        "total_input_plus_output_tokens": 1205386
+      }
+    },
+    {
+      "rollout_step": 42,
+      "physical_line": 1772,
+      "metric_line_sha256_without_lf": "6c318f9d6f62bb448c42fbe04747526b8873de247f3ff802685b72a52f8beb0b",
+      "reward_mean": 0.943359375,
+      "score_mean": 0.943359375,
+      "response_length_clip_ratio": 0.04052734375,
+      "response_length_mean_tokens": 482.19482421875,
+      "response_length_min_tokens": 185.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.058065821416676044,
+      "actor_pg_loss": 0.003718601888976991,
+      "actor_loss": 0.0037933833082206547,
+      "actor_kl_loss": 0.07478190120309591,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 285.7985076904297,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 21.469169714997406,
+        "timing_s/old_log_prob": 5.880896126996959,
+        "timing_s/ref": 9.026232621996314,
+        "timing_s/adv": 1.2005343779965187,
+        "timing_s/update_actor": 15.615767790004611,
+        "timing_s/update_weights": 2.6452519789963844,
+        "timing_s/step": 56.03266376299871,
+        "timing_per_token_ms/ref": 0.007835169352826408,
+        "timing_per_token_ms/gen": 0.021740160819613892,
+        "timing_per_token_ms/adv": 0.0010421169672239674,
+        "timing_per_token_ms/update_actor": 0.01355517748467217,
+        "perf/total_num_tokens": 1152015.0,
+        "perf/time_per_step": 56.03266376299871,
+        "perf/throughput": 5139.926083438922
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 164480,
+        "response_tokens": 987535,
+        "total_input_plus_output_tokens": 1152015
+      }
+    },
+    {
+      "rollout_step": 43,
+      "physical_line": 1774,
+      "metric_line_sha256_without_lf": "c54d893a8412cd260622a74a35b44d903c1233e26a3371e6cdaa14ee2118de93",
+      "reward_mean": 0.91650390625,
+      "score_mean": 0.91650390625,
+      "response_length_clip_ratio": 0.06005859375,
+      "response_length_mean_tokens": 502.01123046875,
+      "response_length_min_tokens": 146.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.08389649633318186,
+      "actor_pg_loss": 0.004053966666106135,
+      "actor_loss": 0.0041291480883955956,
+      "actor_kl_loss": 0.0751818121643737,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 285.70558166503906,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 21.467870606997167,
+        "timing_s/old_log_prob": 5.980227366999316,
+        "timing_s/ref": 9.176851536001777,
+        "timing_s/adv": 0.708537416998297,
+        "timing_s/update_actor": 16.184667538000213,
+        "timing_s/update_weights": 2.802781189995585,
+        "timing_s/step": 56.51600327400229,
+        "timing_per_token_ms/ref": 0.007685554270841888,
+        "timing_per_token_ms/gen": 0.020880725487027442,
+        "timing_per_token_ms/adv": 0.0005933955398427496,
+        "timing_per_token_ms/update_actor": 0.013554555201295948,
+        "perf/total_num_tokens": 1194039.0,
+        "perf/time_per_step": 56.51600327400229,
+        "perf/throughput": 5281.862352381106
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 165920,
+        "response_tokens": 1028119,
+        "total_input_plus_output_tokens": 1194039
+      }
+    },
+    {
+      "rollout_step": 44,
+      "physical_line": 1781,
+      "metric_line_sha256_without_lf": "d30f78bdf237dcb5398acc49061bc961ab16530f86d27fc292b406bcb1a33539",
+      "reward_mean": 0.96142578125,
+      "score_mean": 0.96142578125,
+      "response_length_clip_ratio": 0.02978515625,
+      "response_length_mean_tokens": 482.55029296875,
+      "response_length_min_tokens": 166.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.06592004001140594,
+      "actor_pg_loss": 0.003985565170296468,
+      "actor_loss": 0.004066716239321977,
+      "actor_kl_loss": 0.08115069521591067,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 285.6730499267578,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 20.41987077199883,
+        "timing_s/old_log_prob": 5.634340054995846,
+        "timing_s/ref": 9.972505651996471,
+        "timing_s/adv": 0.7045227400012664,
+        "timing_s/update_actor": 15.560645514997304,
+        "timing_s/update_weights": 2.678318596997997,
+        "timing_s/step": 55.16439686000376,
+        "timing_per_token_ms/ref": 0.008551935151967926,
+        "timing_per_token_ms/gen": 0.020662385186937922,
+        "timing_per_token_ms/adv": 0.0006041643891544342,
+        "timing_per_token_ms/update_actor": 0.013344051736924963,
+        "perf/total_num_tokens": 1166111.0,
+        "perf/time_per_step": 55.16439686000376,
+        "perf/throughput": 5284.708373406842
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 177848,
+        "response_tokens": 988263,
+        "total_input_plus_output_tokens": 1166111
+      }
+    },
+    {
+      "rollout_step": 45,
+      "physical_line": 1787,
+      "metric_line_sha256_without_lf": "74166be636c2ca8a99b75b489a51bfe37d2908b4d3818f65500d766c90a2618d",
+      "reward_mean": 0.93701171875,
+      "score_mean": 0.93701171875,
+      "response_length_clip_ratio": 0.03759765625,
+      "response_length_mean_tokens": 479.68359375,
+      "response_length_min_tokens": 167.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.10515425447374582,
+      "actor_pg_loss": 0.006878818277982646,
+      "actor_loss": 0.006960887927561998,
+      "actor_kl_loss": 0.08206664980389178,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 284.9447479248047,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 20.44226750300004,
+        "timing_s/old_log_prob": 5.7986470270043355,
+        "timing_s/ref": 9.618511543005297,
+        "timing_s/adv": 0.6987111939961324,
+        "timing_s/update_actor": 15.844814705000317,
+        "timing_s/update_weights": 2.6764899129993864,
+        "timing_s/step": 55.27581778500462,
+        "timing_per_token_ms/ref": 0.008377151696074234,
+        "timing_per_token_ms/gen": 0.020808666502781008,
+        "timing_per_token_ms/adv": 0.0006085359088753478,
+        "timing_per_token_ms/update_actor": 0.013799891572256988,
+        "perf/total_num_tokens": 1148184.0,
+        "perf/time_per_step": 55.27581778500462,
+        "perf/throughput": 5192.976087960668
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 165792,
+        "response_tokens": 982392,
+        "total_input_plus_output_tokens": 1148184
+      }
+    },
+    {
+      "rollout_step": 46,
+      "physical_line": 1789,
+      "metric_line_sha256_without_lf": "fe7aeeadf60aa9bc9e403d2dc414d58bdf2c0171266660876e30d53b70419f20",
+      "reward_mean": 0.953125,
+      "score_mean": 0.953125,
+      "response_length_clip_ratio": 0.02734375,
+      "response_length_mean_tokens": 471.4658203125,
+      "response_length_min_tokens": 176.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.11484498158097267,
+      "actor_pg_loss": 0.009687156703876099,
+      "actor_loss": 0.009772707941010594,
+      "actor_kl_loss": 0.08554963278584182,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 285.78880310058594,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 22.43326636400161,
+        "timing_s/old_log_prob": 5.55784034399403,
+        "timing_s/ref": 9.414827767002862,
+        "timing_s/adv": 0.6971869190019788,
+        "timing_s/update_actor": 15.608965767998598,
+        "timing_s/update_weights": 2.5884983350042603,
+        "timing_s/step": 56.49727755900676,
+        "timing_per_token_ms/ref": 0.008325207905867157,
+        "timing_per_token_ms/gen": 0.02323337741543434,
+        "timing_per_token_ms/adv": 0.0006164983782587209,
+        "timing_per_token_ms/update_actor": 0.013802470786517602,
+        "perf/total_num_tokens": 1130882.0,
+        "perf/time_per_step": 56.49727755900676,
+        "perf/throughput": 5004.143778516083
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 165320,
+        "response_tokens": 965562,
+        "total_input_plus_output_tokens": 1130882
+      }
+    },
+    {
+      "rollout_step": 47,
+      "physical_line": 1791,
+      "metric_line_sha256_without_lf": "874c65aca6aa24bf655993f907d85ffa1868454d694d630be639c476820bdcc7",
+      "reward_mean": 0.9521484375,
+      "score_mean": 0.9521484375,
+      "response_length_clip_ratio": 0.02685546875,
+      "response_length_mean_tokens": 467.28564453125,
+      "response_length_min_tokens": 161.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.0638500542845577,
+      "actor_pg_loss": 0.005977781140245497,
+      "actor_loss": 0.006064468645490706,
+      "actor_kl_loss": 0.08668762957677245,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 285.78350830078125,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 20.67690152599971,
+        "timing_s/old_log_prob": 5.461284687997249,
+        "timing_s/ref": 8.903935582005943,
+        "timing_s/adv": 1.1342769999973825,
+        "timing_s/update_actor": 15.218181789998198,
+        "timing_s/update_weights": 2.62571371300146,
+        "timing_s/step": 54.692701011998,
+        "timing_per_token_ms/ref": 0.00789422476361568,
+        "timing_per_token_ms/gen": 0.02160593513068399,
+        "timing_per_token_ms/adv": 0.0010056494119605663,
+        "timing_per_token_ms/update_actor": 0.013492432243848726,
+        "perf/total_num_tokens": 1127905.0,
+        "perf/time_per_step": 54.692701011998,
+        "perf/throughput": 5155.646819090953
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 170904,
+        "response_tokens": 957001,
+        "total_input_plus_output_tokens": 1127905
+      }
+    },
+    {
+      "rollout_step": 48,
+      "physical_line": 1799,
+      "metric_line_sha256_without_lf": "b62be5dacc1bb5f49179ad78a74160cca69280358acb4bb7a373dda41162cee4",
+      "reward_mean": 0.95361328125,
+      "score_mean": 0.95361328125,
+      "response_length_clip_ratio": 0.03173828125,
+      "response_length_mean_tokens": 476.2900390625,
+      "response_length_min_tokens": 179.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.1056758314371109,
+      "actor_pg_loss": 0.004601589709636755,
+      "actor_loss": 0.004687459382694215,
+      "actor_kl_loss": 0.08587134419940412,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 286.25091552734375,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 20.417306244002248,
+        "timing_s/old_log_prob": 5.813018471002579,
+        "timing_s/ref": 9.045574584997667,
+        "timing_s/adv": 1.121943973004818,
+        "timing_s/update_actor": 15.953761051001493,
+        "timing_s/update_weights": 2.7812848389949067,
+        "timing_s/step": 55.3304063329997,
+        "timing_per_token_ms/ref": 0.007911936499479277,
+        "timing_per_token_ms/gen": 0.020931338043678915,
+        "timing_per_token_ms/adv": 0.0009813361646600033,
+        "timing_per_token_ms/update_actor": 0.013954353388754037,
+        "perf/total_num_tokens": 1143282.0,
+        "perf/time_per_step": 55.3304063329997,
+        "perf/throughput": 5165.7039762155755
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 167840,
+        "response_tokens": 975442,
+        "total_input_plus_output_tokens": 1143282
+      }
+    },
+    {
+      "rollout_step": 49,
+      "physical_line": 1801,
+      "metric_line_sha256_without_lf": "ac733d19e2a68484b9108fdff493e10520eac93ca5424e944f2d26e3ae09029d",
+      "reward_mean": 0.94580078125,
+      "score_mean": 0.94580078125,
+      "response_length_clip_ratio": 0.03564453125,
+      "response_length_mean_tokens": 471.88720703125,
+      "response_length_min_tokens": 177.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.09206194547004998,
+      "actor_pg_loss": 0.0029364718852775695,
+      "actor_loss": 0.0030246295500546694,
+      "actor_kl_loss": 0.08815707499161363,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 284.8873291015625,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 20.65305332900607,
+        "timing_s/old_log_prob": 5.313772638000955,
+        "timing_s/ref": 9.39596533599979,
+        "timing_s/adv": 0.9197989009990124,
+        "timing_s/update_actor": 15.199798308000027,
+        "timing_s/update_weights": 2.6389493380047497,
+        "timing_s/step": 54.3138891980052,
+        "timing_per_token_ms/ref": 0.008254231746580964,
+        "timing_per_token_ms/gen": 0.02137057022428649,
+        "timing_per_token_ms/adv": 0.0008080312152714502,
+        "timing_per_token_ms/update_actor": 0.013352822541269137,
+        "perf/total_num_tokens": 1138321.0,
+        "perf/time_per_step": 54.3138891980052,
+        "perf/throughput": 5239.548377074272
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 171896,
+        "response_tokens": 966425,
+        "total_input_plus_output_tokens": 1138321
+      }
+    },
+    {
+      "rollout_step": 50,
+      "physical_line": 1826,
+      "metric_line_sha256_without_lf": "b0ebefaac62904ce1f0ae8557543a4b273711ee3184a34327d8624a48e616eff",
+      "reward_mean": 0.9365234375,
+      "score_mean": 0.9365234375,
+      "response_length_clip_ratio": 0.03662109375,
+      "response_length_mean_tokens": 479.1396484375,
+      "response_length_min_tokens": 187.0,
+      "response_length_max_tokens": 1024.0,
+      "actor_grad_norm": 0.07541049877181649,
+      "actor_pg_loss": 0.00674381697899662,
+      "actor_loss": 0.0068318701814860106,
+      "actor_kl_loss": 0.0880534085445106,
+      "actor_lr": 1e-06,
+      "response_aborted_ratio": 0.0,
+      "performance": {
+        "actor/perf/max_memory_allocated_gb": 153.52657794952393,
+        "actor/perf/max_memory_reserved_gb": 156.43359375,
+        "actor/perf/cpu_memory_used_gb": 284.44158935546875,
+        "perf/mfu/actor": 0.0,
+        "timing_s/gen": 20.538959074998274,
+        "timing_s/old_log_prob": 5.419213633998879,
+        "timing_s/ref": 9.15572982300364,
+        "timing_s/adv": 1.1348093329943367,
+        "timing_s/update_actor": 15.429137439998158,
+        "timing_s/update_weights": 2.6077746719965944,
+        "timing_s/step": 54.485092883005564,
+        "timing_per_token_ms/ref": 0.007919044343981435,
+        "timing_per_token_ms/gen": 0.02093082599935826,
+        "timing_per_token_ms/adv": 0.000981528027112315,
+        "timing_per_token_ms/update_actor": 0.013345088369661586,
+        "perf/total_num_tokens": 1156166.0,
+        "perf/time_per_step": 54.485092883005564,
+        "perf/throughput": 5304.96480240295
+      },
+      "derived_token_counts": {
+        "prompt_tokens": 174888,
+        "response_tokens": 981278,
+        "total_input_plus_output_tokens": 1156166
+      }
+    }
+  ],
+  "performance_summary": {
+    "metric_names": [
+      "actor/perf/cpu_memory_used_gb",
+      "actor/perf/max_memory_allocated_gb",
+      "actor/perf/max_memory_reserved_gb",
+      "perf/mfu/actor",
+      "perf/throughput",
+      "perf/time_per_step",
+      "perf/total_num_tokens",
+      "timing_per_token_ms/adv",
+      "timing_per_token_ms/gen",
+      "timing_per_token_ms/ref",
+      "timing_per_token_ms/update_actor",
+      "timing_s/adv",
+      "timing_s/gen",
+      "timing_s/old_log_prob",
+      "timing_s/ref",
+      "timing_s/step",
+      "timing_s/update_actor",
+      "timing_s/update_weights"
+    ],
+    "windows": [
+      {
+        "name": "all_steps",
+        "first_step": 1,
+        "last_step": 50,
+        "count": 50,
+        "metrics": {
+          "actor/perf/cpu_memory_used_gb": {
+            "mean": 290.04436553955077,
+            "median": 289.0177993774414
+          },
+          "actor/perf/max_memory_allocated_gb": {
+            "mean": 153.33269751548767,
+            "median": 153.52657794952393
+          },
+          "actor/perf/max_memory_reserved_gb": {
+            "mean": 156.018203125,
+            "median": 156.43359375
+          },
+          "perf/mfu/actor": {
+            "mean": 0.0,
+            "median": 0.0
+          },
+          "perf/throughput": {
+            "mean": 5315.208224036702,
+            "median": 5323.182146805988
+          },
+          "perf/time_per_step": {
+            "mean": 64.43373145098042,
+            "median": 59.140818700001546
+          },
+          "perf/total_num_tokens": {
+            "mean": 1347762.32,
+            "median": 1269122.5
+          },
+          "timing_per_token_ms/adv": {
+            "mean": 0.000668534778472897,
+            "median": 0.0006053711873125998
+          },
+          "timing_per_token_ms/gen": {
+            "mean": 0.020263824833872627,
+            "median": 0.02014793718822338
+          },
+          "timing_per_token_ms/ref": {
+            "mean": 0.0075274282749292105,
+            "median": 0.007695042063822568
+          },
+          "timing_per_token_ms/update_actor": {
+            "mean": 0.013944228963866318,
+            "median": 0.013450790939621433
+          },
+          "timing_s/adv": {
+            "mean": 0.8836635750393907,
+            "median": 0.7182223669988161
+          },
+          "timing_s/gen": {
+            "mean": 23.724582826339756,
+            "median": 22.43536840700108
+          },
+          "timing_s/old_log_prob": {
+            "mean": 7.353321086679498,
+            "median": 6.033462611998402
+          },
+          "timing_s/ref": {
+            "mean": 10.048071635280067,
+            "median": 9.855042162002064
+          },
+          "timing_s/step": {
+            "mean": 64.43373145098042,
+            "median": 59.140818700001546
+          },
+          "timing_s/update_actor": {
+            "mean": 18.99167596092113,
+            "median": 17.22624628950507
+          },
+          "timing_s/update_weights": {
+            "mean": 2.805249058860063,
+            "median": 2.736166176498955
+          }
+        },
+        "aggregate_input_plus_output_tokens_per_second_per_gpu": 5229.257601763077,
+        "sum_step_timer_seconds": 3221.6865725490206,
+        "sum_input_plus_output_tokens": 67388116,
+        "mean_reward": 0.86091796875,
+        "mean_response_tokens": 575.4456640625
+      },
+      {
+        "name": "initial_steps",
+        "first_step": 1,
+        "last_step": 5,
+        "count": 5,
+        "metrics": {
+          "actor/perf/cpu_memory_used_gb": {
+            "mean": 299.34486694335936,
+            "median": 298.06788635253906
+          },
+          "actor/perf/max_memory_allocated_gb": {
+            "mean": 151.86254606246948,
+            "median": 153.4542694091797
+          },
+          "actor/perf/max_memory_reserved_gb": {
+            "mean": 153.30703125,
+            "median": 154.634765625
+          },
+          "perf/mfu/actor": {
+            "mean": 0.0,
+            "median": 0.0
+          },
+          "perf/throughput": {
+            "mean": 4861.598053651575,
+            "median": 5628.786289005137
+          },
+          "perf/time_per_step": {
+            "mean": 99.34231813259684,
+            "median": 74.5746397039984
+          },
+          "perf/total_num_tokens": {
+            "mean": 1755828.6,
+            "median": 1772625.0
+          },
+          "timing_per_token_ms/adv": {
+            "mean": 0.0004981730078261795,
+            "median": 0.00039653961568501025
+          },
+          "timing_per_token_ms/gen": {
+            "mean": 0.018600544806360884,
+            "median": 0.01873529080388434
+          },
+          "timing_per_token_ms/ref": {
+            "mean": 0.006661632363248164,
+            "median": 0.006554620449827448
+          },
+          "timing_per_token_ms/update_actor": {
+            "mean": 0.018210021156106957,
+            "median": 0.01351915529855546
+          },
+          "timing_s/adv": {
+            "mean": 0.8701630803989246,
+            "median": 0.6953088590016705
+          },
+          "timing_s/gen": {
+            "mean": 29.46897425900097,
+            "median": 28.622844409001118
+          },
+          "timing_s/old_log_prob": {
+            "mean": 18.170242607800173,
+            "median": 7.847831077997398
+          },
+          "timing_s/ref": {
+            "mean": 11.705565101001412,
+            "median": 11.654567042998679
+          },
+          "timing_s/step": {
+            "mean": 99.34231813259684,
+            "median": 74.5746397039984
+          },
+          "timing_s/update_actor": {
+            "mean": 32.25421862359944,
+            "median": 23.229053062001185
+          },
+          "timing_s/update_weights": {
+            "mean": 3.1845055507976214,
+            "median": 2.831567509994784
+          }
+        },
+        "aggregate_input_plus_output_tokens_per_second_per_gpu": 4418.632041725696,
+        "sum_step_timer_seconds": 496.71159066298424,
+        "sum_input_plus_output_tokens": 8779143,
+        "mean_reward": 0.57421875,
+        "mean_response_tokens": 773.92412109375
+      },
+      {
+        "name": "post_initial_steps",
+        "first_step": 6,
+        "last_step": 50,
+        "count": 45,
+        "metrics": {
+          "actor/perf/cpu_memory_used_gb": {
+            "mean": 289.0109764946832,
+            "median": 288.82696533203125
+          },
+          "actor/perf/max_memory_allocated_gb": {
+            "mean": 153.49604767693413,
+            "median": 153.52657794952393
+          },
+          "actor/perf/max_memory_reserved_gb": {
+            "mean": 156.31944444444446,
+            "median": 156.43359375
+          },
+          "perf/mfu/actor": {
+            "mean": 0.0,
+            "median": 0.0
+          },
+          "perf/throughput": {
+            "mean": 5365.609354079494,
+            "median": 5317.757244845379
+          },
+          "perf/time_per_step": {
+            "mean": 60.55499959746748,
+            "median": 58.59035769000184
+          },
+          "perf/total_num_tokens": {
+            "mean": 1302421.6222222222,
+            "median": 1266850.0
+          },
+          "timing_per_token_ms/adv": {
+            "mean": 0.0006874638641003101,
+            "median": 0.0006065779854707655
+          },
+          "timing_per_token_ms/gen": {
+            "mean": 0.020448633725818375,
+            "median": 0.02028537813277917
+          },
+          "timing_per_token_ms/ref": {
+            "mean": 0.007623627820671549,
+            "median": 0.007748747109020117
+          },
+          "timing_per_token_ms/update_actor": {
+            "mean": 0.013470252053617357,
+            "median": 0.013444337426199363
+          },
+          "timing_s/adv": {
+            "mean": 0.8851636299994425,
+            "median": 0.7204449249984464
+          },
+          "timing_s/gen": {
+            "mean": 23.08631711159962,
+            "median": 22.429814133996842
+          },
+          "timing_s/old_log_prob": {
+            "mean": 6.15144091766609,
+            "median": 5.995959363994189
+          },
+          "timing_s/ref": {
+            "mean": 9.86390569464436,
+            "median": 9.822829946999263
+          },
+          "timing_s/step": {
+            "mean": 60.55499959746748,
+            "median": 58.59035769000184
+          },
+          "timing_s/update_actor": {
+            "mean": 17.518060109512426,
+            "median": 17.034487930999603
+          },
+          "timing_s/update_weights": {
+            "mean": 2.7631094486447787,
+            "median": 2.7286049940012163
+          }
+        },
+        "aggregate_input_plus_output_tokens_per_second_per_gpu": 5377.019366195702,
+        "sum_step_timer_seconds": 2724.9749818860364,
+        "sum_input_plus_output_tokens": 58608973,
+        "mean_reward": 0.8927734375,
+        "mean_response_tokens": 553.3925021701389
+      },
+      {
+        "name": "steps_6_10",
+        "first_step": 6,
+        "last_step": 10,
+        "count": 5,
+        "metrics": {
+          "actor/perf/cpu_memory_used_gb": {
+            "mean": 294.3960662841797,
+            "median": 292.75425720214844
+          },
+          "actor/perf/max_memory_allocated_gb": {
+            "mean": 153.4542694091797,
+            "median": 153.4542694091797
+          },
+          "actor/perf/max_memory_reserved_gb": {
+            "mean": 155.6484375,
+            "median": 155.828125
+          },
+          "perf/mfu/actor": {
+            "mean": 0.0,
+            "median": 0.0
+          },
+          "perf/throughput": {
+            "mean": 5649.719765191626,
+            "median": 5648.809412670013
+          },
+          "perf/time_per_step": {
+            "mean": 71.0098306232001,
+            "median": 71.83438054399448
+          },
+          "perf/total_num_tokens": {
+            "mean": 1604714.4,
+            "median": 1647344.0
+          },
+          "timing_per_token_ms/adv": {
+            "mean": 0.000528543610453903,
+            "median": 0.00048750355858017666
+          },
+          "timing_per_token_ms/gen": {
+            "mean": 0.01947588336847934,
+            "median": 0.019556528471396693
+          },
+          "timing_per_token_ms/ref": {
+            "mean": 0.006871270960733245,
+            "median": 0.006837475369121349
+          },
+          "timing_per_token_ms/update_actor": {
+            "mean": 0.013104925462744783,
+            "median": 0.013062393021701932
+          },
+          "timing_s/adv": {
+            "mean": 0.8471244146014214,
+            "median": 0.7561380070037558
+          },
+          "timing_s/gen": {
+            "mean": 27.917071998999745,
+            "median": 27.497184369000024
+          },
+          "timing_s/old_log_prob": {
+            "mean": 7.086560256799567,
+            "median": 7.0826828939971165
+          },
+          "timing_s/ref": {
+            "mean": 11.024235252197832,
+            "median": 11.146428457999718
+          },
+          "timing_s/step": {
+            "mean": 71.0098306232001,
+            "median": 71.83438054399448
+          },
+          "timing_s/update_actor": {
+            "mean": 21.025521540002956,
+            "median": 21.335661363002146
+          },
+          "timing_s/update_weights": {
+            "mean": 2.8319281950010917,
+            "median": 2.7902979780046735
+          }
+        },
+        "aggregate_input_plus_output_tokens_per_second_per_gpu": 5649.620573365066,
+        "sum_step_timer_seconds": 355.0491531160005,
+        "sum_input_plus_output_tokens": 8023572,
+        "mean_reward": 0.7525390625,
+        "mean_response_tokens": 700.151953125
+      },
+      {
+        "name": "steps_11_20",
+        "first_step": 11,
+        "last_step": 20,
+        "count": 10,
+        "metrics": {
+          "actor/perf/cpu_memory_used_gb": {
+            "mean": 290.6333312988281,
+            "median": 290.4569091796875
+          },
+          "actor/perf/max_memory_allocated_gb": {
+            "mean": 153.4542694091797,
+            "median": 153.4542694091797
+          },
+          "actor/perf/max_memory_reserved_gb": {
+            "mean": 156.3125,
+            "median": 156.43359375
+          },
+          "perf/mfu/actor": {
+            "mean": 0.0,
+            "median": 0.0
+          },
+          "perf/throughput": {
+            "mean": 5491.9682906606195,
+            "median": 5497.6705822564545
+          },
+          "perf/time_per_step": {
+            "mean": 64.74438305359945,
+            "median": 64.08338763999927
+          },
+          "perf/total_num_tokens": {
+            "mean": 1422559.8,
+            "median": 1416482.5
+          },
+          "timing_per_token_ms/adv": {
+            "mean": 0.0006606400241342752,
+            "median": 0.000594259278717675
+          },
+          "timing_per_token_ms/gen": {
+            "mean": 0.019971433141685417,
+            "median": 0.019853364875374237
+          },
+          "timing_per_token_ms/ref": {
+            "mean": 0.0071288818664142425,
+            "median": 0.007082833091532478
+          },
+          "timing_per_token_ms/update_actor": {
+            "mean": 0.013346113551130618,
+            "median": 0.013347392054506085
+          },
+          "timing_s/adv": {
+            "mean": 0.9407025029984653,
+            "median": 0.8000040775004891
+          },
+          "timing_s/gen": {
+            "mean": 25.00662813010058,
+            "median": 24.756470702501247
+          },
+          "timing_s/old_log_prob": {
+            "mean": 6.577868008300721,
+            "median": 6.664000946500892
+          },
+          "timing_s/ref": {
+            "mean": 10.126776101899305,
+            "median": 10.08708174700223
+          },
+          "timing_s/step": {
+            "mean": 64.74438305359945,
+            "median": 64.08338763999927
+          },
+          "timing_s/update_actor": {
+            "mean": 18.984507650101296,
+            "median": 19.052721914002177
+          },
+          "timing_s/update_weights": {
+            "mean": 2.783138525900722,
+            "median": 2.7680650825022894
+          }
+        },
+        "aggregate_input_plus_output_tokens_per_second_per_gpu": 5492.985386942046,
+        "sum_step_timer_seconds": 647.4438305359945,
+        "sum_input_plus_output_tokens": 14225598,
+        "mean_reward": 0.852099609375,
+        "mean_response_tokens": 611.92138671875
+      },
+      {
+        "name": "steps_21_30",
+        "first_step": 21,
+        "last_step": 30,
+        "count": 10,
+        "metrics": {
+          "actor/perf/cpu_memory_used_gb": {
+            "mean": 289.01383819580076,
+            "median": 288.8547134399414
+          },
+          "actor/perf/max_memory_allocated_gb": {
+            "mean": 153.49765453338622,
+            "median": 153.52657794952393
+          },
+          "actor/perf/max_memory_reserved_gb": {
+            "mean": 156.43359375,
+            "median": 156.43359375
+          },
+          "perf/mfu/actor": {
+            "mean": 0.0,
+            "median": 0.0
+          },
+          "perf/throughput": {
+            "mean": 5379.572779707024,
+            "median": 5401.73991856659
+          },
+          "perf/time_per_step": {
+            "mean": 59.183531529100584,
+            "median": 59.002431084998534
+          },
+          "perf/total_num_tokens": {
+            "mean": 1273273.9,
+            "median": 1269122.5
+          },
+          "timing_per_token_ms/adv": {
+            "mean": 0.0006595837371263269,
+            "median": 0.0005709885207270891
+          },
+          "timing_per_token_ms/gen": {
+            "mean": 0.020077286757491514,
+            "median": 0.020038232919703053
+          },
+          "timing_per_token_ms/ref": {
+            "mean": 0.007723787464385781,
+            "median": 0.0077568054405871174
+          },
+          "timing_per_token_ms/update_actor": {
+            "mean": 0.013447130751009293,
+            "median": 0.0133699208019544
+          },
+          "timing_s/adv": {
+            "mean": 0.8401630609994755,
+            "median": 0.712272661501629
+          },
+          "timing_s/gen": {
+            "mean": 22.194353941998997,
+            "median": 22.00417013349943
+          },
+          "timing_s/old_log_prob": {
+            "mean": 6.102144553598919,
+            "median": 5.998094274997129
+          },
+          "timing_s/ref": {
+            "mean": 9.83250173970082,
+            "median": 9.827434745500796
+          },
+          "timing_s/step": {
+            "mean": 59.183531529100584,
+            "median": 59.002431084998534
+          },
+          "timing_s/update_actor": {
+            "mean": 17.118968242401753,
+            "median": 17.22624628950507
+          },
+          "timing_s/update_weights": {
+            "mean": 2.7916196804006175,
+            "median": 2.7203894605008827
+          }
+        },
+        "aggregate_input_plus_output_tokens_per_second_per_gpu": 5378.497476844257,
+        "sum_step_timer_seconds": 591.8353152910058,
+        "sum_input_plus_output_tokens": 12732739,
+        "mean_reward": 0.912109375,
+        "mean_response_tokens": 539.721240234375
+      },
+      {
+        "name": "steps_31_40",
+        "first_step": 31,
+        "last_step": 40,
+        "count": 10,
+        "metrics": {
+          "actor/perf/cpu_memory_used_gb": {
+            "mean": 288.1415252685547,
+            "median": 288.26151275634766
+          },
+          "actor/perf/max_memory_allocated_gb": {
+            "mean": 153.52657794952393,
+            "median": 153.52657794952393
+          },
+          "actor/perf/max_memory_reserved_gb": {
+            "mean": 156.43359375,
+            "median": 156.43359375
+          },
+          "perf/mfu/actor": {
+            "mean": 0.0,
+            "median": 0.0
+          },
+          "perf/throughput": {
+            "mean": 5256.966332834866,
+            "median": 5276.468667666739
+          },
+          "perf/time_per_step": {
+            "mean": 57.38162261400139,
+            "median": 57.59336133350007
+          },
+          "perf/total_num_tokens": {
+            "mean": 1206477.3,
+            "median": 1202918.0
+          },
+          "timing_per_token_ms/adv": {
+            "mean": 0.0007206773448869056,
+            "median": 0.0006214512464640226
+          },
+          "timing_per_token_ms/gen": {
+            "mean": 0.02085215323794023,
+            "median": 0.020605463319783395
+          },
+          "timing_per_token_ms/ref": {
+            "mean": 0.007905497402158866,
+            "median": 0.007892696546229785
+          },
+          "timing_per_token_ms/update_actor": {
+            "mean": 0.013666884792523254,
+            "median": 0.013614584837946869
+          },
+          "timing_s/adv": {
+            "mean": 0.8692834661000234,
+            "median": 0.7397305580016109
+          },
+          "timing_s/gen": {
+            "mean": 21.633535402998678,
+            "median": 21.44732588199986
+          },
+          "timing_s/old_log_prob": {
+            "mean": 5.806536302099266,
+            "median": 5.844191065996711
+          },
+          "timing_s/ref": {
+            "mean": 9.536165326800255,
+            "median": 9.47190358700027
+          },
+          "timing_s/step": {
+            "mean": 57.38162261400139,
+            "median": 57.59336133350007
+          },
+          "timing_s/update_actor": {
+            "mean": 16.48585883530104,
+            "median": 16.4637086080038
+          },
+          "timing_s/update_weights": {
+            "mean": 2.769510569000704,
+            "median": 2.7438455279989284
+          }
+        },
+        "aggregate_input_plus_output_tokens_per_second_per_gpu": 5256.374972679902,
+        "sum_step_timer_seconds": 573.8162261400139,
+        "sum_input_plus_output_tokens": 12064773,
+        "mean_reward": 0.934521484375,
+        "mean_response_tokens": 506.666259765625
+      },
+      {
+        "name": "late_steps",
+        "first_step": 41,
+        "last_step": 50,
+        "count": 10,
+        "metrics": {
+          "actor/perf/cpu_memory_used_gb": {
+            "mean": 285.56266632080076,
+            "median": 285.74454498291016
+          },
+          "actor/perf/max_memory_allocated_gb": {
+            "mean": 153.52657794952393,
+            "median": 153.52657794952393
+          },
+          "actor/perf/max_memory_reserved_gb": {
+            "mean": 156.43359375,
+            "median": 156.43359375
+          },
+          "perf/mfu/actor": {
+            "mean": 0.0,
+            "median": 0.0
+          },
+          "perf/throughput": {
+            "mean": 5191.8748075594,
+            "median": 5179.340032088122
+          },
+          "perf/time_per_step": {
+            "mean": 55.683045680302165,
+            "median": 55.30311205900216
+          },
+          "perf/total_num_tokens": {
+            "mean": 1156229.1,
+            "median": 1150099.5
+          },
+          "timing_per_token_ms/adv": {
+            "mean": 0.0007884144770769361,
+            "median": 0.000725459991840628
+          },
+          "timing_per_token_ms/gen": {
+            "mean": 0.02138003694482586,
+            "median": 0.021150954133982703
+          },
+          "timing_per_token_ms/ref": {
+            "mean": 0.008112522979696458,
+            "median": 0.008086638045281199
+          },
+          "timing_per_token_ms/update_actor": {
+            "mean": 0.013603542415242552,
+            "median": 0.01355486634298406
+          },
+          "timing_s/adv": {
+            "mean": 0.9095250975988165,
+            "median": 0.8473640109987173
+          },
+          "timing_s/gen": {
+            "mean": 21.095373527600167,
+            "median": 20.66497742750289
+          },
+          "timing_s/old_log_prob": {
+            "mean": 5.6516551370987145,
+            "median": 5.645825537496421
+          },
+          "timing_s/ref": {
+            "mean": 9.38001483140033,
+            "median": 9.286408436000784
+          },
+          "timing_s/step": {
+            "mean": 55.683045680302165,
+            "median": 55.30311205900216
+          },
+          "timing_s/update_actor": {
+            "mean": 15.729174995000358,
+            "median": 15.612366779001604
+          },
+          "timing_s/update_weights": {
+            "mean": 2.6737596460989153,
+            "median": 2.6608709459978854
+          }
+        },
+        "aggregate_input_plus_output_tokens_per_second_per_gpu": 5191.118256346631,
+        "sum_step_timer_seconds": 556.8304568030217,
+        "sum_input_plus_output_tokens": 11562291,
+        "mean_reward": 0.94248046875,
+        "mean_response_tokens": 481.881396484375
+      }
+    ],
+    "window_note": "Window boundaries are explicit reporting choices. Steps6-50 exclude the initial five steps, but sequence lengths continue changing with policy learning; no claim of a stationary workload.",
+    "elapsed": {
+      "sum_step_timer_seconds": 3221.6865725490206,
+      "sum_phase_timer_seconds": {
+        "timing_s/adv": 44.183178751969535,
+        "timing_s/gen": 1186.2291413169878,
+        "timing_s/old_log_prob": 367.6660543339749,
+        "timing_s/ref": 502.4035817640033,
+        "timing_s/step": 3221.6865725490206,
+        "timing_s/update_actor": 949.5837980460565,
+        "timing_s/update_weights": 140.26245294300315
+      },
+      "training_progress_elapsed_reports": [
+        {
+          "physical_line": 1806,
+          "reported_elapsed": "54:03",
+          "reported_elapsed_seconds": 3243,
+          "resolution_seconds": 1
+        },
+        {
+          "physical_line": 1806,
+          "reported_elapsed": "54:03",
+          "reported_elapsed_seconds": 3243,
+          "resolution_seconds": 1
+        }
+      ],
+      "full_job_wall_clock_elapsed_seconds": null,
+      "full_job_wall_clock_note": "No verified job start/end pair was recovered. The progress-bar duration describes the training loop, excludes startup/model loading, and has one-second display resolution. Step timers exclude some loop overhead; do not present their sum as total job elapsed."
+    },
+    "mfu": {
+      "field": "perf/mfu/actor",
+      "values_seen": [
+        0.0
+      ],
+      "usable_for_hardware_utilization_comparison": false,
+      "note": "All50 recorded values are zero. This does not establish zero GPU utilization; the historical estimator/runtime cause was not verified."
+    },
+    "metric_definitions": {
+      "source_provenance": [
+        {
+          "path": "/Users/kaixih/Desktop/codex_workspace/verl/verl/trainer/ppo/metric_utils.py",
+          "commit": "d8af0aa66a609224841b95601a3dfe95d3e33ddd",
+          "sha256": "f1199c24d6673716fd79bbd0857db594b44ca457d0bf595f21ccda6894dbdaa0",
+          "lines": [
+            293,
+            301,
+            337,
+            345
+          ],
+          "historical_commit_match_verified": false
+        },
+        {
+          "path": "/Users/kaixih/Desktop/codex_workspace/verl/verl/trainer/ppo/ray_trainer.py",
+          "commit": "d8af0aa66a609224841b95601a3dfe95d3e33ddd",
+          "sha256": "a646cc835c497c4d7825e17fcf1d5aaae8277028cba3606d239f627e411ee98b",
+          "lines": [
+            1373,
+            1375,
+            1418,
+            1642
+          ],
+          "historical_commit_match_verified": false
+        },
+        {
+          "path": "/Users/kaixih/Desktop/codex_workspace/verl/verl/workers/engine_workers.py",
+          "commit": "d8af0aa66a609224841b95601a3dfe95d3e33ddd",
+          "sha256": "b750c781255661d488c119279949a2f5658e0ba45788b53cc30611b495c7e056",
+          "lines": [
+            215,
+            224,
+            229
+          ],
+          "historical_commit_match_verified": false
+        }
+      ],
+      "historical_exact_source_note": "Historical c423 commit is unavailable. Source references are the verified current local official checkout; token/throughput/time-normalization formulas below independently match all50 original logged rows.",
+      "perf/total_num_tokens": "Sum of valid attention-mask tokens over2048 sampled sequences, prompt plus response; repeated prompts count for every sampled response.",
+      "perf/throughput": "total_num_tokens / timing_s/step /4 GPUs; input+output tokens per second per GPU, not generation-only throughput.",
+      "perf/time_per_step": "Identical to timing_s/step in all50 rows.",
+      "timing_per_token_ms/gen": "1000*timing_s/gen / sum generated response tokens; whole-run denominator, not per GPU.",
+      "timing_per_token_ms/ref_adv_update_actor": "1000*phase_seconds / sum(prompt+response) tokens; update_actor covers the configured PPO update phase, including4 expected optimizer minibatches.",
+      "actor/perf/max_memory_allocated_gb": "CUDA allocator peak allocated bytes /2**30, GiB despite field name.",
+      "actor/perf/max_memory_reserved_gb": "CUDA allocator peak reserved bytes /2**30; allocator high-water mark, not current live allocation.",
+      "actor/perf/cpu_memory_used_gb": "psutil.virtual_memory().used /2**30 in the referenced implementation; host-visible used memory, not individual actor RSS.",
+      "phase_partition": "Recorded phase timers need not exhaust the full step timer; uninstrumented or overlapping work must not be assigned to a phase without additional evidence."
+    },
+    "formula_validation": {
+      "rows_checked": 50,
+      "input_plus_output_matches_total_all_rows": true,
+      "throughput_per_gpu_formula_matches_all_rows": true,
+      "time_per_step_matches_step_timer_all_rows": true,
+      "generation_per_token_uses_response_only_all_rows": true,
+      "ref_adv_actor_per_token_uses_input_plus_output_all_rows": true
+    },
+    "gaps": [
+      "No usable historical MFU values.",
+      "No full-job start/end wall-clock pair.",
+      "No kernel trace, GPU utilization sample trace, or profiler artifact in this log.",
+      "Historical exact implementation commit and original model-serving scheduler settings beyond logged config are not fully recoverable from this artifact."
+    ]
+  }
+}
