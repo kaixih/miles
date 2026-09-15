@@ -2,6 +2,7 @@
 
 from argparse import Namespace
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -210,7 +211,7 @@ class TestFailFastAssertions:
         from miles.backends.megatron_utils.local_weight_checksum import _build_name_by_tensor_id
 
         chunk = MagicMock()
-        param = torch.randn(2, 2)
+        param = torch.randn(2, 2, dtype=torch.bfloat16)
         chunk.named_parameters.return_value = [("weight", param)]
 
         with pytest.raises(AssertionError, match="main_param is None"):
@@ -225,6 +226,98 @@ class TestFailFastAssertions:
 
         with pytest.raises(AssertionError, match="not found in model name mapping"):
             _build_param_names_for_optimizer(inner, name_by_tensor_id={})
+
+
+class TestNativeFp32OptimizerNames:
+    @staticmethod
+    def chunk(**params):
+        # Unlike the older helper, preserve Megatron's actual main_param attrs.
+        return SimpleNamespace(named_parameters=lambda: list(params.items()), named_buffers=lambda: [])
+
+    def test_bf16_uses_distinct_fp32_master(self):
+        from miles.backends.megatron_utils.local_weight_checksum import _build_name_by_tensor_id, _build_param_names_for_optimizer
+
+        param = torch.nn.Parameter(torch.ones(4, dtype=torch.bfloat16))
+        param.main_param = param.detach().float().clone()
+        inner = torch.optim.Adam([param.main_param])
+        optimizer = SimpleNamespace(optimizer=inner)
+        names = _build_name_by_tensor_id([self.chunk(weight=param)], optimizer=optimizer)
+        assert id(param) != id(param.main_param)
+        assert _build_param_names_for_optimizer(inner, names) == {0: "pp0.weight"}
+
+    @pytest.mark.parametrize("explicit_none", [False, True])
+    def test_native_fp32_without_master_uses_owned_parameter(self, explicit_none):
+        param = torch.nn.Parameter(torch.ones(4, dtype=torch.float32))
+        if explicit_none:
+            param.main_param = None
+        optimizer = SimpleNamespace(optimizer=torch.optim.Adam([param]))
+        state = _compute_weight_checksum_state([self.chunk(A_log=param)], optimizer)
+        assert state.optimizer_hashes[0].param_names == {0: "pp0.A_log"}
+        assert set(state.param_hashes) == {"pp0.A_log"}
+
+    def test_distributed_native_fp32_uses_actual_owned_view(self):
+        native = torch.nn.Parameter(torch.arange(8, dtype=torch.float32))
+        native.main_param = None
+        shard = native.detach().view(-1)[2:6]
+        bf16 = torch.nn.Parameter(torch.ones(4, dtype=torch.bfloat16))
+        bf16.main_param = bf16.detach().float().clone()
+        bf16.main_param_sharded = True
+        inner = torch.optim.Adam([shard, bf16.main_param])
+        optimizer = SimpleNamespace(optimizer=inner,
+            model_param_group_index_map={native: (0, 0), bf16: (0, 1)})
+        for param in (shard, bf16.main_param):
+            param.grad = torch.ones_like(param)
+        inner.step()
+        state = _compute_weight_checksum_state([self.chunk(A_log=native, weight=bf16)], optimizer)
+        assert id(shard) != id(native)
+        assert shard.untyped_storage().data_ptr() == native.untyped_storage().data_ptr()
+        assert state.optimizer_hashes[0].param_names == {0: "pp0.A_log", 1: "pp0.weight"}
+        assert set(state.optimizer_hashes[0].state_dict["state"]) == {0, 1}
+        assert isinstance(state.optimizer_hashes[0].state_dict["state"][0]["exp_avg"], str)
+
+    def test_unowned_fp32_and_bf16_remain_model_hashed_without_optimizer_entries(self):
+        owned = torch.nn.Parameter(torch.ones(4, dtype=torch.float32))
+        shard = owned.detach()[1:3]
+        other_fp32 = torch.nn.Parameter(torch.ones(4, dtype=torch.float32))
+        other_bf16 = torch.nn.Parameter(torch.ones(4, dtype=torch.bfloat16))
+        other_bf16.main_param = None
+        other_bf16.main_param_sharded = True
+        optimizer = SimpleNamespace(optimizer=torch.optim.Adam([shard]),
+            model_param_group_index_map={owned: (0, 0)})
+        state = _compute_weight_checksum_state(
+            [self.chunk(owned=owned, other_fp32=other_fp32, other_bf16=other_bf16)], optimizer)
+        assert set(state.param_hashes) == {"pp0.owned", "pp0.other_fp32", "pp0.other_bf16"}
+        assert state.optimizer_hashes[0].param_names == {0: "pp0.owned"}
+
+    def test_chained_dense_and_expert_native_fp32_shards(self):
+        dense = torch.nn.Parameter(torch.ones(4, dtype=torch.float32))
+        expert = torch.nn.Parameter(torch.ones(6, dtype=torch.float32))
+        dense_opt = SimpleNamespace(optimizer=torch.optim.Adam([dense.detach()[1:3]]),
+            model_param_group_index_map={dense: (0, 0)})
+        expert_opt = SimpleNamespace(optimizer=torch.optim.Adam([expert.detach()[2:5]]),
+            model_param_group_index_map={expert: (0, 0)})
+        optimizer = SimpleNamespace(chained_optimizers=[dense_opt,
+            SimpleNamespace(chained_optimizers=[expert_opt])])
+        state = _compute_weight_checksum_state([self.chunk(dense=dense, expert=expert)], optimizer)
+        assert [info.param_names for info in state.optimizer_hashes] == [
+            {0: "pp0.dense"}, {0: "pp0.expert"}]
+
+    def test_missing_bf16_master_still_fails_in_distributed_optimizer(self):
+        param = torch.nn.Parameter(torch.ones(4, dtype=torch.bfloat16))
+        param.main_param = None
+        optimizer = SimpleNamespace(optimizer=torch.optim.Adam([param.detach().float()]),
+            model_param_group_index_map={param: (0, 0)})
+        with pytest.raises(AssertionError, match="main_param is None"):
+            _compute_weight_checksum_state([self.chunk(weight=param)], optimizer)
+
+    def test_unmapped_actual_optimizer_parameter_is_not_silently_skipped(self):
+        native = torch.nn.Parameter(torch.ones(4, dtype=torch.float32))
+        shard = native.detach()[1:3]
+        extra = torch.nn.Parameter(torch.ones(2, dtype=torch.float32))
+        optimizer = SimpleNamespace(optimizer=torch.optim.Adam([shard, extra]),
+            model_param_group_index_map={native: (0, 0)})
+        with pytest.raises(AssertionError, match="not found in model name mapping"):
+            _compute_weight_checksum_state([self.chunk(A_log=native)], optimizer)
 
 
 class TestDumpLocalWeightChecksums:

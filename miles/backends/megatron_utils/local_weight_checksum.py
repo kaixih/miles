@@ -102,7 +102,7 @@ def _collect_optimizer_hashes(
     """Collect optimizer state snapshots with tensors replaced by hashes."""
     from miles.utils.audit_utils.event_logger.models import OptimizerStateInfo
 
-    name_by_tensor_id = _build_name_by_tensor_id(model)
+    name_by_tensor_id = _build_name_by_tensor_id(model, optimizer=optimizer)
     result: list[OptimizerStateInfo] = []
 
     for sub_opt in _iter_sub_optimizers(optimizer):
@@ -123,13 +123,19 @@ def _collect_optimizer_hashes(
     return result
 
 
-def _build_name_by_tensor_id(model: Sequence[DDP]) -> dict[_MainParamId, str]:
-    """Build _MainParamId(fp32_main_param) → name mapping from model parameters."""
+def _build_name_by_tensor_id(
+    model: Sequence[DDP], optimizer: MegatronOptimizer | None = None
+) -> dict[_MainParamId, str]:
+    """Map FP32 master copies, native FP32 params, and owned FP32 shards to names."""
     name_map: dict[_MainParamId, str] = {}
     for pp_idx, model_chunk in enumerate(model):
         for name, param in model_chunk.named_parameters():
             assert param is not None, f"pp{pp_idx}.{name}: param is None"
             main_param = getattr(param, "main_param", None)
+            if main_param is None and param.dtype == torch.float32:
+                # Float16OptimizerWithFloat16Params keeps native FP32 params
+                # themselves in the inner optimizer; they need no master copy.
+                main_param = param
             if main_param is None:
                 assert getattr(param, "main_param_sharded", False), (
                     f"pp{pp_idx}.{name}: main_param is None but main_param_sharded is not set. "
@@ -137,6 +143,24 @@ def _build_name_by_tensor_id(model: Sequence[DDP]) -> dict[_MainParamId, str]:
                 )
                 continue
             name_map[_MainParamId.from_tensor(main_param)] = f"pp{pp_idx}.{name}"
+
+    if optimizer is not None:
+        for sub_opt in _iter_sub_optimizers(optimizer):
+            param_map = getattr(sub_opt, "model_param_group_index_map", None)
+            if param_map is None:
+                continue
+            # DistributedOptimizer uses detached native-FP32 shard views, whose
+            # IDs differ from the model parameter, without setting main_param.
+            # Its ownership map points to the actual inner optimizer tensor;
+            # FP32 parameters not owned by this DP rank have no entry here.
+            for param, (group_index, group_order) in param_map.items():
+                if param.dtype != torch.float32:
+                    continue
+                name = name_map.get(_MainParamId.from_tensor(param))
+                assert name is not None, "Native FP32 optimizer parameter not found in model name mapping"
+                shard = sub_opt.optimizer.param_groups[group_index]["params"][group_order]
+                assert shard.dtype == torch.float32, f"{name}: native FP32 optimizer shard has dtype {shard.dtype}"
+                name_map[_MainParamId.from_tensor(shard)] = name
     return name_map
 
 
