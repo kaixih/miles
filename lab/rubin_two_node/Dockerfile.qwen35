@@ -5,6 +5,8 @@ RUN python3 -m pip install --no-deps \
       fla-core==0.5.2 flash-linear-attention==0.5.2 && \
     python3 -c 'from fla.modules import ShortConvolution; from fla.ops.gated_delta_rule import chunk_gated_delta_rule; print("FLA_QWEN35_IMPORT_OK")' && \
     python3 /opt/miles-rubin/rubin_build.py verify-native
+COPY lab/rubin_two_node/patch_te_sm107_fa2.py /opt/miles-rubin/patch_te_sm107_fa2.py
+RUN python3 /opt/miles-rubin/patch_te_sm107_fa2.py
 ENV FLA_DISABLE_BACKEND_DISPATCH=1 \
     FLA_CONV_BACKEND=triton
-LABEL ai.miles.extension="Qwen3.5 FLA 0.5.2 on Rubin cu134"
+LABEL ai.miles.extension="Qwen3.5 FLA 0.5.2 and TE FA2 d256 compatibility on Rubin cu134"

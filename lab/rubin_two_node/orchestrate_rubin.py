@@ -35,7 +35,7 @@ def _parser():
     parser.add_argument("--job-id", default="2179787")
     parser.add_argument("--uid", type=int, default=28644)
     parser.add_argument("--gid", type=int, default=30)
-    parser.add_argument("--image", default="gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin@sha256:676354cc71c6f5d4fbb4fd5bf246cfd4a33925932a5d4171b6f6969bf7a6886a")
+    parser.add_argument("--image", default="gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin@sha256:a03106bdd90c5d6067fbff246fff25df979f9da8486eb0dac795a315a2346d6c")
     parser.add_argument("--repo", default="/home/scratch.kaixih_ent/repo/miles-rubin-cu134")
     parser.add_argument("--models", default="/home/scratch.kaixih_ent/models")
     parser.add_argument("--run-dir", default="/home/scratch.kaixih_ent/repro/miles-rubin-two-node/20260914-j2179787")

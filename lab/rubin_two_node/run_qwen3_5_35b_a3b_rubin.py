@@ -129,7 +129,7 @@ def _build_train_args(args: ScriptArgs) -> str:
     misc_args = (
         "--bf16 --attention-dropout 0 --hidden-dropout 0 "
         "--accumulate-allreduce-grads-in-fp32 --attention-softmax-in-fp32 "
-        "--attention-backend fused --colocate --use-miles-router --object-store-backend ray "
+        "--attention-backend flash --colocate --use-miles-router --object-store-backend ray "
         f"--actor-num-nodes {args.num_nodes} --actor-num-gpus-per-node {args.num_gpus_per_node} "
         f"--num-gpus-per-node {args.num_gpus_per_node} "
         "--update-weights-interval 1 --update-weight-buffer-size 536870912 "

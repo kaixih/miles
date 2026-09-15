@@ -5,41 +5,45 @@ two nodes with four visible Rubin GPUs each. It configures the ordinary synchron
 `train.py` driver for two complete rollout / Megatron optimizer / weight-update
 iterations. The second rollout therefore consumes weights from the first update.
 
-Validation is in progress on job `2179787`. Registry recovery on both nodes and
-the eight-GPU MNNVL communication check passed. Attempt 1 was intentionally
-stopped during initial weight synchronization after Miles' default cuMem setting
-selected Socket transport (about 4.1 seconds per weight bucket, with a 512 MiB
-bucket limit). Its status is `STOPPED`; neither success nor a workload failure
-was established.
+Full validation remains in progress on job `2179787`. Attempt 2 used cross-node
+`P2P/MNNVL`, completed initial weight synchronization in about 7.7 seconds, and
+generated all 16 rollout-0 samples in 24.7376 seconds. Its first training backward
+failed in TE/cuDNN with `No valid execution plans built`; Ray reported `FAILED`.
 
-Attempt 2 explicitly enables cuMem in both containers and the Ray job runtime.
-The training NCCL communicators now report cross-node `P2P/MNNVL`, with no Socket
-transport edges or NCCL warnings in the inspected logs. Megatron loaded the
-checkpoint successfully. The head SGLang engine loaded its HF weights and
-returned HTTP 200 from its health endpoint; the worker engine is still loading
-from cold storage. Rollout and optimizer execution have not started.
-See [RESULTS.md](RESULTS.md) for the verified results and durable evidence paths.
+The current recipe selects FlashAttention 2 through TE and includes a narrowly
+scoped SM107 compatibility patch. Direct FA2 and TE-wrapped forward/backward
+probes passed, including in the new standalone image. Attempt 3 is running
+with that image; two complete rollout/train/weight-update iterations
+and Ray `SUCCEEDED` are still required. See [RESULTS.md](RESULTS.md) for evidence
+and the distinction between kernel validation and full-run completion.
 
 ## Preserved images
 
-The original core image and its Qwen3.5 dependency extension have both been
-pushed to [Kaixi's GitLab registry](https://gitlab-master.nvidia.com/kaixih/my_docker_hub/container_registry).
+The core image, original FLA extension, and current FLA/FA2 extension are preserved
+in [Kaixi's GitLab registry](https://gitlab-master.nvidia.com/kaixih/my_docker_hub/container_registry).
 Registry digests and image IDs were independently checked through the GitLab
-API and are recorded in `registry-images.json`. Both images are `linux/arm64`.
+API and are recorded in `registry-images.json`. All images are `linux/arm64`;
+the current image was pulled successfully on both nodes.
 
 ```bash
 docker pull gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin:cu134-20260914-f187f76
-docker pull gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin:qwen35-cu134-20260914-f187f76
+docker pull gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin:qwen35-fa2-cu134-20260915@sha256:a03106bdd90c5d6067fbff246fff25df979f9da8486eb0dac795a315a2346d6c
 ```
 
-`Dockerfile.qwen35` uses the preserved core manifest digest as its `FROM` image,
-so building it on a new node adds only the FLA dependency layer. It does not
-rebuild Torch, TE, Apex, or FlashAttention. The repository's launcher is mounted
-into the runtime containers by `orchestrate_rubin.py`.
+`Dockerfile.qwen35` defaults to the preserved core digest, adding the two FLA
+packages and the TE Python backend-selection patch. To reproduce the latest
+incremental build, reuse the preserved FLA-only image as `BASE_IMAGE`:
 
 ```bash
-docker build -f lab/rubin_two_node/Dockerfile.qwen35 -t miles-rubin:qwen35-incremental .
+docker build -f lab/rubin_two_node/Dockerfile.qwen35 \
+  --build-arg BASE_IMAGE=gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin@sha256:676354cc71c6f5d4fbb4fd5bf246cfd4a33925932a5d4171b6f6969bf7a6886a \
+  -t miles-rubin:qwen35-fa2-cu134-20260915 .
 ```
+
+Omit `--build-arg BASE_IMAGE=...` to build from the core image instead. Neither
+route recompiles native libraries; all 40 protected native package versions and
+the Torch ABI remain unchanged. `orchestrate_rubin.py` defaults to the current
+manifest digest and mounts the repository launcher into the runtime containers.
 
 The two-node communication check must pass before launching training. Both
 containers must use the same image and source tree, expose identical model/data
@@ -74,6 +78,28 @@ Sources: [FLA wheel metadata](https://pypi.org/pypi/flash-linear-attention/0.5.2
 [core wheel metadata](https://pypi.org/pypi/fla-core/0.5.2/json),
 [Triton convolution default](https://github.com/fla-org/flash-linear-attention/blob/v0.5.2/fla/modules/conv/short_conv.py),
 [backend dispatch switch](https://github.com/fla-org/flash-linear-attention/blob/v0.5.2/fla/ops/backends/__init__.py).
+
+## TE FlashAttention 2 compatibility
+
+`patch_te_sm107_fa2.py` adjusts TE 2.19's Python head-dimension allowlist only for
+SM10.7, BF16, Q/K/V head dimension 256, and zero attention dropout. It checks the
+TE version and exact source anchor and leaves all other backend checks intact.
+The native FA2 2.8.3.post1 kernels were already built for SM107. The launcher uses
+`--attention-backend flash`, which makes Megatron enable TE FlashAttention and
+disable its fused/cuDNN and unfused alternatives; the flag alone cannot bypass
+the original allowlist.
+
+Direct FA2 and TE-wrapped causal THD attention passed output and Q/K/V gradient
+comparisons against Torch FP32 math for GQA 8:1, d256, and sequence lengths
+`[512]`, `[256, 512]`, and `[257, 385, 129]`. Relative L2 errors were below 0.31%.
+The same checks passed in the newly built image.
+
+The current CP1 Miles pack has no gaps between sequences: `*_padded` boundaries
+are `None`, and trailing alignment padding is represented as a separate dummy
+sequence in `cu_seqlens`. TE infers `pad_between_seqs=False`, so FA2 remains
+eligible. An explicit gap-padding probe still returns `NoBackend`; that boundary
+is intentionally unsupported by this recipe and does not broaden the patch's
+validated scope.
 
 ## Existing inputs
 
@@ -128,7 +154,7 @@ Complete offload/onload and training continuity still require the full run.
 | Rollout | Two TP4 engines, each within one node; SGLang EP1 |
 | Work | Two rollouts, eight prompts × two samples, global batch 16 |
 | Token budget | Prompt <=1024, response <=256, 2048 training tokens/GPU |
-| Precision | BF16; TE fused/cuDNN softmax attention; FLA Triton GDN |
+| Precision | BF16; TE FlashAttention 2 with the scoped SM107 patch; FLA Triton GDN |
 | SGLang | Triton softmax attention, GDN prefill/decode and MoE; Torch BF16 GEMM |
 | Communication | Standard all-to-all MoE, cuMem enabled for MNNVL, NVLS disabled, Ray object store, Miles Python router |
 | Optimizer | GPU Adam; no CPU optimizer offload or precision-aware optimizer |
@@ -164,7 +190,7 @@ privileged Docker flags from the separate communication setup. It never creates
 an allocation or starts training as part of `bootstrap`.
 
 Defaults target job 2179787, head/worker IPs 10.102.74.84/.85, Ray port 26379,
-dashboard port 28265, the pinned Qwen3.5 manifest digest, the selected shared run root,
+dashboard port 28265, the pinned Qwen3.5 FA2 manifest digest, the selected shared run root,
 and node-local `/tmp/miles-rubin-j2179787/qwen35` caches. These nodes have writable
 local `/tmp`; the script does not require changing `/raid` permissions. Supply
 the complete allocated node names, as reported by `scontrol show hostnames`:
@@ -196,16 +222,15 @@ so preserve its Git commit and any uncommitted recipe changes with the run's
 evidence, in addition to the container digest.
 
 Ray advertises 32 logical CPUs per node (`--num-cpus`, configurable), and worker
-ports span 26400–26999. The first bootstrap used 352 detected CPUs and only 200
-worker ports; its eagerly started workers exhausted that range and reported
-`No available ports`. Each status probe now has a 40-second in-container timeout
+ports span 26400–26999 to accommodate worker startup. Each status probe has a
+40-second in-container timeout
 (plus a five-second termination grace period); bootstrap retains its overall
 120-second retry deadline.
 
 Local validation: Python syntax checks and an isolated recording of the resolved
 training argv passed; the recording used stubbed command execution and did not
 start Ray or GPUs. The image also passed `train.py --help` and the launcher's
-`--print-only` check. GPU execution is now in progress as described above; the
+`--print-only` check. Full GPU execution remains in progress as described above; the
 full Miles launcher test suite has not been run for this recipe.
 
 `launch_plan.json`, if present in a working copy, is an early review artifact,

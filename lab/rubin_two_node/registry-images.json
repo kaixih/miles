@@ -10,6 +10,22 @@
     "compressed_bytes": 14730568512
   },
   "qwen35": {
+    "tag": "qwen35-fa2-cu134-20260915",
+    "manifest_digest": "sha256:a03106bdd90c5d6067fbff246fff25df979f9da8486eb0dac795a315a2346d6c",
+    "image_id": "sha256:3054a5be3f8233acac5e91c700803b3aeb1bd4ed6d1d792f2981091727b1efaf",
+    "incremental_base_manifest_digest": "sha256:676354cc71c6f5d4fbb4fd5bf246cfd4a33925932a5d4171b6f6969bf7a6886a",
+    "added_packages": {
+      "fla-core": "0.5.2",
+      "flash-linear-attention": "0.5.2"
+    },
+    "te_python_patch": {
+      "file": "patch_te_sm107_fa2.py",
+      "sha256": "1f83112c8f7a1540612a877e5f8df4c4ca003dc51061dc46fd58c7cf105d6873",
+      "scope": "SM107 BF16 head_dim_qk=head_dim_v=256 dropout=0; other TE backend checks preserved",
+      "patched_te_utils_sha256": "acca3534f85503c85b18186f5de93bafa54821299210f6a68ce254f4fc308a65"
+    }
+  },
+  "qwen35_fla_only": {
     "tag": "qwen35-cu134-20260914-f187f76",
     "manifest_digest": "sha256:676354cc71c6f5d4fbb4fd5bf246cfd4a33925932a5d4171b6f6969bf7a6886a",
     "image_id": "sha256:82dc75cea54a88b7c8a7f581747fff47b04b9c836ddda9292f50b8e27d1e2ffc",
