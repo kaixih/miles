@@ -1,5 +1,60 @@
 # Two-node Rubin validation
 
+## GSM8K / 1024-token comparison: PASS (2026-09-15)
+
+The follow-up changed only the prompt dataset and response limit from the DAPO
+run below. Runtime source was `329d383754976ed065a8a2bd895f48f09327fb4f`;
+initial served parameter hashes matched the DAPO run exactly. The model remained
+**Qwen3.5-35B-A3B, post-trained standard**, with thinking disabled, temperature
+0.7, top-p 0.8, top-k 20, the same boxed-answer prompt, original `math` scorer,
+mixed-reward group filter and two optimizer updates. Both rollout/SGLang context
+limits stayed at 5120, independently of the 1024-token response cap. The same
+preserved image was pulled from the GitLab registry and its digest verified.
+
+The 7473-row existing GSM8K training parquet was converted to `prompt`/`label`
+JSONL, preserving question order, the DAPO prompt wrapper and original numeric
+answers after `####` (commas normalized). All prompts were 77–277 tokens. No
+source labels were corrected; spot checks found some original inconsistencies.
+
+| Rollout | All recorded answers | Reward before filter | Truncated before filter | Training answers | Training reward | Training truncated | Gradient norm |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 0 | 560 | 93.04% | 13/560 = 2.32% | 16 | 56.25% | 3/16 = 18.75% | 1.63694 |
+| 1 | 640 | 94.53% | 10/640 = 1.56% | 16 | 56.25% | 5/16 = 31.25% | 1.40386 |
+
+“Before filter” covers complete recorded groups reaching the dynamic filter,
+not canceled or earlier-prefiltered requests. Each question had four responses;
+only groups with differing rewards were retained. The first batch required
+140 groups to retain four, and the second required 160 groups to retain four.
+The audit's retained IDs exactly matched both actual `.pt` training bundles.
+Consequently the training subset overrepresents longer responses and must not
+be treated as overall dataset performance. Across 1200 recorded answers, reward
+mean was 93.83%, truncation was 23/1200 = 1.92%, and mean response length was
+381.22 tokens. All 1177 completed responses ended with an EOS token; none of the
+23 truncated responses contained an EOS in its generated span.
+
+For the earlier DAPO/4096 run, before-filter truncation was 24/80 = 30% and
+43/76 = 56.58%; training-subset truncation was 8/16 = 50% and 12/16 = 75%.
+Both runs began with the same model weights, but changed dataset and response
+limit together. Different questions across the two rounds also mean that
+93.04% to 94.53% is not evidence of learning improvement. The two training rewards
+were identical, and this two-update check cannot establish a 50%-to-90% learning
+curve or that the model was specifically trained on GSM8K.
+
+Terminal validation passed 33/33 collector and 90/90 learning checks. All
+32 training rewards independently reproduced using the unchanged CPU scorer.
+Both updates changed served weights (1904 and 1884 tensor entries), both engines
+matched after every synchronization, and all eight ranks completed both normal
+optimizer steps and three synchronizations. Actual training used cross-node
+MNNVL (1088 deduplicated channel records), with zero Socket data channels.
+Ray job `raysubmit_KurrN92mYp83Z6Ta` finished `SUCCEEDED` at
+`2026-09-15 20:54:12.600 UTC`; all driver/launcher exits were zero.
+
+See [gsm8k-comparison-summary.json](gsm8k-comparison-summary.json). Full logs,
+300 recorded filter groups, sample dumps and verification artifacts are retained
+under `/home/scratch.kaixih_ent/repro/miles-rubin-two-node/20260915-j2195289/gsm8k-1k`.
+The registry image remains `qwen35-fa2-cu134-20260915`, manifest digest
+`sha256:a03106bdd90c5d6067fbff246fff25df979f9da8486eb0dac795a315a2346d6c`.
+
 ## Nonzero training validation: PASS (2026-09-15)
 
 Job `2195289` ran Qwen3.5-35B-A3B on c15/c16, four SM10.7 GPUs per node, using

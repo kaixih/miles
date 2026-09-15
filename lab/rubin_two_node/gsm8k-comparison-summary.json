@@ -1,0 +1,285 @@
+{
+  "schema": "miles-rubin-gsm8k-comparison-v1",
+  "status": "PASS",
+  "run_id": "20260915-j2195289-gsm8k-1k",
+  "run_root": "/home/scratch.kaixih_ent/repro/miles-rubin-two-node/20260915-j2195289/gsm8k-1k",
+  "source_commit": "329d383754976ed065a8a2bd895f48f09327fb4f",
+  "model": "Qwen/Qwen3.5-35B-A3B (post-trained standard model, not Base)",
+  "configuration_changes": {
+    "training_parameter_changes": [
+      {
+        "flag": "--prompt-data",
+        "before": "/home/scratch.kaixih_ent/models/dapo-math-17k/dapo-math-17k.jsonl",
+        "after": "/run-output/gsm8k-1k/inputs/gsm8k-dapo-prompt.jsonl"
+      },
+      {
+        "flag": "--rollout-max-response-len",
+        "before": "4096",
+        "after": "1024"
+      }
+    ],
+    "output_paths_separate": true,
+    "runtime_env_identical_except_run_marker_and_audit_paths": true
+  },
+  "dataset": {
+    "source_path": "/home/scratch.kaixih_ent/models/gsm8k/train.parquet",
+    "source_sha256": "b96ce2c49d3fb021b771eb15b2ea4a6de6debe8c8840d89a9fc12827ac3b6d86",
+    "rows": 7473,
+    "output_path": "/run-output/gsm8k-1k/inputs/gsm8k-dapo-prompt.jsonl",
+    "output_sha256": "9314224b10563ff28f2868b6e189a4351426368b1083e2a04da1c89cfdd214ef",
+    "label_rule": "answer suffix after ####, strip whitespace, remove commas",
+    "prompt_prefix": "Solve the following math problem step by step. The last line of your response should be of the form Answer: \\boxed{$Answer} where $Answer is the answer to the problem.\n\n",
+    "prompt_suffix": "\n\nRemember to put your answer on its own line after \"Answer:\".",
+    "prompt_wrapper_matches_a3": true,
+    "row_order_preserved": true,
+    "prompt_token_min": 77,
+    "prompt_token_max": 277,
+    "prompts_over_1024": 0,
+    "source_dataset": "existing GSM8K training split; cross-checked against existing verl parquet",
+    "thinking": false
+  },
+  "image": {
+    "image": "gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin:qwen35-fa2-cu134-20260915",
+    "image_id": "sha256:3054a5be3f8233acac5e91c700803b3aeb1bd4ed6d1d792f2981091727b1efaf",
+    "repo_digests": [
+      "gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin@sha256:a03106bdd90c5d6067fbff246fff25df979f9da8486eb0dac795a315a2346d6c"
+    ],
+    "checked_utc": "2026-09-15T19:58:20.904149+00:00"
+  },
+  "rows": [
+    {
+      "rollout_id": 0,
+      "served_weight_version": 1,
+      "gsm8k_before_filter": {
+        "samples": 560,
+        "reward_mean": 0.9303571428571429,
+        "truncated_count": 13,
+        "truncated_fraction_of_samples": 0.023214285714285715,
+        "response_length_tokens": {
+          "count": 560,
+          "mean": 385.4625,
+          "median": 346.0,
+          "min": 147,
+          "max": 1024
+        }
+      },
+      "gsm8k_training_samples": {
+        "samples": 16,
+        "reward_mean": 0.5625,
+        "truncated_count": 3,
+        "truncated_fraction_of_samples": 0.1875,
+        "response_length_tokens": {
+          "count": 16,
+          "mean": 623.75,
+          "median": 538.5,
+          "min": 297,
+          "max": 1024
+        }
+      },
+      "dapo_before_filter": {
+        "samples": 80,
+        "reward_mean": 0.65,
+        "truncated_count": 24,
+        "truncated_fraction_of_samples": 0.3,
+        "response_length_tokens": {
+          "count": 80,
+          "mean": 2302.2,
+          "median": 1853.0,
+          "min": 473,
+          "max": 4096
+        }
+      },
+      "dapo_training_samples": {
+        "samples": 16,
+        "reward_mean": 0.75,
+        "truncated_count": 8,
+        "truncated_fraction_of_samples": 0.5,
+        "response_length_tokens": {
+          "count": 16,
+          "mean": 3249.625,
+          "median": 3683.5,
+          "min": 1550,
+          "max": 4096
+        }
+      },
+      "gradient_norm": 1.6369428634643555,
+      "changed_served_tensor_hashes": 1904
+    },
+    {
+      "rollout_id": 1,
+      "served_weight_version": 2,
+      "gsm8k_before_filter": {
+        "samples": 640,
+        "reward_mean": 0.9453125,
+        "truncated_count": 10,
+        "truncated_fraction_of_samples": 0.015625,
+        "response_length_tokens": {
+          "count": 640,
+          "mean": 377.5,
+          "median": 346.5,
+          "min": 124,
+          "max": 1024
+        }
+      },
+      "gsm8k_training_samples": {
+        "samples": 16,
+        "reward_mean": 0.5625,
+        "truncated_count": 5,
+        "truncated_fraction_of_samples": 0.3125,
+        "response_length_tokens": {
+          "count": 16,
+          "mean": 801.875,
+          "median": 794.5,
+          "min": 452,
+          "max": 1024
+        }
+      },
+      "dapo_before_filter": {
+        "samples": 76,
+        "reward_mean": 0.47368421052631576,
+        "truncated_count": 43,
+        "truncated_fraction_of_samples": 0.5657894736842105,
+        "response_length_tokens": {
+          "count": 76,
+          "mean": 3081.3289473684213,
+          "median": 4096.0,
+          "min": 740,
+          "max": 4096
+        }
+      },
+      "dapo_training_samples": {
+        "samples": 16,
+        "reward_mean": 0.5,
+        "truncated_count": 12,
+        "truncated_fraction_of_samples": 0.75,
+        "response_length_tokens": {
+          "count": 16,
+          "mean": 3835.4375,
+          "median": 4096.0,
+          "min": 2544,
+          "max": 4096
+        }
+      },
+      "gradient_norm": 1.4038552045822144,
+      "changed_served_tensor_hashes": 1884
+    }
+  ],
+  "all_recorded_gsm8k_samples": {
+    "samples": 1200,
+    "reward_mean": 0.9383333333333334,
+    "truncated_count": 23,
+    "truncated_fraction_of_samples": 0.019166666666666665,
+    "response_length_tokens": {
+      "count": 1200,
+      "mean": 381.2158333333333,
+      "median": 346.0,
+      "min": 124,
+      "max": 1024
+    }
+  },
+  "dynamic_filter": {
+    "groups_recorded": 300,
+    "groups_accepted": 8,
+    "groups_dropped": 292,
+    "groups_omitted": 0,
+    "accepted_ids_match_actual_training_bundles": true
+  },
+  "validation": {
+    "collector_checks_passed": 33,
+    "learning_checks_passed": 90,
+    "regraded_samples": 32,
+    "all_rewards_match": true,
+    "initial_served_weights_match_dapo_run": true,
+    "served_weights": {
+      "initial": {
+        "tensor_count": 4028,
+        "engine_equal": true,
+        "engine_map_sha256": [
+          "33dd662d41a35c2a19f013b8b376ff40091079ac3f7753727fd65013a8538df4",
+          "33dd662d41a35c2a19f013b8b376ff40091079ac3f7753727fd65013a8538df4"
+        ]
+      },
+      "after_rollout_0": {
+        "tensor_count": 4028,
+        "engine_equal": true,
+        "engine_map_sha256": [
+          "a18395bc85626021be26d70798976334d8ff3b9c4c03e151d5314c5ee7e16b4a",
+          "a18395bc85626021be26d70798976334d8ff3b9c4c03e151d5314c5ee7e16b4a"
+        ]
+      },
+      "after_rollout_1": {
+        "tensor_count": 4028,
+        "engine_equal": true,
+        "engine_map_sha256": [
+          "463e4e498e7427722fb8dbd822d0042c045153ee3710e5f770332c4943a5f283",
+          "463e4e498e7427722fb8dbd822d0042c045153ee3710e5f770332c4943a5f283"
+        ]
+      },
+      "change_after_rollout_0": {
+        "changed_tensor_count": 1904,
+        "changed_parameter_name_count": 1904,
+        "examples": [
+          "rank0/lm_head.weight",
+          "rank0/model.embed_tokens.weight",
+          "rank0/model.layers.0.input_layernorm.weight",
+          "rank0/model.layers.0.linear_attn.A_log",
+          "rank0/model.layers.0.linear_attn.conv1d.weight",
+          "rank0/model.layers.0.linear_attn.in_proj_ba.weight",
+          "rank0/model.layers.0.linear_attn.in_proj_qkvz.weight",
+          "rank0/model.layers.0.linear_attn.out_proj.weight"
+        ],
+        "same_tensor_set": true
+      },
+      "change_after_rollout_1": {
+        "changed_tensor_count": 1884,
+        "changed_parameter_name_count": 1884,
+        "examples": [
+          "rank0/lm_head.weight",
+          "rank0/model.embed_tokens.weight",
+          "rank0/model.layers.0.input_layernorm.weight",
+          "rank0/model.layers.0.linear_attn.A_log",
+          "rank0/model.layers.0.linear_attn.conv1d.weight",
+          "rank0/model.layers.0.linear_attn.in_proj_ba.weight",
+          "rank0/model.layers.0.linear_attn.in_proj_qkvz.weight",
+          "rank0/model.layers.0.linear_attn.out_proj.weight"
+        ],
+        "same_tensor_set": true
+      }
+    },
+    "cross_node_mnnvl_channels": 1088,
+    "socket_data_channels": 0
+  },
+  "completion": {
+    "ray_submission": "raysubmit_KurrN92mYp83Z6Ta",
+    "ray_status": "SUCCEEDED",
+    "ray_end_utc": "2026-09-15T20:54:12.600000+00:00",
+    "driver_exit_code": 0,
+    "launcher_exits": {
+      "train-driver-exit.json": {
+        "exit_code": 0,
+        "finished_utc": "2026-09-15T20:54:16.017267+00:00"
+      },
+      "train_exit.json": {
+        "exit_code": 0,
+        "gate_log": "/home/scratch.kaixih_ent/repro/miles-rubin-two-node/20260915-j2195289/mnnvl-default.log"
+      }
+    }
+  },
+  "evidence_sha256": {
+    "logs/qwen35_train.log": "353262821ab5567299191a3ec96ca77a364d551625d5121203d33fe8ebc60664",
+    "filter-audit.jsonl": "1f432fc0bdbb853f79409510f340cb5deb23826d58377193b30cde7c68f73151",
+    "learning-aggregate.json": "346021c8bec82287a592c5b15f913bae051a3927c7404372e85148d701ad3b5e",
+    "learning-validation.json": "92dc1eae298b6ddf779accaf3dda7a5095e468641e3aaa497e719b8b3636be27",
+    "comparison-current.json": "8bb3e849c0b55d30200939be648c19e11a7339a782b752565ada14ef1f7e9c1b",
+    "parameter-comparison.json": "3d91e72c50c79334d1f2f47872c85d3d8d665e3cd2b1756b79a75b47d63b5bbc",
+    "dataset-provenance.json": "eba0ce27349e5de4ca565b5066553d1add4d90deb694b75f1076ba569e828c46",
+    "registry-verification.json": "26673f5a41f74fee887ae6209f630392607f29a275e72c7448366d9d73cb7b27"
+  },
+  "limitations": [
+    "Before-filter counts include complete recorded groups reaching the dynamic filter; aborted and earlier-prefiltered requests are excluded.",
+    "The two rounds use different questions, so their reward difference does not establish learning improvement.",
+    "Only two optimizer updates; this is a functional comparison, not a convergence or benchmark-quality claim.",
+    "Dataset and response limit changed together; their effects are not independently estimated.",
+    "Original GSM8K labels are preserved, including observed source-label inconsistencies."
+  ]
+}

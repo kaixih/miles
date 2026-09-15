@@ -25,6 +25,13 @@ smoke PASS** with zero rewards and gradients. Its separate result is preserved
 in [validation-summary.json](validation-summary.json). Use the non-thinking,
 `math`-scored configuration below to reproduce the nonzero training signal.
 
+The later GSM8K/1024 comparison also completed two nonzero updates. Across 1200
+recorded answers before reward-group filtering, truncation was 1.92%; the two
+filtered training batches had 18.75% and 31.25% truncation. See
+[gsm8k-comparison-summary.json](gsm8k-comparison-summary.json) and the first
+section of [RESULTS.md](RESULTS.md) for both denominators and the controlled
+parameter comparison.
+
 ## Preserved images
 
 The core image, original FLA extension, and current FLA/FA2 extension are preserved
