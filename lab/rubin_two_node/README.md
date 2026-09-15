@@ -176,6 +176,41 @@ metrics and valid optimizer steps on every rank, all three weight
 synchronizations, and Ray `SUCCEEDED` plus launcher exit 0. Weight version
 increments alone do not establish that parameter values changed.
 
+### Checking a nonzero training signal
+
+The default 256-token smoke run does not establish learning. For a longer
+check with the same DAPO data and `deepscaler` scorer, the launcher accepts:
+
+```bash
+--rollout-batch-size 4 --n-samples-per-prompt 4 \
+--rollout-max-response-len 4096 --rollout-max-prompt-len 1024 \
+--max-tokens-per-gpu 8192 \
+--dynamic-sampling-filter-path miles.rollout.filter_hub.common_filters.apply_reward_nonzero_std_filter \
+--save-debug-event-data /run-output/events --save-local-weight-checksum \
+--save-debug-rollout-data '/run-output/rollout_data/{rollout_id}.pt' \
+--save-debug-trajectory-data '/run-output/trajectories/{rollout_id}.jsonl'
+```
+
+Append these arguments to the in-container launcher, or pass their shell-quoted
+form through the host orchestrator's `--launcher-args`. This keeps a global batch
+of 16 while accepting only prompt groups whose actual rewards differ. The filter
+can resample indefinitely; use a bounded run and stop its specific Ray job if the
+budget expires. Longer responses allow the model to finish its thinking and
+boxed answer, both of which the selected scorer requires.
+
+Prepare the audit directories with the container writer's UID/GID before launch.
+The trajectory output requires the rollout dump in this SGLang rollout path.
+The dumps contain samples, not model checkpoints. Local checksum collection
+requires the event directory and adds tensor copies to CPU. It hashes local
+model parameters and optimizer state; it does not audit FP32 master parameters.
+
+Require finite nonzero gradient norms, mixed rewards recomputed from the saved
+samples, and matching parameter checksums across both rollout engines after each
+synchronization. Compare the initial served parameters with both post-training
+versions to establish actual BF16 parameter changes. A centered GRPO loss can be
+near zero even with nonzero gradients. These checks complement the execution
+criteria above; two iterations alone do not establish convergence or model quality.
+
 The pinned SGLang hybrid-GDN guard treats SM major 10 as Blackwell and rejects
 the `flashinfer` full-attention backend for this model. This recipe therefore
 uses `triton`; `--sglang-bf16-gemm-backend torch` also avoids its automatic SM100
@@ -233,7 +268,14 @@ Local validation: Python syntax checks and an isolated recording of the resolved
 training argv passed; the recording used stubbed command execution and did not
 start Ray or GPUs. The image also passed `train.py --help` and the launcher's
 `--print-only` check. The full two-node GPU run passed as recorded in RESULTS;
-the full Miles launcher test suite has not been run for this recipe.
+the longer sampling/audit flags also passed the real CLI check in the same image.
+The full launcher suite was subsequently run on 2026-09-15: all 43 fast tests
+passed. A CPU-only rerun with a writable temporary `/root` produced 488 passed,
+12 failed, and 4 errors. Remaining failures concern unchanged AMD/Kimi snapshots,
+AMD launchers calling the absent `U.exec_command`, and legacy shell recipes
+requiring unavailable `envsubst`. The first run also had 36 permission errors
+from test launchers writing `/root/models`; those disappeared in the isolated
+rerun. No framework packages or snapshots were changed to make these tests pass.
 
 `launch_plan.json`, if present in a working copy, is an early review artifact,
 not the execution record: it omits the cluster environment and source identity.

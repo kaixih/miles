@@ -47,6 +47,8 @@ def _parser():
     parser.add_argument("--container-prefix", default="miles-rubin-qwen35-j2179787")
     parser.add_argument("--gate-log", type=Path)
     parser.add_argument("--num-rollout", type=int, default=2)
+    parser.add_argument("--launcher-args", default="",
+                        help="Additional shell-quoted arguments forwarded to the training launcher")
     parser.add_argument("--env", action="append", default=[], metavar="KEY=VALUE",
                         help="Additional environment on both nodes; match the communication check")
     return parser
@@ -127,7 +129,7 @@ def _training_command(args):
             "/opt/miles/lab/rubin_two_node/run_qwen3_5_35b_a3b_rubin.py",
             "--model-dir", args.models, "--data-dir", args.models,
             "--output-dir", "/run-output", "--megatron-path", "/opt/Megatron-LM",
-            "--num-rollout", str(args.num_rollout)]
+            "--num-rollout", str(args.num_rollout), *shlex.split(args.launcher_args)]
 
 
 def _check_allocation(args):

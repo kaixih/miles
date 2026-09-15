@@ -8,6 +8,13 @@ Args:
   --model-dir / --data-dir: Existing checkpoint and dataset parents.
   --output-dir: Writable run output parent, prepared by the cluster launcher.
   --num-rollout: At least two complete generate/train/weight-sync iterations.
+  --dynamic-sampling-filter-path: Optional Miles filter for resampling prompt groups.
+  --save-debug-event-data: Optional directory for training and served-weight audit events.
+  --save-local-weight-checksum: Hash local parameters/state after each training step;
+      requires --save-debug-event-data and adds CPU copies of the tensors.
+  --save-debug-rollout-data: Optional sample dump path template containing {rollout_id}.
+  --save-debug-trajectory-data: Optional JSONL path template containing {rollout_id};
+      requires --save-debug-rollout-data in the selected rollout path.
   --print-only: Print the resolved train.py arguments without starting a job.
   --extra-env-vars: Additional Ray runtime environment as JSON or KEY=value.
 
@@ -44,6 +51,11 @@ class ScriptArgs(U.ExecuteTrainConfig):
     max_tokens_per_gpu: int = 2048
     sglang_mem_fraction_static: float = 0.35
     sglang_max_running_requests: int = 8
+    dynamic_sampling_filter_path: str = ""
+    save_debug_event_data: str = ""
+    save_local_weight_checksum: bool = False
+    save_debug_rollout_data: str = ""
+    save_debug_trajectory_data: str = ""
     enable_wandb: bool = False
     print_only: bool = False
 
@@ -58,6 +70,10 @@ class ScriptArgs(U.ExecuteTrainConfig):
             raise ValueError("Global batch size must be divisible by the TP2/PP1/CP1 data-parallel size 4")
         if self.rollout_max_response_len <= 0 or self.rollout_max_prompt_len <= 0:
             raise ValueError("Prompt and response token limits must be positive")
+        if self.save_local_weight_checksum and not self.save_debug_event_data:
+            raise ValueError("--save-local-weight-checksum requires --save-debug-event-data")
+        if self.save_debug_trajectory_data and not self.save_debug_rollout_data:
+            raise ValueError("--save-debug-trajectory-data requires --save-debug-rollout-data")
 
     @property
     def global_batch_size(self) -> int:
@@ -97,6 +113,8 @@ def _build_train_args(args: ScriptArgs) -> str:
         "--rollout-temperature 1 "
         f"--global-batch-size {args.global_batch_size} --balance-data "
     )
+    if args.dynamic_sampling_filter_path:
+        rollout_args += f"--dynamic-sampling-filter-path {shlex.quote(args.dynamic_sampling_filter_path)} "
     perf_args = (
         "--tensor-model-parallel-size 2 --sequence-parallel "
         "--pipeline-model-parallel-size 1 --context-parallel-size 1 "
@@ -134,8 +152,20 @@ def _build_train_args(args: ScriptArgs) -> str:
         f"--num-gpus-per-node {args.num_gpus_per_node} "
         "--update-weights-interval 1 --update-weight-buffer-size 536870912 "
     )
+    audit_args = ""
+    if args.save_debug_event_data:
+        audit_args += f"--save-debug-event-data {shlex.quote(args.save_debug_event_data)} "
+    if args.save_local_weight_checksum:
+        audit_args += "--save-local-weight-checksum "
+    if args.save_debug_rollout_data:
+        audit_args += f"--save-debug-rollout-data {shlex.quote(args.save_debug_rollout_data)} "
+    if args.save_debug_trajectory_data:
+        audit_args += f"--save-debug-trajectory-data {shlex.quote(args.save_debug_trajectory_data)} "
     wandb_args = U.get_default_wandb_args(__file__, run_id=args.run_id) if args.enable_wandb else ""
-    return " ".join([ckpt_args, rollout_args, perf_args, algorithm_args, optimizer_args, sglang_args, misc_args, wandb_args])
+    return " ".join([
+        ckpt_args, rollout_args, perf_args, algorithm_args, optimizer_args,
+        sglang_args, misc_args, audit_args, wandb_args,
+    ])
 
 
 def _runtime_env() -> dict[str, str]:
