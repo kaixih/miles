@@ -178,12 +178,20 @@ increments alone do not establish that parameter values changed.
 
 ### Checking a nonzero training signal
 
-The default 256-token smoke run does not establish learning. For a longer
-check with the same DAPO data and `deepscaler` scorer, the launcher accepts:
+The default 256-token smoke run does not establish learning. A later 4096-token
+thinking run also exhausted its sampling budget without accepting a mixed-reward
+group. Full auxiliary responses showed coherent reasoning, but were truncated;
+this did not establish a numerical correctness failure. The existing GB200/GB300
+self-distillation example uses a much longer DAPO reasoning budget.
+
+For a short check with the same DAPO data, disable thinking and use Miles' existing
+`math` scorer, which compares the boxed answer with the original label:
 
 ```bash
 --rollout-batch-size 4 --n-samples-per-prompt 4 \
 --rollout-max-response-len 4096 --rollout-max-prompt-len 1024 \
+--no-enable-thinking --rm-type math \
+--rollout-temperature 0.7 --rollout-top-p 0.8 --rollout-top-k 20 \
 --max-tokens-per-gpu 8192 \
 --dynamic-sampling-filter-path miles.rollout.filter_hub.common_filters.apply_reward_nonzero_std_filter \
 --save-debug-event-data /run-output/events --save-local-weight-checksum \
@@ -195,8 +203,13 @@ Append these arguments to the in-container launcher, or pass their shell-quoted
 form through the host orchestrator's `--launcher-args`. This keeps a global batch
 of 16 while accepting only prompt groups whose actual rewards differ. The filter
 can resample indefinitely; use a bounded run and stop its specific Ray job if the
-budget expires. Longer responses allow the model to finish its thinking and
-boxed answer, both of which the selected scorer requires.
+budget expires. The selected scorer uses actual answer correctness; no labels or
+rewards are injected. The default `deepscaler` scorer requires `</think>` within
+the generated response, so it is incompatible with this non-thinking check.
+These temperature/top-p/top-k values follow the model card's non-thinking general
+preset; Miles does not expose its presence-penalty setting in this rollout path,
+so this is not an exact copy of every sampling parameter. This mode validates
+short-run training mechanics and does not validate long-context thinking.
 
 Prepare the audit directories with the container writer's UID/GID before launch.
 The trajectory output requires the rollout dump in this SGLang rollout path.

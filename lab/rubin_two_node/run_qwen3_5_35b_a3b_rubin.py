@@ -8,6 +8,9 @@ Args:
   --model-dir / --data-dir: Existing checkpoint and dataset parents.
   --output-dir: Writable run output parent, prepared by the cluster launcher.
   --num-rollout: At least two complete generate/train/weight-sync iterations.
+  --rm-type: Existing Miles answer scorer (deepscaler or math).
+  --no-enable-thinking: Disable thinking in the HF chat template; use math scoring.
+  --rollout-temperature / --rollout-top-p / --rollout-top-k: Sampling controls.
   --dynamic-sampling-filter-path: Optional Miles filter for resampling prompt groups.
   --save-debug-event-data: Optional directory for training and served-weight audit events.
   --save-local-weight-checksum: Hash local parameters/state after each training step;
@@ -48,6 +51,11 @@ class ScriptArgs(U.ExecuteTrainConfig):
     n_samples_per_prompt: int = 2
     rollout_max_response_len: int = 256
     rollout_max_prompt_len: int = 1024
+    rm_type: str = "deepscaler"
+    enable_thinking: bool = True
+    rollout_temperature: float = 1.0
+    rollout_top_p: float = 1.0
+    rollout_top_k: int = -1
     max_tokens_per_gpu: int = 2048
     sglang_mem_fraction_static: float = 0.35
     sglang_max_running_requests: int = 8
@@ -70,6 +78,14 @@ class ScriptArgs(U.ExecuteTrainConfig):
             raise ValueError("Global batch size must be divisible by the TP2/PP1/CP1 data-parallel size 4")
         if self.rollout_max_response_len <= 0 or self.rollout_max_prompt_len <= 0:
             raise ValueError("Prompt and response token limits must be positive")
+        if self.rm_type not in {"deepscaler", "math"}:
+            raise ValueError("Use the existing deepscaler or math answer scorer")
+        if not self.enable_thinking and self.rm_type == "deepscaler":
+            raise ValueError("Non-thinking responses require math scoring; deepscaler requires </think>")
+        if self.rollout_temperature < 0 or not 0 < self.rollout_top_p <= 1:
+            raise ValueError("Temperature must be nonnegative and top-p must be in (0, 1]")
+        if self.rollout_top_k != -1 and self.rollout_top_k < 1:
+            raise ValueError("Top-k must be -1 or a positive integer")
         if self.save_local_weight_checksum and not self.save_debug_event_data:
             raise ValueError("--save-local-weight-checksum requires --save-debug-event-data")
         if self.save_debug_trajectory_data and not self.save_debug_rollout_data:
@@ -103,16 +119,19 @@ def _build_train_args(args: ScriptArgs) -> str:
     rollout_args = (
         f"--prompt-data {shlex.quote(str(args.prompt_data))} "
         "--input-key prompt --label-key label --apply-chat-template "
-        "--rollout-shuffle --rm-type deepscaler "
+        f"--rollout-shuffle --rm-type {args.rm_type} "
         f"--num-rollout {args.num_rollout} "
         f"--rollout-batch-size {args.rollout_batch_size} "
         f"--n-samples-per-prompt {args.n_samples_per_prompt} "
         f"--rollout-max-response-len {args.rollout_max_response_len} "
         f"--rollout-max-prompt-len {args.rollout_max_prompt_len} "
         f"--rollout-max-context-len {args.rollout_max_prompt_len + args.rollout_max_response_len} "
-        "--rollout-temperature 1 "
+        f"--rollout-temperature {args.rollout_temperature} "
+        f"--rollout-top-p {args.rollout_top_p} --rollout-top-k {args.rollout_top_k} "
         f"--global-batch-size {args.global_batch_size} --balance-data "
     )
+    if not args.enable_thinking:
+        rollout_args += "--apply-chat-template-kwargs " + shlex.quote('{"enable_thinking": false}') + " "
     if args.dynamic_sampling_filter_path:
         rollout_args += f"--dynamic-sampling-filter-path {shlex.quote(args.dynamic_sampling_filter_path)} "
     perf_args = (
