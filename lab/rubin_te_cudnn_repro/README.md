@@ -1,5 +1,12 @@
 # Rubin TE / cuDNN attention backward reproduction
 
+**Latest-version comparison:** upgrading only cuDNN from 9.25.0.15 to
+9.26.0.51 makes the minimal d256 forward/backward test pass on the same Rubin GPU.
+The original GQA 8:1 / d256 shapes also pass numerical checks. See
+[latest_cudnn_results.json](latest_cudnn_results.json) for the comparison.
+
+The baseline reproduction below uses cuDNN 9.25.0.15.
+
 A single Rubin GPU reproduces the original cuDNN backward plan-building failure
 using only random PyTorch tensors and Transformer Engine. The compact example
 uses **one head, 16 tokens, BF16, d256, causal THD attention, dropout 0**.

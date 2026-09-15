@@ -1,0 +1,270 @@
+{
+  "date_utc": "2026-09-15T15:52:28.537259+00:00",
+  "conclusion": "The cuDNN 9.25 backward failure no longer reproduces with cuDNN 9.26.0.51 for the tested inputs; only cuDNN changed.",
+  "base_image_manifest_digest": "sha256:a03106bdd90c5d6067fbff246fff25df979f9da8486eb0dac795a315a2346d6c",
+  "base_image_id": "sha256:3054a5be3f8233acac5e91c700803b3aeb1bd4ed6d1d792f2981091727b1efaf",
+  "tested_container_snapshot_image_id": "sha256:0df8ea57d4edfafc898d0ad28177247910cda10ed0202ba05fd923ebedf80ce0",
+  "snapshot_published": false,
+  "wheel": {
+    "filename": "nvidia_cudnn_cu13-9.26.0.51-py3-none-manylinux_2_27_aarch64.whl",
+    "url": "https://files.pythonhosted.org/packages/c5/1c/01e1dd3dec6ffe0baaff7e722b8946d867353d05a01301f128f1730fde0b/nvidia_cudnn_cu13-9.26.0.51-py3-none-manylinux_2_27_aarch64.whl",
+    "sha256": "8e5b4f5eccff721416f70ecf4353172fc4d5cdd8ca869fe6f983a4a5b0147b20",
+    "size_bytes": 595329497,
+    "uploaded_utc": "2026-09-10T16:45:39.945201Z",
+    "requires_dist": [
+      "nvidia-cublas"
+    ]
+  },
+  "software_unchanged": {
+    "torch": "2.15.0.dev20260818+cu134",
+    "transformer_engine": "2.19.0+5e52bef",
+    "nvidia-cudnn-frontend": "1.28.0",
+    "nvidia-cuda-runtime": "13.4.46rc1",
+    "nvidia-cuda-nvrtc": "13.4.46rc1",
+    "nvidia-cublas": "13.7.0.10rc1",
+    "driver": "610.47.04",
+    "gpu_compute_capability": "10.7"
+  },
+  "package_audit": {
+    "before_count": 400,
+    "after_count": 400,
+    "unchanged_count": 399,
+    "changes": {
+      "nvidia-cudnn-cu13": {
+        "before": "9.25.0.15",
+        "after": "9.26.0.51"
+      }
+    }
+  },
+  "script_sha256": {
+    "minimal_repro.py": "c0ed2fda16d6038d498d694e0486783a7aa48139e0937f47c7c8f3125646f0f0",
+    "repro.py": "ea6acf818953c2b69c3cb536d2d61358cbd6877420e20db72a358748de8a19fd",
+    "observe.py": "91d07a99234bac30882ad1f76f3f627fbc42dff95fa0b4022c601b6447886ddf",
+    "run_case.py": "94600f6c4cbf3c77dd9872498295eed3efa1e0850b00d1c07666edb4d364c131"
+  },
+  "limits": {
+    "per_case_timeout_s": 120,
+    "per_case_log_bytes": 33554432
+  },
+  "cases": [
+    {
+      "case": "baseline-d128",
+      "cudnn_package": "9.25.0.15",
+      "runtime_cudnn_version": 92500,
+      "ctypes_cudnn_get_version": 92500,
+      "loaded_library_names": [
+        "libcudnn.so.9",
+        "libcudnn_engines_precompiled.so.9",
+        "libcudnn_engines_runtime_compiled.so.9",
+        "libcudnn_engines_tensor_ir.so.9",
+        "libcudnn_graph.so.9",
+        "libcudnn_heuristic.so.9"
+      ],
+      "dimensions": {
+        "lengths": [
+          16
+        ],
+        "q_heads": 1,
+        "kv_heads": 1,
+        "d_qk": 128,
+        "d_v": 128,
+        "dtype": "bfloat16",
+        "format": "thd",
+        "mask": "padding_causal",
+        "dropout": 0
+      },
+      "forward": "PASS",
+      "backward": "PASS",
+      "exit_code": 0,
+      "termination_reason": null,
+      "log_file": "baseline-d128.log",
+      "log_sha256": "2dd24c645e32a7eebbbd5975ddbd7ef21bc35b915a4f022b3d6f2645d6397653",
+      "relative_l2": null
+    },
+    {
+      "case": "baseline-d256",
+      "cudnn_package": "9.25.0.15",
+      "runtime_cudnn_version": 92500,
+      "ctypes_cudnn_get_version": 92500,
+      "loaded_library_names": [
+        "libcudnn.so.9",
+        "libcudnn_engines_precompiled.so.9",
+        "libcudnn_engines_runtime_compiled.so.9",
+        "libcudnn_engines_tensor_ir.so.9",
+        "libcudnn_graph.so.9",
+        "libcudnn_heuristic.so.9"
+      ],
+      "dimensions": {
+        "lengths": [
+          16
+        ],
+        "q_heads": 1,
+        "kv_heads": 1,
+        "d_qk": 256,
+        "d_v": 256,
+        "dtype": "bfloat16",
+        "format": "thd",
+        "mask": "padding_causal",
+        "dropout": 0
+      },
+      "forward": "PASS",
+      "backward": "FAIL",
+      "exit_code": 1,
+      "termination_reason": null,
+      "log_file": "baseline-d256.log",
+      "log_sha256": "1649633e9616e36fc91da4f9e57d3104d3811397d75e86099fb6b1bbc00c9eb9",
+      "relative_l2": null
+    },
+    {
+      "case": "latest-d128",
+      "cudnn_package": "9.26.0.51",
+      "runtime_cudnn_version": 92600,
+      "ctypes_cudnn_get_version": 92600,
+      "loaded_library_names": [
+        "libcudnn.so.9",
+        "libcudnn_engines_precompiled.so.9",
+        "libcudnn_engines_runtime_compiled.so.9",
+        "libcudnn_engines_tensor_ir.so.9",
+        "libcudnn_graph.so.9",
+        "libcudnn_heuristic.so.9"
+      ],
+      "dimensions": {
+        "lengths": [
+          16
+        ],
+        "q_heads": 1,
+        "kv_heads": 1,
+        "d_qk": 128,
+        "d_v": 128,
+        "dtype": "bfloat16",
+        "format": "thd",
+        "mask": "padding_causal",
+        "dropout": 0
+      },
+      "forward": "PASS",
+      "backward": "PASS",
+      "exit_code": 0,
+      "termination_reason": null,
+      "log_file": "latest-d128.log",
+      "log_sha256": "b20c11e0d85e530cda31ce46027486d93f87c1d106f57813bc6ced8aa3f852e6",
+      "relative_l2": null
+    },
+    {
+      "case": "latest-d256",
+      "cudnn_package": "9.26.0.51",
+      "runtime_cudnn_version": 92600,
+      "ctypes_cudnn_get_version": 92600,
+      "loaded_library_names": [
+        "libcudnn.so.9",
+        "libcudnn_engines_precompiled.so.9",
+        "libcudnn_engines_runtime_compiled.so.9",
+        "libcudnn_engines_tensor_ir.so.9",
+        "libcudnn_graph.so.9",
+        "libcudnn_heuristic.so.9"
+      ],
+      "dimensions": {
+        "lengths": [
+          16
+        ],
+        "q_heads": 1,
+        "kv_heads": 1,
+        "d_qk": 256,
+        "d_v": 256,
+        "dtype": "bfloat16",
+        "format": "thd",
+        "mask": "padding_causal",
+        "dropout": 0
+      },
+      "forward": "PASS",
+      "backward": "PASS",
+      "exit_code": 0,
+      "termination_reason": null,
+      "log_file": "latest-d256.log",
+      "log_sha256": "b7ba6ee45e1a460fb93c267711b9c06e369f86161afb82436cf0ce18e640718d",
+      "relative_l2": null
+    },
+    {
+      "case": "latest-qwen512",
+      "cudnn_package": "9.26.0.51",
+      "runtime_cudnn_version": 92600,
+      "ctypes_cudnn_get_version": 92600,
+      "loaded_library_names": [
+        "libcudnn.so.9",
+        "libcudnn_engines_precompiled.so.9",
+        "libcudnn_engines_runtime_compiled.so.9",
+        "libcudnn_engines_tensor_ir.so.9",
+        "libcudnn_graph.so.9",
+        "libcudnn_heuristic.so.9"
+      ],
+      "dimensions": {
+        "lengths": [
+          512
+        ],
+        "q_heads": 8,
+        "kv_heads": 1,
+        "d_qk": 256,
+        "d_v": 256,
+        "dtype": "bfloat16",
+        "format": "thd",
+        "mask": "padding_causal",
+        "dropout": 0
+      },
+      "forward": "PASS",
+      "backward": "PASS",
+      "exit_code": 0,
+      "termination_reason": null,
+      "log_file": "latest-qwen512.log",
+      "log_sha256": "32ee609b6ae6d2b6a984e54de4d3ace4f788ea5495e473cb4e44d0c3ed2ce489",
+      "relative_l2": {
+        "out": 0.0020121303386986256,
+        "dq": 0.0025134410243481398,
+        "dk": 0.003029624931514263,
+        "dv": 0.002832030411809683
+      }
+    },
+    {
+      "case": "latest-qwen-irregular",
+      "cudnn_package": "9.26.0.51",
+      "runtime_cudnn_version": 92600,
+      "ctypes_cudnn_get_version": 92600,
+      "loaded_library_names": [
+        "libcudnn.so.9",
+        "libcudnn_engines_precompiled.so.9",
+        "libcudnn_engines_runtime_compiled.so.9",
+        "libcudnn_engines_tensor_ir.so.9",
+        "libcudnn_graph.so.9",
+        "libcudnn_heuristic.so.9"
+      ],
+      "dimensions": {
+        "lengths": [
+          257,
+          385,
+          129
+        ],
+        "q_heads": 8,
+        "kv_heads": 1,
+        "d_qk": 256,
+        "d_v": 256,
+        "dtype": "bfloat16",
+        "format": "thd",
+        "mask": "padding_causal",
+        "dropout": 0
+      },
+      "forward": "PASS",
+      "backward": "PASS",
+      "exit_code": 0,
+      "termination_reason": null,
+      "log_file": "latest-qwen-irregular.log",
+      "log_sha256": "053ea8498b98f2c422434ae22e1cfb75b77350cd1734d93b3b0e1ce981dd0f2b",
+      "relative_l2": {
+        "out": 0.0019516842439770699,
+        "dq": 0.002557033207267523,
+        "dk": 0.003080140333622694,
+        "dv": 0.002842585789039731
+      }
+    }
+  ],
+  "max_relative_l2": 0.003080140333622694,
+  "scope": "Single GPU PyTorch+TE probes only; no mainline training was run or changed. No claim of supported driver baseline or full-model cuDNN training validation.",
+  "official_support_matrix": "https://docs.nvidia.com/deeplearning/cudnn/backend/latest/reference/support-matrix.html"
+}
