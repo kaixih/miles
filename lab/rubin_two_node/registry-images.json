@@ -1,0 +1,22 @@
+{
+  "registry_project": "https://gitlab-master.nvidia.com/kaixih/my_docker_hub/container_registry",
+  "repository": "gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin",
+  "platform": "linux/arm64",
+  "miles_base_commit": "f187f76cfa04913af6ea61861def198dbfd1fcf3",
+  "base": {
+    "tag": "cu134-20260914-f187f76",
+    "manifest_digest": "sha256:2e4d20a9e0f9fb24e63fef98cd21f90c23f6300285772710b16a553b059a7f17",
+    "image_id": "sha256:39fb5087fb6f2cdb18cda7a1e1376f9ae2c2a2147197f06cb52f0a6dc4930e32",
+    "compressed_bytes": 14730568512
+  },
+  "qwen35": {
+    "tag": "qwen35-cu134-20260914-f187f76",
+    "manifest_digest": "sha256:676354cc71c6f5d4fbb4fd5bf246cfd4a33925932a5d4171b6f6969bf7a6886a",
+    "image_id": "sha256:82dc75cea54a88b7c8a7f581747fff47b04b9c836ddda9292f50b8e27d1e2ffc",
+    "compressed_bytes": 14734789997,
+    "added_packages": {
+      "fla-core": "0.5.2",
+      "flash-linear-attention": "0.5.2"
+    }
+  }
+}

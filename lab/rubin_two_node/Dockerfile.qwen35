@@ -1,0 +1,10 @@
+# Incremental Qwen3.5 dependency layer on the preserved Rubin core image.
+ARG BASE_IMAGE=gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin@sha256:2e4d20a9e0f9fb24e63fef98cd21f90c23f6300285772710b16a553b059a7f17
+FROM ${BASE_IMAGE}
+RUN python3 -m pip install --no-deps \
+      fla-core==0.5.2 flash-linear-attention==0.5.2 && \
+    python3 -c 'from fla.modules import ShortConvolution; from fla.ops.gated_delta_rule import chunk_gated_delta_rule; print("FLA_QWEN35_IMPORT_OK")' && \
+    python3 /opt/miles-rubin/rubin_build.py verify-native
+ENV FLA_DISABLE_BACKEND_DISPATCH=1 \
+    FLA_CONV_BACKEND=triton
+LABEL ai.miles.extension="Qwen3.5 FLA 0.5.2 on Rubin cu134"
