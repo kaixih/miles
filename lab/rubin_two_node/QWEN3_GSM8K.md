@@ -59,10 +59,35 @@ did not run held-out evaluation.
 
 ## Reproduce
 
-Use the same Miles checkout and learning arguments on both platforms. Native
-CUDA extensions must contain code for the actual GPU architecture; the preserved
-Rubin image contains SM107-only FA2/Apex kernels and needs a matching-version
-GB300 extension build before it can serve as the GB300 runtime.
+Use the same Miles checkout and learning arguments on both platforms. Rubin uses
+the preserved custom CUDA 13.4 image; GB300 uses the unmodified upstream Miles
+image, pinned by its ARM64 manifest digest:
+
+| Platform | Runtime image |
+| --- | --- |
+| Rubin | `gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin@sha256:a03106bdd90c5d6067fbff246fff25df979f9da8486eb0dac795a315a2346d6c` |
+| GB300 | `radixark/miles@sha256:226f63d28e4b1482e0a6948ba3d486c1b1635648d079c82c9501640b24657986` (`dev-202609151226`) |
+
+The Rubin FA2/Apex extensions contain SM107-only kernels. Do not use that image
+on GB300 or rebuild it as the GB300 baseline. The upstream GB300 image supplies
+CUDA 13.0, Torch 2.13.0+cu130, TE 2.17.0 and SGLang
+0.5.20.dev58+gaea7fb9. Record the complete installed versions and resolved
+training arguments with each run: this compares the available Miles runtimes
+on the two platforms, with dependency-version differences visible. It is not a
+measurement isolating hardware alone.
+
+The upstream image stores editable source under `/root`; its directory needs
+traverse permission for the normal container UID. A container-local
+`chmod o+x /root` makes those existing sources readable without rebuilding the
+image or changing packages. Pass `--megatron-path /root/Megatron-LM` on GB300.
+
+On this GB300 node the CIFS mount maps writes to a service UID. Keep repo and
+model mounts read-only, write run artifacts to node-local storage as the normal
+UID, and retain logs/metrics/profiles through the login host's NFS view. The
+orchestrator supports separate `--node-repo`, `--node-models`, and
+`--node-run-dir` paths; `--node-local-output` verifies the local-to-durable copy
+route before bootstrap. A node-local checkpoint needs explicit retention before
+the allocation expires.
 
 Inside an externally prepared four-GPU container:
 

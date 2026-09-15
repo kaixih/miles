@@ -24,6 +24,7 @@ import os
 import shlex
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -40,6 +41,11 @@ def _parser():
     parser.add_argument("--repo", default="/home/scratch.kaixih_ent/repo/miles-rubin-cu134")
     parser.add_argument("--models", default="/home/scratch.kaixih_ent/models")
     parser.add_argument("--run-dir", default="/home/scratch.kaixih_ent/repro/miles-rubin-two-node/20260914-j2179787")
+    parser.add_argument("--node-repo", help="Compute-node view of --repo, if different from login")
+    parser.add_argument("--node-models", help="Compute-node view of --models, if different from login")
+    parser.add_argument("--node-run-dir", help="Compute-node view of --run-dir, if different from login")
+    parser.add_argument("--node-local-output", action="store_true",
+                        help="--node-run-dir is local storage; retain results by copying to --run-dir")
     parser.add_argument("--cache-dir", default="/tmp/miles-rubin-j2179787/qwen35")
     parser.add_argument("--ray-port", type=int, default=26379)
     parser.add_argument("--dashboard-port", type=int, default=28265)
@@ -105,8 +111,9 @@ def _docker(args, rank, *, probe=False):
            "--shm-size", "16g", "--user", f"{args.uid}:{args.gid}", "--workdir", "/opt/miles"]
     cmd += ["--rm"] if probe else ["--detach", "--name", _name(args, rank)]
     for source, target, readonly in [
-        (args.repo, "/opt/miles", True), (args.models, args.models, True),
-        (args.run_dir, "/run-output", False), (args.cache_dir, "/cache", False),
+        (args.node_repo or args.repo, "/opt/miles", True),
+        (args.node_models or args.models, args.models, True),
+        (args.node_run_dir or args.run_dir, "/run-output", False), (args.cache_dir, "/cache", False),
         ("/dev/nvidia-caps", "/dev/nvidia-caps", False),
         ("/dev/nvidia-caps-imex-channels", "/dev/nvidia-caps-imex-channels", False),
     ]:
@@ -151,7 +158,9 @@ def _check_allocation(args):
 def _prepare_node(args, rank):
     node = args.nodes[rank]
     config = {"uid": args.uid, "gid": args.gid, "cache": args.cache_dir,
-              "run": args.run_dir, "repo": args.repo, "models": args.models,
+              "run": args.node_run_dir or args.run_dir,
+              "repo": args.node_repo or args.repo, "models": args.node_models or args.models,
+              "run_has_login_alias": bool(args.node_run_dir) and not args.node_local_output,
               "ports": [26380, 26381, 26382, 26400, 26999] + ([args.ray_port, args.dashboard_port] if rank == 0 else [])}
     code = """import json, os, pathlib, shutil, socket, tempfile
 c=json.loads(CONFIG)
@@ -162,7 +171,10 @@ for name in ['/dev/nvidia-caps','/dev/nvidia-caps-imex-channels']:
     assert pathlib.Path(name).is_dir(), name
 for name in [c['cache'],c['run']]:
     p=pathlib.Path(name); p.mkdir(parents=True,exist_ok=True)
-    assert p.stat().st_uid==c['uid'], 'Unexpected directory owner: '+name
+    # CIFS may report a mount-wide UID rather than the server's real owner.
+    # An aliased shared run is checked from the login/NFS view below instead.
+    if name==c['cache'] or not c['run_has_login_alias']:
+        assert p.stat().st_uid==c['uid'], 'Unexpected directory owner: '+name
     t=pathlib.Path(tempfile.mkdtemp(prefix='host-probe-',dir=p)); (t/'ok').write_text('ok'); (t/'ok').unlink(); t.rmdir()
     print(json.dumps({'path':name,'uid':p.stat().st_uid,'gid':p.stat().st_gid,'free_bytes':shutil.disk_usage(p).free}))
 for child in ['home','tmp','ray','triton','flashinfer','torch_extensions','cuda','huggingface','pycache','xdg']:
@@ -177,6 +189,9 @@ for port in c['ports']:
             raise RuntimeError(f'Ray port {port} unavailable: {exc}') from exc
 """.replace("CONFIG", repr(json.dumps(config)))
     _ssh(node, ["python3", "-c", code])
+    Path(args.run_dir, "logs").mkdir(parents=True, exist_ok=True)
+    if Path(args.run_dir).stat().st_uid != args.uid:
+        raise RuntimeError(f"Unexpected shared run owner in login view: {args.run_dir}")
     exists = _ssh(node, ["docker", "container", "inspect", _name(args, rank)], capture=True, check=False)
     if exists.returncode == 0:
         raise RuntimeError(f"Container {_name(args, rank)} already exists on {node}; inspect it before retrying")
@@ -193,15 +208,30 @@ print(json.dumps(result))
     result = _ssh(node, _docker(args, rank, probe=True) + ["python3", "-c", probe], capture=True)
     paths = json.loads(result.stdout.strip().splitlines()[-1])
     for item in paths:
-        if (item["uid"], item["gid"]) != (args.uid, args.gid):
-            raise RuntimeError(f"Unexpected container writer: {item}")
         source = item["path"].replace("/cache/", args.cache_dir + "/", 1).replace("/run-output/", args.run_dir + "/", 1)
+        shared_output = item["path"].startswith("/run-output/") and not args.node_local_output
+        if shared_output:
+            stat = Path(source, "nested", "ok").stat()
+            owner = (stat.st_uid, stat.st_gid)
+        else:
+            owner = (item["uid"], item["gid"])
+        if owner != (args.uid, args.gid):
+            raise RuntimeError(f"Unexpected container writer through authoritative host view: {item}, {owner}")
         # The login view must be able to read and delete shared output; local
         # caches are deleted through the normal compute-node SSH identity.
         cleanup = "from pathlib import Path; p=Path(" + repr(source) + "); assert (p/'nested'/'ok').read_text()=='ok'; (p/'nested'/'ok').unlink(); (p/'nested').rmdir(); p.rmdir(); assert not p.exists()"
-        if item["path"].startswith("/run-output/"):
+        if shared_output:
             _run([sys.executable, "-c", cleanup])
         else:
+            if item["path"].startswith("/run-output/"):
+                source = item["path"].replace("/run-output/", args.node_run_dir + "/", 1)
+                # Exercise the node-local to durable-output retention route.
+                content = _ssh(node, ["cat", source + "/nested/ok"], capture=True).stdout
+                with tempfile.TemporaryDirectory(prefix="retention-probe-", dir=args.run_dir) as directory:
+                    retained = Path(directory, "ok")
+                    retained.write_text(content)
+                    assert retained.read_text() == "ok" and retained.stat().st_uid == args.uid
+                cleanup = "from pathlib import Path; p=Path(" + repr(source) + "); assert (p/'nested'/'ok').read_text()=='ok'; (p/'nested'/'ok').unlink(); (p/'nested').rmdir(); p.rmdir(); assert not p.exists()"
             _ssh(node, ["python3", "-c", cleanup])
     _ssh(node, _docker(args, rank) + ["sleep", "infinity"])
     return _ssh(node, ["docker", "inspect", "--format", "{{.Image}}", _name(args, rank)], capture=True).stdout.strip()
@@ -278,6 +308,8 @@ def main():
         raise ValueError("Provide one or two nodes and one IP per node")
     if args.recipe == "qwen35-smoke" and len(args.nodes) != 2:
         raise ValueError("The Qwen3.5 smoke recipe requires two nodes")
+    if args.node_local_output and not args.node_run_dir:
+        raise ValueError("Node-local output requires an explicit --node-run-dir")
     for value in args.node_ips:
         ip = ipaddress.ip_address(value)
         if ip.is_loopback or ip.is_unspecified:
