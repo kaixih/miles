@@ -6,6 +6,8 @@ Run only after the separate two-node communication check has passed.
 
 Args:
   --model-dir / --data-dir: Existing checkpoint and dataset parents.
+  --prompt-data-path: Optional prompt/label dataset file; defaults to DAPO under --data-dir.
+  --rollout-max-context-len: Optional total context limit; 0 uses prompt plus response limits.
   --output-dir: Writable run output parent, prepared by the cluster launcher.
   --num-rollout: At least two complete generate/train/weight-sync iterations.
   --rm-type: Existing Miles answer scorer (deepscaler or math).
@@ -45,12 +47,14 @@ class ScriptArgs(U.ExecuteTrainConfig):
     num_gpus_per_node: int = 4
     model_dir: str = "/root/models"
     data_dir: str = "/root/datasets"
+    prompt_data_path: str = ""
     megatron_path: str = "/opt/Megatron-LM"
     num_rollout: int = 2
     rollout_batch_size: int = 8
     n_samples_per_prompt: int = 2
     rollout_max_response_len: int = 256
     rollout_max_prompt_len: int = 1024
+    rollout_max_context_len: int = 0
     rm_type: str = "deepscaler"
     enable_thinking: bool = True
     rollout_temperature: float = 1.0
@@ -78,6 +82,12 @@ class ScriptArgs(U.ExecuteTrainConfig):
             raise ValueError("Global batch size must be divisible by the TP2/PP1/CP1 data-parallel size 4")
         if self.rollout_max_response_len <= 0 or self.rollout_max_prompt_len <= 0:
             raise ValueError("Prompt and response token limits must be positive")
+        if self.rollout_max_context_len < 0:
+            raise ValueError("Context limit must be zero (automatic) or positive")
+        if self.rollout_max_context_len and (
+            self.rollout_max_context_len < self.rollout_max_prompt_len + self.rollout_max_response_len
+        ):
+            raise ValueError("Context limit must cover the prompt and response token limits")
         if self.rm_type not in {"deepscaler", "math"}:
             raise ValueError("Use the existing deepscaler or math answer scorer")
         if not self.enable_thinking and self.rm_type == "deepscaler":
@@ -105,7 +115,13 @@ class ScriptArgs(U.ExecuteTrainConfig):
 
     @property
     def prompt_data(self) -> Path:
+        if self.prompt_data_path:
+            return Path(self.prompt_data_path)
         return Path(self.data_dir) / "dapo-math-17k/dapo-math-17k.jsonl"
+
+    @property
+    def context_length(self) -> int:
+        return self.rollout_max_context_len or self.rollout_max_prompt_len + self.rollout_max_response_len
 
 
 def _build_train_args(args: ScriptArgs) -> str:
@@ -125,7 +141,7 @@ def _build_train_args(args: ScriptArgs) -> str:
         f"--n-samples-per-prompt {args.n_samples_per_prompt} "
         f"--rollout-max-response-len {args.rollout_max_response_len} "
         f"--rollout-max-prompt-len {args.rollout_max_prompt_len} "
-        f"--rollout-max-context-len {args.rollout_max_prompt_len + args.rollout_max_response_len} "
+        f"--rollout-max-context-len {args.context_length} "
         f"--rollout-temperature {args.rollout_temperature} "
         f"--rollout-top-p {args.rollout_top_p} --rollout-top-k {args.rollout_top_k} "
         f"--global-batch-size {args.global_batch_size} --balance-data "
@@ -159,7 +175,7 @@ def _build_train_args(args: ScriptArgs) -> str:
         "--sglang-attention-backend triton --sglang-bf16-gemm-backend torch "
         "--sglang-linear-attn-backend triton --sglang-linear-attn-prefill-backend triton "
         "--sglang-disable-cuda-graph --sglang-disable-piecewise-cuda-graph "
-        f"--sglang-context-length {args.rollout_max_prompt_len + args.rollout_max_response_len} "
+        f"--sglang-context-length {args.context_length} "
         f"--sglang-mem-fraction-static {args.sglang_mem_fraction_static} "
         f"--sglang-max-running-requests {args.sglang_max_running_requests} "
     )

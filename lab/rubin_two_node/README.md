@@ -216,6 +216,21 @@ preset; Miles does not expose its presence-penalty setting in this rollout path,
 so this is not an exact copy of every sampling parameter. This mode validates
 short-run training mechanics and does not validate long-context thinking.
 
+For a GSM8K comparison, keep the non-thinking recipe above and override only
+the dataset and response limit, while explicitly preserving its 5120-token
+rollout/SGLang context capacity:
+
+```bash
+--prompt-data-path /path/to/gsm8k.jsonl \
+--rollout-max-response-len 1024 --rollout-max-context-len 5120
+```
+
+The dataset must retain the same `prompt` and `label` fields. An empty
+`--prompt-data-path` keeps the DAPO path under `--data-dir`. The context option
+defaults to 0, which derives prompt plus response limits; an explicit value
+must cover their sum. Other model, sampling, filter and iteration settings
+remain those supplied in the original command.
+
 Prepare the audit directories with the container writer's UID/GID before launch.
 The `.pt` rollout dumps are the authoritative single-turn sample records; this
 run did not emit separate trajectory JSONL files. They contain samples, not model
