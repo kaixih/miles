@@ -1,0 +1,324 @@
+{
+  "schema_version": 1,
+  "title": "Miles on Rubin: experimental BF16 container bringup",
+  "record_date": "2026-09-15",
+  "status": "build_verified_and_selected_gpu_workloads_validated",
+  "summary": "Started from the native ARM64 SGLang CUDA 13.4 image, preserved its Torch and CUDA-dependent runtime, rebuilt the training extensions against that environment, and validated specific BF16 training and rollout paths on SM10.7. This is an experimental recipe, not a claim that upstream Miles supports every Rubin workload.",
+  "image": {
+    "reference": "gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin@sha256:a03106bdd90c5d6067fbff246fff25df979f9da8486eb0dac795a315a2346d6c",
+    "tag": "qwen35-fa2-cu134-20260915",
+    "digest": "sha256:a03106bdd90c5d6067fbff246fff25df979f9da8486eb0dac795a315a2346d6c",
+    "image_id": "sha256:3054a5be3f8233acac5e91c700803b3aeb1bd4ed6d1d792f2981091727b1efaf",
+    "architecture": "linux/arm64; aarch64 CPU; Rubin compute capability 10.7",
+    "base_reference": "lmsysorg/sglang:nightly-cu134-20260911-a4ff563@sha256:4af3254b070e087afdf8cabebe895132bb4d1d6cf6fd5b5c60f0a3da07c1b468",
+    "core_manifest_digest": "sha256:2e4d20a9e0f9fb24e63fef98cd21f90c23f6300285772710b16a553b059a7f17",
+    "fla_layer_manifest_digest": "sha256:676354cc71c6f5d4fbb4fd5bf246cfd4a33925932a5d4171b6f6969bf7a6886a",
+    "embedded_miles_recipe_commit": "f187f76cfa04913af6ea61861def198dbfd1fcf3",
+    "runtime_source_note": "Later experiments mount separately recorded Miles source commits. The image digest does not identify the mounted runtime source; each experiment must report both."
+  },
+  "comparison_caveat": "The GB300 performance experiment uses the upstream Miles container, as requested. Rubin uses this custom CUDA 13.4 container. These are not identical software environments: CUDA, Torch, native packages and patches must be listed alongside the results. A measured runtime gap includes software-stack differences and cannot be attributed solely to GPU hardware. The older VeRL run is a historical learning-curve reference, not the current performance control.",
+  "components": [
+    {
+      "name": "CUDA / Python / Torch",
+      "version": "CUDA 13.4; Python 3.12.3; torch 2.15.0.dev20260818+cu134; CXX11 ABI=true",
+      "source_ref": "SGLang nightly-cu134-20260911-a4ff563, pinned base digest",
+      "action": "Retained from the upstream cu134 ARM64 base",
+      "rationale": "Replace the audited cu130/Torch2.13 wheel assumptions with extensions matching the selected cu134 Torch environment.",
+      "validation": "Base ABI snapshot and selected native package versions checked during build; installed versions read again from the preserved runtime image.",
+      "source_refs": [
+        "upstream-cu134",
+        "rubin-dockerfile",
+        "build-helper",
+        "native-version-audit"
+      ]
+    },
+    {
+      "name": "cuDNN / NCCL / CuTe DSL",
+      "version": "nvidia-cudnn-cu13 9.25.0.15; nvidia-nccl-cu13 2.30.7; nvidia-cutlass-dsl 4.8.0.dev0; cudnn-frontend 1.28.0",
+      "source_ref": "Pinned cu134 base; frontend version pinned in the Rubin recipe",
+      "action": "Retained base native libraries; installed the pinned cuDNN frontend",
+      "rationale": "Avoid mixing CUDA-library or Torch ABI versions. Added the pip cuDNN include/library directories to compiler search paths.",
+      "validation": "Selected TE/cuDNN small-shape forward/backward and NCCL tests passed. Qwen3.5 THD d256 cuDNN backward failed; the underlying cause was not established.",
+      "source_refs": [
+        "rubin-dockerfile",
+        "core-results",
+        "two-node-results",
+        "native-version-audit"
+      ]
+    },
+    {
+      "name": "FlashInfer / SGLang native packages",
+      "version": "flashinfer-python 0.6.18; flashinfer-cubin 0.6.18; flashinfer-jit-cache 0.6.18+cu134; sglang-kernel 0.4.6.post1; sgl-deep-gemm 0.1.5.post2+cu134; sgl-deep-ep 0.1.0+cu134",
+      "source_ref": "Pinned upstream cu134 base",
+      "action": "Retained; not rebuilt by the Miles recipe",
+      "rationale": "Preserve the rollout kernels already built for the selected Torch/CUDA environment.",
+      "validation": "SGLang FlashInfer backend import and two offline BF16 decode shapes passed against FP32 SDPA, maximum absolute error 0.00136. This does not validate every FlashInfer or DeepEP/DeepGEMM path.",
+      "source_refs": [
+        "core-results",
+        "native-version-audit"
+      ]
+    },
+    {
+      "name": "SGLang Python source",
+      "version": "Editable distribution metadata 0.0.0; identify by commit, not that version string",
+      "source_ref": "aea7fb92c047c9c096eae66460acb25dec9ae5a9 (Miles SGLang branch)",
+      "action": "Pinned source checkout; reconciled dependency metadata to the retained native versions; editable install with --no-deps",
+      "rationale": "Keep Miles-specific SGLang behavior while preserving the cu134 native dependencies.",
+      "validation": "Actual rollout paths passed in the recorded Qwen3.5 runs. Unused Rust/TreeCore and other optional paths are not covered.",
+      "source_refs": [
+        "sglang-pin",
+        "build-helper",
+        "learning-summary"
+      ]
+    },
+    {
+      "name": "Transformer Engine",
+      "version": "2.19.0+5e52bef",
+      "source_ref": "5e52befd5262c06289106338c308079d6adb391f",
+      "action": "Built from source with NVTE_CUDA_ARCHS=107a, NVTE_FRAMEWORK=pytorch and NVTE_WITH_NCCL_EP=0",
+      "rationale": "TE 2.19 adds upstream Rubin support; source compilation matches the selected Torch ABI.",
+      "validation": "TE Linear and FusedAdam checks passed. Attention validation is configuration-specific; the release-level support statement is not proof that every backend, head dimension or packed layout works.",
+      "source_refs": [
+        "te-release-notes",
+        "te-pin",
+        "rubin-dockerfile",
+        "core-results"
+      ]
+    },
+    {
+      "name": "Apex",
+      "version": "0.1 (commit identifies the build)",
+      "source_ref": "10417aceddd7d5d05d7cbf7b0fc2daad1105f8b4",
+      "action": "Built C++/CUDA extensions from source for TORCH_CUDA_ARCH_LIST=10.7; replaced explicit C++17 flags with C++20",
+      "rationale": "Avoid reusing cu130/Torch2.13 CUDA wheels with a different Torch build.",
+      "validation": "FusedAdam update compared against Torch Adam in the component smoke.",
+      "source_refs": [
+        "apex-pin",
+        "build-helper",
+        "core-results"
+      ]
+    },
+    {
+      "name": "FlashAttention 2",
+      "version": "2.8.3.post1",
+      "source_ref": "a8aa52b1ab3e9ca574c8a33b3f35afc017ffa2e2",
+      "action": "Built from source; patched setup.py to emit compute_107/sm_107 and use C++20",
+      "rationale": "Supply FA2 kernels built for Rubin and the selected Torch headers. The FLASH_ATTN_CUDA_ARCHS=100 recipe selector enters the upstream branch whose actual target is explicitly patched to 107.",
+      "validation": "Direct FA2 and TE-wrapped FA2 forward/backward passed on SM10.7 for three no-gap THD BF16 d256 test cases; output/gradient relative L2 error versus FP32 reference was below 0.31%.",
+      "source_refs": [
+        "fa2-pin",
+        "build-helper",
+        "two-node-results"
+      ]
+    },
+    {
+      "name": "Megatron-LM",
+      "version": "megatron-core 0.19.0+73b5461",
+      "source_ref": "radixark/Megatron-LM 73b54618f7e58e0f25f619bcfecbe2640765475a",
+      "action": "Pinned editable source install with --no-deps; builds the CPU pybind dataset helper",
+      "rationale": "Preserve the Miles training fork while deliberately selecting TE 2.19 separately. This Megatron pin does not itself pin or certify TE 2.19; its dependency metadata is older.",
+      "validation": "Actual Megatron actor, optimizer and weight-sync paths passed in the recorded two-node BF16 Qwen3.5 runs.",
+      "source_refs": [
+        "megatron-pin",
+        "rubin-dockerfile",
+        "learning-summary"
+      ]
+    },
+    {
+      "name": "mbridge / Torch Memory Saver",
+      "version": "mbridge 0.15.1; torch-memory-saver 0.0.9.post1",
+      "source_ref": "mbridge 89eb10887887bc74853f89a4de258c0702932a1c; TMS f05a8754daf68238d54e4cf31cb3ba866684bbaf",
+      "action": "Pinned source installs; force-reinstalled the TMS CUDA 13 library using TMS_CUDA_MAJOR=13",
+      "rationale": "Use the exact Miles dependencies in the new runtime. TMS was rebuilt even though the base exposed the same package version.",
+      "validation": "TMS preload library present; actual colocate/offload workflow passed. The experiments use raw weight conversion, so installing mbridge is not a validation of its bridge/LoRA paths.",
+      "source_refs": [
+        "mbridge-pin",
+        "tms-pin",
+        "rubin-dockerfile",
+        "learning-summary"
+      ]
+    },
+    {
+      "name": "Qwen3.5 Gated DeltaNet dependencies",
+      "version": "fla-core 0.5.2; flash-linear-attention 0.5.2; inherited tilelang 0.1.12 and triton 3.8.0+gitdf3f91dd",
+      "source_ref": "Pinned incremental Dockerfile.qwen35",
+      "action": "Added both FLA distributions with --no-deps; selected FLA_CONV_BACKEND=triton and FLA_DISABLE_BACKEND_DISPATCH=1",
+      "rationale": "The split FLA packages are needed for both fla.modules and gated_delta_rule imports. Causal-conv1d was not needed for the selected Triton path.",
+      "validation": "Imports and actual Qwen3.5 GDN training passed. Standard Qwen3-30B-A3B does not use this GDN path.",
+      "source_refs": [
+        "qwen35-dockerfile",
+        "learning-summary",
+        "native-version-audit"
+      ]
+    },
+    {
+      "name": "Python runtime dependencies",
+      "version": "transformers 5.12.1; ray 2.58.0; nvidia-modelopt 0.46.1; setuptools 80.9.0",
+      "source_ref": "Actual preserved Rubin image metadata; final freeze in /opt/miles-rubin",
+      "action": "Resolved Miles requirements under native constraints; restored setuptools 80.9.0 after the Megatron build",
+      "rationale": "Megatron build metadata needs setuptools<80, while inherited ModelOpt requires >=80. Version 80.9.0 satisfies the runtime constraint and still supplies pkg_resources.",
+      "validation": "Build imports and direct Miles requirements passed. ModelOpt's presence does not mean QAT/quantization paths were tested.",
+      "source_refs": [
+        "rubin-dockerfile",
+        "core-results",
+        "native-version-audit"
+      ]
+    }
+  ],
+  "changes": [
+    {
+      "title": "Preserve the native base before resolving Python dependencies",
+      "detail": "Snapshot and constrain 40 native package versions plus the Torch ABI before resolving Miles dependencies.",
+      "scope": "Core and incremental image builds",
+      "validation_status": "PASS",
+      "explanation": "The check covers selected package versions and the Torch CXX11 ABI, not byte-for-byte hashes of every library."
+    },
+    {
+      "title": "Rebuild training extensions; retain rollout extensions",
+      "detail": "Rebuild TE, Apex, FA2 and TMS in the core image; retain the cu134 rollout stack and use a Python-only TE patch in the final increment.",
+      "scope": "Core native compilation versus incremental package/Python changes",
+      "validation_status": "PASS for the recorded component and model tests",
+      "explanation": "FLA packages are added with --no-deps; the final increment does not recompile the core native libraries. Runtime Triton JIT compilation is a separate matter."
+    },
+    {
+      "title": "Scoped TE eligibility patch for Qwen3.5 d256",
+      "detail": "Allow only the numerically tested SM107 BF16/d256/dropout0 FA2 case through TE’s existing dispatch checks.",
+      "scope": "Qwen3.5-35B-A3B only in these experiments. Current Qwen3-30B-A3B uses head dimension128 and does not require this d256 exception.",
+      "validation_status": "Direct and TE-wrapped FA2 numeric probes PASS; recorded no-gap Qwen3.5 end-to-end runs PASS; forced-gap layout remained NoBackend",
+      "explanation": "Observed TE/cuDNN backward failure: No valid execution plans built for causal THD BF16 d256, GQA 8:1, dropout 0. Unpatched TE also rejected FA2 via a head-dimension allowlist. The patch adds only CC10.7 + BF16 + Q/K/V dimension256 + dropout0 to that eligibility condition; all other backend checks remain. It changes Python dispatch, not CUDA kernels, and does not establish the cuDNN failure's root cause."
+    },
+    {
+      "title": "Remove an incompatible inherited FA4 beta",
+      "detail": "Remove the inherited FA4 beta because its CuTe imports are incompatible with the retained DSL4.8 package.",
+      "scope": "Selected image packaging; FA4 and FA3 are unused",
+      "validation_status": "Selected FA2 and rollout paths validated; alternative FA4 configurations untested",
+      "explanation": "The base FA4 beta imported CuTe APIs unavailable in DSL4.8, and TE imported the installed package eagerly. Removed flash-attn-4 and its SGLang dependency declaration. This was an observed package/API incompatibility, not evidence that every FA4 version is limited to Blackwell or cannot run on Rubin. Hopper-only FA3 was not added."
+    },
+    {
+      "title": "Runtime fixes are separately tracked",
+      "detail": "Track MNNVL environment settings and the checksum diagnostic repair separately from the native image build.",
+      "scope": "Experiment configuration and runtime source, not a general container support claim",
+      "validation_status": "Recorded two-node transport and learning checks PASS",
+      "explanation": "Two-node runs kept NCCL_CUMEM_ENABLE=1 and NCCL_NVLS_ENABLE=0 to obtain MNNVL with colocate/offload. A later Miles checksum diagnostic fix mapped optimizer-owned native FP32 shards correctly; it did not change attention kernels or training math and was delivered as mounted source, not a replacement native image."
+    }
+  ],
+  "validated": [
+    "Core build: actual Miles actor import, TMS CUDA13 library, BF16 GEMM, TE Linear backward, TE/Apex Adam numerical checks, FA2 forward/backward, selected TE/cuDNN attention, four-GPU NCCL all-reduce and two FlashInfer decode shapes.",
+    "Registry provenance: core and incremental images retained by manifest digest; final image push/API verification and two-node pulls passed.",
+    "Qwen3.5 execution smoke: real rollout, optimizer execution, offload and three all-rank synchronizations passed. Its zero rewards and gradients only establish execution.",
+    "Qwen3.5 learning validation: two-node BF16 TP2/EP8 with two TP4 rollout engines passed two updates with independently recomputed rewards, nonzero gradients, changed served tensor hashes, matching engines and three all-rank synchronizations.",
+    "The later Qwen3.5 GSM8K/1K comparison also passed its terminal collector and learning audit. These are separate results from the current Qwen3-30B-A3B learning/performance experiment."
+  ],
+  "limitations": [
+    "No claim of upstream Miles end-to-end Rubin certification, general model coverage, convergence, or unrestricted long-context/backend correctness.",
+    "The TE 2.19 release-level Rubin claim and the successful scoped FA2 tests do not imply every TE/cuDNN or FA4 configuration works. Rubin is not restricted to cuDNN: the tested FA2 path executed successfully.",
+    "The current Qwen3-30B-A3B curve/performance status must come from its own final logs and collector; this build report does not mark that experiment complete.",
+    "Untested optional paths include FA4, FA3, TE NCCL-EP, Megatron-Bridge/LoRA conversion, QAT/quantization, and model-specific optional kernels not exercised by the recorded recipes. TileLang and ModelOpt are installed; presence alone is not validation.",
+    "The core build recorded eight pre-existing pip-check warnings from the upstream base and no newly introduced warnings; direct Miles requirements and selected imports passed.",
+    "GB300 uses an upstream Miles container and Rubin uses this custom image. Record both actual software manifests; performance results are a comparison of hardware plus runtime stacks."
+  ],
+  "patch_provenance": {
+    "te_helper_sha256": "1f83112c8f7a1540612a877e5f8df4c4ca003dc51061dc46fd58c7cf105d6873",
+    "patched_te_utils_sha256": "acca3534f85503c85b18186f5de93bafa54821299210f6a68ce254f4fc308a65",
+    "fa2_build_patch_sha256": "5cc87fdd760f83cdd6bf401ef9a4d31e2105048bea2ae95287d9cd1dd07eb35c",
+    "apex_build_patch_sha256": "fb7f1ec4999ca019a135502d886fc3e8ed1eea258c53f7e72552e655bb76d996",
+    "sglang_metadata_patch_sha256": "10a43d9fa1913669aef1688d5f358c8c0bac839113cd069b451f8e1d7f191212",
+    "base_abi_record_sha256": "c11d16081372a8089f7e04b40f06f1485c10c19fabe0524c4424766a85baacd3"
+  },
+  "evidence_refs": [
+    {
+      "id": "rubin-dockerfile",
+      "kind": "workspace",
+      "path": "lab/rubin_container/docker/Dockerfile.rubin"
+    },
+    {
+      "id": "build-helper",
+      "kind": "workspace",
+      "path": "lab/rubin_container/docker/rubin_build.py"
+    },
+    {
+      "id": "core-results",
+      "kind": "workspace",
+      "path": "lab/rubin_container/RESULTS.md",
+      "note": "Historical core-component result; its not-yet-tested E2E statement was superseded by later Qwen3.5 results."
+    },
+    {
+      "id": "two-node-results",
+      "kind": "workspace",
+      "path": "lab/rubin_two_node/RESULTS.md"
+    },
+    {
+      "id": "learning-summary",
+      "kind": "workspace",
+      "path": "lab/rubin_two_node/learning-validation-summary.json"
+    },
+    {
+      "id": "registry-record",
+      "kind": "workspace",
+      "path": "lab/rubin_two_node/registry-images.json"
+    },
+    {
+      "id": "qwen35-dockerfile",
+      "kind": "workspace",
+      "path": "lab/rubin_two_node/Dockerfile.qwen35"
+    },
+    {
+      "id": "te-dispatch-patch",
+      "kind": "workspace",
+      "path": "lab/rubin_two_node/patch_te_sm107_fa2.py"
+    },
+    {
+      "id": "native-version-audit",
+      "kind": "runtime_read",
+      "path": "/opt/miles-rubin/native-versions.json",
+      "note": "2026-09-15 read-only audit in miles-rubin-qwen3-j2198331-0 also read base-abi.json and importlib.metadata; current installed package versions are listed above. Full freeze: /opt/miles-rubin/final-freeze.txt."
+    },
+    {
+      "id": "upstream-cu134",
+      "kind": "official_source",
+      "url": "https://github.com/sgl-project/sglang/blob/a4ff563/docker/Dockerfile.cu134"
+    },
+    {
+      "id": "te-release-notes",
+      "kind": "official_source",
+      "url": "https://docs.nvidia.com/deeplearning/transformer-engine/release_notes.html",
+      "note": "TE 2.19 Rubin SM107a support requires CUDA 13.4 or newer."
+    },
+    {
+      "id": "te-pin",
+      "kind": "official_source",
+      "url": "https://github.com/NVIDIA/TransformerEngine/tree/5e52befd5262c06289106338c308079d6adb391f"
+    },
+    {
+      "id": "apex-pin",
+      "kind": "official_source",
+      "url": "https://github.com/NVIDIA/apex/tree/10417aceddd7d5d05d7cbf7b0fc2daad1105f8b4"
+    },
+    {
+      "id": "fa2-pin",
+      "kind": "official_source",
+      "url": "https://github.com/Dao-AILab/flash-attention/tree/a8aa52b1ab3e9ca574c8a33b3f35afc017ffa2e2"
+    },
+    {
+      "id": "sglang-pin",
+      "kind": "official_source",
+      "url": "https://github.com/sgl-project/sglang/tree/aea7fb92c047c9c096eae66460acb25dec9ae5a9"
+    },
+    {
+      "id": "megatron-pin",
+      "kind": "source_fork",
+      "url": "https://github.com/radixark/Megatron-LM/tree/73b54618f7e58e0f25f619bcfecbe2640765475a"
+    },
+    {
+      "id": "mbridge-pin",
+      "kind": "source_repository",
+      "url": "https://github.com/ISEEKYAN/mbridge/tree/89eb10887887bc74853f89a4de258c0702932a1c"
+    },
+    {
+      "id": "tms-pin",
+      "kind": "source_repository",
+      "url": "https://github.com/fzyzcjy/torch_memory_saver/tree/f05a8754daf68238d54e4cf31cb3ba866684bbaf"
+    }
+  ],
+  "comparison_caveat_short": "GB300 uses an upstream container; Rubin uses this custom cu134 stack. Runtime differences remain part of the measured gap."
+}
