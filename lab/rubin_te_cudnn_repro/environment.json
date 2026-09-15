@@ -1,0 +1,56 @@
+{
+  "date_utc": "2026-09-15",
+  "host_architecture": "aarch64",
+  "gpu_compute_capability": [
+    10,
+    7
+  ],
+  "gpu_count_used": 1,
+  "driver": "610.47.04",
+  "cuda_compiler": "13.4.46",
+  "torch": "2.15.0.dev20260818+cu134",
+  "transformer_engine": "2.19.0+5e52bef",
+  "te_source_commit": "5e52befd5262c06289106338c308079d6adb391f",
+  "te_build_architectures": "107a",
+  "nvidia-cudnn-cu13": "9.25.0.15",
+  "nvidia-cudnn-frontend": "1.28.0",
+  "nvidia-cuda-nvrtc": "13.4.46rc1",
+  "nvrtc_api_version": [
+    13,
+    4
+  ],
+  "cudnn_bundled_compiler_marker": "cudnn_nvrtc_version_13_4_38",
+  "flash_attention_control": "2.8.3.post1",
+  "images": {
+    "unpatched": {
+      "manifest_digest": "sha256:676354cc71c6f5d4fbb4fd5bf246cfd4a33925932a5d4171b6f6969bf7a6886a",
+      "image_id": "sha256:82dc75cea54a88b7c8a7f581747fff47b04b9c836ddda9292f50b8e27d1e2ffc",
+      "te_utils_sha256": "9b1fbd140bc3663b7930068882285e62e7df098801b8d9485602c5b72008b36c"
+    },
+    "fa2_eligibility_patch": {
+      "manifest_digest": "sha256:a03106bdd90c5d6067fbff246fff25df979f9da8486eb0dac795a315a2346d6c",
+      "image_id": "sha256:3054a5be3f8233acac5e91c700803b3aeb1bd4ed6d1d792f2981091727b1efaf",
+      "te_utils_sha256": "acca3534f85503c85b18186f5de93bafa54821299210f6a68ce254f4fc308a65"
+    }
+  },
+  "native_packages_changed_during_reproduction": false,
+  "backend_environment": {
+    "NVTE_FLASH_ATTN": "0",
+    "NVTE_FUSED_ATTN": "1",
+    "NVTE_UNFUSED_ATTN": "0"
+  },
+  "upstream_source_hashes": {
+    "fused_attn.cpp": "956ee977263721e13567c9f98e87a6051def044369dbaf68b38932aa0e17002e",
+    "fused_attn_f16_arbitrary_seqlen.cu": "8d5f3cc3010b78c52a767f137d208730789eeb6dca30e8e4005bd115d5d80330"
+  },
+  "diagnostic_log_hashes": {
+    "original-cudnn-debug.log": "fe6e6fe8d09a6692e9e0fffa152d70ac678a8dd789230a563815a091d4052d98",
+    "external-trace-v2-d256.log": "77e28f57c1ee1a31b12790dc061640f12d6831a169cd4a04b0a32b6045b96cac"
+  },
+  "reproduction_source_hashes": {
+    "repro.py": "ea6acf818953c2b69c3cb536d2d61358cbd6877420e20db72a358748de8a19fd",
+    "minimal_repro.py": "c0ed2fda16d6038d498d694e0486783a7aa48139e0937f47c7c8f3125646f0f0",
+    "nvrtc_trace.c": "1c133b7892ce37a86bf1b2ce0d5c1229277aac49a96c97d6df9e85bf3166ee66",
+    "run_matrix.py": "5383950071bc04a50ada5273a6c167ecf1a541acb0ed64ed4c7109fcf6e39e7d"
+  }
+}

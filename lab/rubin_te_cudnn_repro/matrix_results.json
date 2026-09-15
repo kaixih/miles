@@ -1,0 +1,674 @@
+{
+  "schema_version": 1,
+  "date_utc": "2026-09-15",
+  "purpose": "functional reproduction; not a performance benchmark",
+  "notes": [
+    "All cases use a single Rubin GPU.",
+    "Compiler provider remains bundled unless suite explicitly says external.",
+    "D192/D192 and non-padding THD masks are input/backend rejections, not compilation failures.",
+    "Length-one D128 TE forward/backward passed; its reference failed in a separate Triton assembler path.",
+    "Initial runner was reviewed and then strengthened with process-group timeouts; no recorded case timed out."
+  ],
+  "cases": [
+    {
+      "suite": "matrix-initial",
+      "name": "thd_d64_q1_kv1",
+      "args": [
+        "--dim",
+        "64",
+        "--heads",
+        "1",
+        "--check"
+      ],
+      "exit_code": 0,
+      "result": "PASS",
+      "forward_pass": true,
+      "backward_pass": true,
+      "numerical_pass": true,
+      "relative_l2": {
+        "out": 0.0020323563367128372,
+        "dq": 0.0024989109952002764,
+        "dk": 0.0024430996272712946,
+        "dv": 0.0023705048952251673
+      }
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "thd_d64_q8_kv1",
+      "args": [
+        "--dim",
+        "64",
+        "--heads",
+        "8",
+        "--check"
+      ],
+      "exit_code": 0,
+      "result": "PASS",
+      "forward_pass": true,
+      "backward_pass": true,
+      "numerical_pass": true,
+      "relative_l2": {
+        "out": 0.001988802570849657,
+        "dq": 0.002522984752431512,
+        "dk": 0.0030333325266838074,
+        "dv": 0.002704798709601164
+      }
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "thd_d128_q1_kv1",
+      "args": [
+        "--dim",
+        "128",
+        "--heads",
+        "1",
+        "--check"
+      ],
+      "exit_code": 0,
+      "result": "PASS",
+      "forward_pass": true,
+      "backward_pass": true,
+      "numerical_pass": true,
+      "relative_l2": {
+        "out": 0.00198150216601789,
+        "dq": 0.0024603649508208036,
+        "dk": 0.002423973986878991,
+        "dv": 0.0022734487429261208
+      }
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "thd_d128_q8_kv1",
+      "args": [
+        "--dim",
+        "128",
+        "--heads",
+        "8",
+        "--check"
+      ],
+      "exit_code": 0,
+      "result": "PASS",
+      "forward_pass": true,
+      "backward_pass": true,
+      "numerical_pass": true,
+      "relative_l2": {
+        "out": 0.0019626182038336992,
+        "dq": 0.0025258022360503674,
+        "dk": 0.0029614372178912163,
+        "dv": 0.0028059668838977814
+      }
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "thd_d192_q1_kv1",
+      "args": [
+        "--dim",
+        "192",
+        "--heads",
+        "1",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "BACKEND_INELIGIBLE",
+      "forward_pass": false,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "thd_d192_q8_kv1",
+      "args": [
+        "--dim",
+        "192",
+        "--heads",
+        "8",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "BACKEND_INELIGIBLE",
+      "forward_pass": false,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "thd_d256_q1_kv1",
+      "args": [
+        "--dim",
+        "256",
+        "--heads",
+        "1",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "thd_d256_q8_kv1",
+      "args": [
+        "--dim",
+        "256",
+        "--heads",
+        "8",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "bshd_d128_q8_kv1",
+      "args": [
+        "--format",
+        "bshd",
+        "--dim",
+        "128",
+        "--check"
+      ],
+      "exit_code": 0,
+      "result": "PASS",
+      "forward_pass": true,
+      "backward_pass": true,
+      "numerical_pass": true,
+      "relative_l2": {
+        "out": 0.0019626182038336992,
+        "dq": 0.0025258022360503674,
+        "dk": 0.0029614372178912163,
+        "dv": 0.0028059668838977814
+      }
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "bshd_d256_q8_kv1",
+      "args": [
+        "--format",
+        "bshd",
+        "--dim",
+        "256",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "sbhd_d128_q8_kv1",
+      "args": [
+        "--format",
+        "sbhd",
+        "--dim",
+        "128",
+        "--check"
+      ],
+      "exit_code": 0,
+      "result": "PASS",
+      "forward_pass": true,
+      "backward_pass": true,
+      "numerical_pass": true,
+      "relative_l2": {
+        "out": 0.0019626182038336992,
+        "dq": 0.0025258022360503674,
+        "dk": 0.0029614372178912163,
+        "dv": 0.0028059668838977814
+      }
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "sbhd_d256_q8_kv1",
+      "args": [
+        "--format",
+        "sbhd",
+        "--dim",
+        "256",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "thd_d256_fp16",
+      "args": [
+        "--dtype",
+        "fp16",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "thd_d256_l1",
+      "args": [
+        "--lengths",
+        "1",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "thd_d256_l16",
+      "args": [
+        "--lengths",
+        "16",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "thd_d256_l64",
+      "args": [
+        "--lengths",
+        "64",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "thd_d256_l128",
+      "args": [
+        "--lengths",
+        "128",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "thd_d256_l256",
+      "args": [
+        "--lengths",
+        "256",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "thd_d256_l257_385_129",
+      "args": [
+        "--lengths",
+        "257,385,129",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "thd_d256_deterministic",
+      "args": [
+        "--deterministic",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "thd_d256_checkpoint",
+      "args": [
+        "--checkpoint",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "thd_d256_padded_boundaries",
+      "args": [
+        "--padded-boundaries",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-initial",
+      "name": "thd_d256_flash_control",
+      "args": [
+        "--backend",
+        "flash",
+        "--check"
+      ],
+      "exit_code": 0,
+      "result": "PASS",
+      "forward_pass": true,
+      "backward_pass": true,
+      "numerical_pass": true,
+      "relative_l2": {
+        "out": 0.0019806488417088985,
+        "dq": 0.002493141917511821,
+        "dk": 0.0029835563618689775,
+        "dv": 0.002804664196446538
+      }
+    },
+    {
+      "suite": "matrix-followup",
+      "name": "thd_d192_v128",
+      "args": [
+        "--dim",
+        "192",
+        "--v-dim",
+        "128",
+        "--check"
+      ],
+      "exit_code": 0,
+      "result": "PASS",
+      "forward_pass": true,
+      "backward_pass": true,
+      "numerical_pass": true,
+      "relative_l2": {
+        "out": 0.0019803198520094156,
+        "dq": 0.0024875025264918804,
+        "dk": 0.00297192158177495,
+        "dv": 0.002811813959851861
+      }
+    },
+    {
+      "suite": "matrix-followup",
+      "name": "min_d128_l1_h1",
+      "args": [
+        "--dim",
+        "128",
+        "--heads",
+        "1",
+        "--lengths",
+        "1",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "REFERENCE_TOOLCHAIN_FAILURE",
+      "forward_pass": true,
+      "backward_pass": true,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-followup",
+      "name": "min_d128_l16_h1",
+      "args": [
+        "--dim",
+        "128",
+        "--heads",
+        "1",
+        "--lengths",
+        "16",
+        "--check"
+      ],
+      "exit_code": 0,
+      "result": "PASS",
+      "forward_pass": true,
+      "backward_pass": true,
+      "numerical_pass": true,
+      "relative_l2": {
+        "out": 0.0016145386034622788,
+        "dq": 0.00253014313057065,
+        "dk": 0.002515161642804742,
+        "dv": 0.0021952209062874317
+      }
+    },
+    {
+      "suite": "matrix-followup",
+      "name": "min_d256_l1_h1",
+      "args": [
+        "--dim",
+        "256",
+        "--heads",
+        "1",
+        "--lengths",
+        "1",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-followup",
+      "name": "min_d256_l16_h1",
+      "args": [
+        "--dim",
+        "256",
+        "--heads",
+        "1",
+        "--lengths",
+        "16",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-followup",
+      "name": "d256_mask_padding",
+      "args": [
+        "--mask",
+        "padding",
+        "--heads",
+        "1",
+        "--lengths",
+        "16",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-followup",
+      "name": "d256_mask_no_mask",
+      "args": [
+        "--mask",
+        "no_mask",
+        "--heads",
+        "1",
+        "--lengths",
+        "16",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "INVALID_THD_MASK",
+      "forward_pass": false,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-followup",
+      "name": "d256_mask_causal",
+      "args": [
+        "--mask",
+        "causal",
+        "--heads",
+        "1",
+        "--lengths",
+        "16",
+        "--check"
+      ],
+      "exit_code": 1,
+      "result": "INVALID_THD_MASK",
+      "forward_pass": false,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-followup",
+      "name": "min_d256_seed1",
+      "args": [
+        "--heads",
+        "1",
+        "--lengths",
+        "16",
+        "--seed",
+        "1"
+      ],
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "matrix-followup",
+      "name": "min_d256_seed321",
+      "args": [
+        "--heads",
+        "1",
+        "--lengths",
+        "16",
+        "--seed",
+        "321"
+      ],
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "numerical_pass": false
+    },
+    {
+      "suite": "unpatched-minimal",
+      "name": "unpatched-minimal-d128",
+      "dim": 128,
+      "exit_code": 0,
+      "result": "PASS",
+      "forward_pass": true,
+      "backward_pass": true,
+      "log_sha256": "1330bb8a4545c306f76b61e02f54164c79341ce469426d267cfa39327f6b037a"
+    },
+    {
+      "suite": "unpatched-minimal",
+      "name": "unpatched-minimal-d256",
+      "dim": 256,
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "log_sha256": "7fc361261e897e930da40e91e3de2de9f4072a4e93494d143e5d6e3252f448d9"
+    },
+    {
+      "suite": "unpatched-external",
+      "name": "unpatched-external-d128",
+      "dim": 128,
+      "exit_code": 0,
+      "result": "PASS",
+      "forward_pass": true,
+      "backward_pass": true,
+      "log_sha256": "7b2ab2c1d474d9a189dba487ad5d005a1ba03fbc2fc21aca8b4cd4317ef74896"
+    },
+    {
+      "suite": "unpatched-external",
+      "name": "unpatched-external-d256",
+      "dim": 256,
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "log_sha256": "4c6c46703708040711b4d8a95adb973acfa0fcad49cbb07cd23778b23b030a00"
+    },
+    {
+      "suite": "final-minimal",
+      "name": "final-minimal-d128",
+      "dim": 128,
+      "exit_code": 0,
+      "result": "PASS",
+      "forward_pass": true,
+      "backward_pass": true,
+      "log_sha256": "52495f30881889208e7fab841ae0c21500dc0415a9756d67a0127389a2faa1f4"
+    },
+    {
+      "suite": "final-minimal",
+      "name": "final-minimal-d256",
+      "dim": 256,
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "log_sha256": "20a1058184a74a37323367ba8dafd25a25c55f9eaf5afa64e8042001c74396b1"
+    },
+    {
+      "suite": "external-trace-v2",
+      "name": "external-trace-v2-d128",
+      "dim": 128,
+      "exit_code": 0,
+      "result": "PASS",
+      "forward_pass": true,
+      "backward_pass": true,
+      "log_sha256": "827787fcaf48e195bc592acbc625a8ee51721c2ac528a69643c890c9d10159e8",
+      "relative_l2": {
+        "out": 0.0016145386034622788,
+        "dq": 0.00253014313057065,
+        "dk": 0.002515161642804742,
+        "dv": 0.0021952209062874317
+      },
+      "numerical_pass": true
+    },
+    {
+      "suite": "external-trace-v2",
+      "name": "external-trace-v2-d256",
+      "dim": 256,
+      "exit_code": 1,
+      "result": "BACKWARD_PLAN_BUILD_FAILURE",
+      "forward_pass": true,
+      "backward_pass": false,
+      "log_sha256": "77e28f57c1ee1a31b12790dc061640f12d6831a169cd4a04b0a32b6045b96cac"
+    }
+  ]
+}

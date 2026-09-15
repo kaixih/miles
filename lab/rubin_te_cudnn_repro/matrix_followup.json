@@ -1,0 +1,118 @@
+[
+  {
+    "name": "thd_d192_v128",
+    "args": [
+      "--dim",
+      "192",
+      "--v-dim",
+      "128",
+      "--check"
+    ]
+  },
+  {
+    "name": "min_d128_l1_h1",
+    "args": [
+      "--dim",
+      "128",
+      "--heads",
+      "1",
+      "--lengths",
+      "1",
+      "--check"
+    ]
+  },
+  {
+    "name": "min_d128_l16_h1",
+    "args": [
+      "--dim",
+      "128",
+      "--heads",
+      "1",
+      "--lengths",
+      "16",
+      "--check"
+    ]
+  },
+  {
+    "name": "min_d256_l1_h1",
+    "args": [
+      "--dim",
+      "256",
+      "--heads",
+      "1",
+      "--lengths",
+      "1",
+      "--check"
+    ]
+  },
+  {
+    "name": "min_d256_l16_h1",
+    "args": [
+      "--dim",
+      "256",
+      "--heads",
+      "1",
+      "--lengths",
+      "16",
+      "--check"
+    ]
+  },
+  {
+    "name": "d256_mask_padding",
+    "args": [
+      "--mask",
+      "padding",
+      "--heads",
+      "1",
+      "--lengths",
+      "16",
+      "--check"
+    ]
+  },
+  {
+    "name": "d256_mask_no_mask",
+    "args": [
+      "--mask",
+      "no_mask",
+      "--heads",
+      "1",
+      "--lengths",
+      "16",
+      "--check"
+    ]
+  },
+  {
+    "name": "d256_mask_causal",
+    "args": [
+      "--mask",
+      "causal",
+      "--heads",
+      "1",
+      "--lengths",
+      "16",
+      "--check"
+    ]
+  },
+  {
+    "name": "min_d256_seed1",
+    "args": [
+      "--heads",
+      "1",
+      "--lengths",
+      "16",
+      "--seed",
+      "1"
+    ]
+  },
+  {
+    "name": "min_d256_seed321",
+    "args": [
+      "--heads",
+      "1",
+      "--lengths",
+      "16",
+      "--seed",
+      "321"
+    ]
+  }
+]

@@ -1,0 +1,207 @@
+[
+  {
+    "name": "thd_d64_q1_kv1",
+    "args": [
+      "--dim",
+      "64",
+      "--heads",
+      "1",
+      "--check"
+    ]
+  },
+  {
+    "name": "thd_d64_q8_kv1",
+    "args": [
+      "--dim",
+      "64",
+      "--heads",
+      "8",
+      "--check"
+    ]
+  },
+  {
+    "name": "thd_d128_q1_kv1",
+    "args": [
+      "--dim",
+      "128",
+      "--heads",
+      "1",
+      "--check"
+    ]
+  },
+  {
+    "name": "thd_d128_q8_kv1",
+    "args": [
+      "--dim",
+      "128",
+      "--heads",
+      "8",
+      "--check"
+    ]
+  },
+  {
+    "name": "thd_d192_q1_kv1",
+    "args": [
+      "--dim",
+      "192",
+      "--heads",
+      "1",
+      "--check"
+    ]
+  },
+  {
+    "name": "thd_d192_q8_kv1",
+    "args": [
+      "--dim",
+      "192",
+      "--heads",
+      "8",
+      "--check"
+    ]
+  },
+  {
+    "name": "thd_d256_q1_kv1",
+    "args": [
+      "--dim",
+      "256",
+      "--heads",
+      "1",
+      "--check"
+    ]
+  },
+  {
+    "name": "thd_d256_q8_kv1",
+    "args": [
+      "--dim",
+      "256",
+      "--heads",
+      "8",
+      "--check"
+    ]
+  },
+  {
+    "name": "bshd_d128_q8_kv1",
+    "args": [
+      "--format",
+      "bshd",
+      "--dim",
+      "128",
+      "--check"
+    ]
+  },
+  {
+    "name": "bshd_d256_q8_kv1",
+    "args": [
+      "--format",
+      "bshd",
+      "--dim",
+      "256",
+      "--check"
+    ]
+  },
+  {
+    "name": "sbhd_d128_q8_kv1",
+    "args": [
+      "--format",
+      "sbhd",
+      "--dim",
+      "128",
+      "--check"
+    ]
+  },
+  {
+    "name": "sbhd_d256_q8_kv1",
+    "args": [
+      "--format",
+      "sbhd",
+      "--dim",
+      "256",
+      "--check"
+    ]
+  },
+  {
+    "name": "thd_d256_fp16",
+    "args": [
+      "--dtype",
+      "fp16",
+      "--check"
+    ]
+  },
+  {
+    "name": "thd_d256_l1",
+    "args": [
+      "--lengths",
+      "1",
+      "--check"
+    ]
+  },
+  {
+    "name": "thd_d256_l16",
+    "args": [
+      "--lengths",
+      "16",
+      "--check"
+    ]
+  },
+  {
+    "name": "thd_d256_l64",
+    "args": [
+      "--lengths",
+      "64",
+      "--check"
+    ]
+  },
+  {
+    "name": "thd_d256_l128",
+    "args": [
+      "--lengths",
+      "128",
+      "--check"
+    ]
+  },
+  {
+    "name": "thd_d256_l256",
+    "args": [
+      "--lengths",
+      "256",
+      "--check"
+    ]
+  },
+  {
+    "name": "thd_d256_l257_385_129",
+    "args": [
+      "--lengths",
+      "257,385,129",
+      "--check"
+    ]
+  },
+  {
+    "name": "thd_d256_deterministic",
+    "args": [
+      "--deterministic",
+      "--check"
+    ]
+  },
+  {
+    "name": "thd_d256_checkpoint",
+    "args": [
+      "--checkpoint",
+      "--check"
+    ]
+  },
+  {
+    "name": "thd_d256_padded_boundaries",
+    "args": [
+      "--padded-boundaries",
+      "--check"
+    ]
+  },
+  {
+    "name": "thd_d256_flash_control",
+    "args": [
+      "--backend",
+      "flash",
+      "--check"
+    ]
+  }
+]
