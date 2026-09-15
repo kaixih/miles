@@ -1,6 +1,80 @@
 # Two-node Rubin validation
 
-**PASS:** attempt 3 completed the two-iteration Qwen3.5-35B-A3B Miles run,
+## Nonzero training validation: PASS (2026-09-15)
+
+Job `2195289` ran Qwen3.5-35B-A3B on c15/c16, four SM10.7 GPUs per node, using
+the preserved FA2 image and clean runtime source
+`e05d2549cc1027a9c229b40253e1a7b059e38968`. Training was BF16 TP2/PP1/CP1/EP8;
+rollout used two TP4 engines. The recipe disabled thinking, used Miles' original
+`math` scorer and original DAPO labels, and sampled with temperature 0.7,
+top-p 0.8, top-k 20 and a 4096-token response limit. Each accepted batch contained
+four prompts with four samples each; every group had nonzero reward variance.
+
+| Rollout | Samples | Raw reward mean | Gradient norm | Changed served tensor hashes | Truncated |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 16 | 0.75 | 0.5861834288 | 1904 | 8/16 |
+| 1 | 16 | 0.50 | 0.6526616216 | 1860 | 12/16 |
+
+The reward means describe filtered training batches, not dataset accuracy.
+Centered GRPO losses were 3.7252903e-08 and 1.4901161e-08; the nonzero gradient
+norms and changed parameter hashes establish real updates despite near-zero
+mean losses.
+
+The terminal collector passed all 33 checks and the learning audit passed all
+90 checks. All 32 accepted samples reproduced their rewards with the unchanged
+`grade_answer_verl` on CPU. The recorder retained all 39 groups reaching the
+filter (8 accepted, 31 dropped), with no omitted suffix. The DAPO file contained
+17398 rows and retained SHA256
+`cc9c39c2aa19177abe9464741e121cf4cac90fd25484ef3cdf86535101e3a5b6`.
+
+All eight ranks completed both normal optimizer steps and exactly three weight
+synchronizations. Initial, post-step-0 and post-step-1 engine maps each contained
+4028 tensor entries and matched across both engines. Rollout 1's effective weight
+version was 2. Trainer parameter hashes also changed on every rank between the
+two steps. The actual training log proved bidirectional cross-node MNNVL with
+1088 deduplicated channel records and zero Socket data channels; backend discovery
+messages were excluded from the data-path count. There were no fatal markers.
+
+Ray job `raysubmit_pqZPyhdRM3d2RFiY` finished `SUCCEEDED` at
+`2026-09-15 19:18:39.930 UTC`; Ray driver and both independent launcher exit codes
+were zero. The source commit and all three audited runtime files matched Git,
+launch records and both mounted container copies. The final training-log SHA256 is
+`48659035cd2a00081ded85da02873aa121126cf69eea22f1a27c61a87879872f`.
+
+The run was armed at `18:16:40.483726 UTC`, so Ray completion took 3719.45 seconds
+including loading. A changed c16 NFS mount caused cold reads measured as low as
+11.69 MiB/s (54.1 ms READ RTT), later rising to about 67 MiB/s. One explicit
+watchdog extension changed the stopping deadline from `19:31:40.483726` to
+`21:00 UTC`, preserving the original armed time and the same job. The archived
+original state and handover are retained; elapsed time was not reset.
+
+Earlier learning attempts are retained separately:
+
+- **a1 — STOPPED:** a 4096-token thinking/`deepscaler` run accepted no mixed-reward
+  group before its 4500-second budget. The last metrics snapshot accounted for
+  at least 112 completed training requests, all 4096 tokens; this is a lower
+  bound rather than a final request total. No optimizer step was established.
+- **a2 — FAILED after its first optimizer step:** non-thinking/`math` scoring gave
+  a real mean reward of 0.75 and valid steps on all ranks. The following checksum
+  hook rejected native-FP32 `linear_attn.A_log`, which has no separate master copy.
+  It failed before gradient metrics or post-step synchronization were recorded.
+  Commit `e05d2549` fixes the diagnostic's mapping to the owned FP32 optimizer
+  shard, preserves BF16 validation, and passes all 26 checksum tests.
+  No training math, attention kernels or native package versions changed.
+
+The compact result is [learning-validation-summary.json](learning-validation-summary.json).
+Detailed evidence is retained under
+`/home/scratch.kaixih_ent/repro/miles-rubin-two-node/20260915-j2195289/attempt3`:
+`learning-aggregate.json`, `learning-validation.json`, `ray-job.json`, the two
+exit records, events, filter audit and authoritative `.pt` sample dumps. Plain
+single-turn samples did not produce separate trajectory JSONL files. The summary
+records hashes and proof references without publishing responses or tensor maps.
+This establishes two real updates for this recipe, not convergence, improved
+model quality, or unrestricted long-context/backend correctness.
+
+## Earlier 256-token execution smoke
+
+**Earlier execution-smoke PASS:** attempt 3 completed the two-iteration Qwen3.5-35B-A3B Miles run,
 confirmed at 2026-09-15 01:12:12 UTC. The validated configuration is two nodes with four
 SM10.7 GPUs each, BF16 training TP2/PP1/CP1/EP8, two TP4 SGLang rollout engines,
 real HF/checkpoint loading, and colocate/offload with cross-node MNNVL.
@@ -147,7 +221,7 @@ is documented above; the gap-padding boundary remains outside this recipe.
 
 ## Durable evidence
 
-All detailed logs are under:
+Detailed logs for the earlier 256-token execution smoke are under:
 
 `/home/scratch.kaixih_ent/repro/miles-rubin-two-node/20260914-j2179787`
 

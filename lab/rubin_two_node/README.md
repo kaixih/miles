@@ -5,20 +5,25 @@ two nodes with four visible Rubin GPUs each. It configures the ordinary synchron
 `train.py` driver for two complete rollout / Megatron optimizer / weight-update
 iterations. The second rollout therefore consumes weights from the first update.
 
-**PASS:** attempt 3 completed both iterations on eight SM10.7 GPUs across two
-nodes, confirmed at 2026-09-15 01:12:12 UTC. Both rollouts generated 16 samples; all eight
-ranks completed a valid optimizer step in each iteration and all three weight
-synchronizations. Ray reported `SUCCEEDED`, and both launcher exit records were
-zero. This validates BF16 training with TP2/PP1/CP1/EP8, two TP4 SGLang engines,
-and the existing colocate/offload schedule over cross-node MNNVL.
+**Learning validation PASS:** on 2026-09-15, the two-node/eight-SM10.7-GPU run
+completed two real DAPO GRPO updates. The filtered batches had raw reward means
+0.75 and 0.50; gradient norms were 0.5861834 and 0.6526616. Both updates changed
+served parameter values, both TP4 rollout engines had identical weights after
+every synchronization, and rollout 1 used the updated weights. All eight ranks
+completed both optimizer steps and three weight synchronizations. Ray and the
+independent launcher exits confirmed success.
 
-The passing recipe uses FlashAttention 2 through TE with the scoped SM107 patch
-below. Rollouts 0 and 1 took 23.8681 and 10.7653 seconds, using weight versions 1
-and 2. All responses hit the 256-token limit; rewards and gradient norms were
-zero. This establishes execution, without claiming learning or parameter-value
-changes. See [validation-summary.json](validation-summary.json) for the compact
-result and [RESULTS.md](RESULTS.md) for proof, runtime source/image identities,
-and the retained earlier failures.
+See [learning-validation-summary.json](learning-validation-summary.json) and
+[RESULTS.md](RESULTS.md) for the 32/32 independent reward regrades, source/image
+identities, parameter hashes and retained earlier failures. This validates the
+BF16 TP2/PP1/CP1/EP8 FA2/Triton recipe with colocate/offload over cross-node MNNVL.
+The accepted samples were 50% and 75% truncated at 4096 response tokens; this is
+a two-update functional check, not a model-quality or convergence result.
+
+The launcher's default 256-token configuration remains an earlier **execution
+smoke PASS** with zero rewards and gradients. Its separate result is preserved
+in [validation-summary.json](validation-summary.json). Use the non-thinking,
+`math`-scored configuration below to reproduce the nonzero training signal.
 
 ## Preserved images
 
@@ -151,7 +156,7 @@ The completed two-iteration run exercised this offload/onload schedule.
 
 ## Changes from the existing example
 
-| Area | Short-run setting |
+| Area | Default execution-smoke setting |
 | --- | --- |
 | Training | TP2, PP1, CP1, EP8, expert TP1; eight GPUs total |
 | Rollout | Two TP4 engines, each within one node; SGLang EP1 |
@@ -176,7 +181,7 @@ metrics and valid optimizer steps on every rank, all three weight
 synchronizations, and Ray `SUCCEEDED` plus launcher exit 0. Weight version
 increments alone do not establish that parameter values changed.
 
-### Checking a nonzero training signal
+### Reproducing the validated nonzero training signal
 
 The default 256-token smoke run does not establish learning. A later 4096-token
 thinking run also exhausted its sampling budget without accepting a mixed-reward
@@ -212,10 +217,20 @@ so this is not an exact copy of every sampling parameter. This mode validates
 short-run training mechanics and does not validate long-context thinking.
 
 Prepare the audit directories with the container writer's UID/GID before launch.
-The trajectory output requires the rollout dump in this SGLang rollout path.
-The dumps contain samples, not model checkpoints. Local checksum collection
-requires the event directory and adds tensor copies to CPU. It hashes local
-model parameters and optimizer state; it does not audit FP32 master parameters.
+The `.pt` rollout dumps are the authoritative single-turn sample records; this
+run did not emit separate trajectory JSONL files. They contain samples, not model
+checkpoints. Local checksum collection requires the event directory and adds
+tensor copies to CPU. It hashes local model parameters and optimizer state; it
+does not directly audit FP32 master-parameter values.
+
+Use runtime commit `e05d2549cc1027a9c229b40253e1a7b059e38968` or a descendant
+containing its native-FP32 checksum fix. Qwen3.5's FP32 `linear_attn.A_log` has
+no separate master parameter in the pinned distributed optimizer; the diagnostic
+must map its actual owned optimizer shard. This fixes the checksum hook without
+changing training math or native libraries. All 26 checksum tests passed in the
+preserved image. The audited run used a recording wrapper around the unchanged
+original filter; its exact hash and all 39 recorded decisions are referenced in
+the learning summary and retained experiment directory.
 
 Require finite nonzero gradient norms, mixed rewards recomputed from the saved
 samples, and matching parameter checksums across both rollout engines after each
