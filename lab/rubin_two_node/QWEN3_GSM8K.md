@@ -87,6 +87,15 @@ traverse permission for the normal container UID. A container-local
 `chmod o+x /root` makes those existing sources readable without rebuilding the
 image or changing packages. Pass `--megatron-path /root/Megatron-LM` on GB300.
 
+Set Docker `--ulimit nofile=65535:65535` explicitly, as the orchestrator now does.
+The GB300 host's inherited soft limit was 1024: initial evaluation with 256
+responses succeeded, but the first 2048-response rollout exhausted the Miles
+router's file descriptors and produced HTTP connection failures. On the running
+job, only the identified router and its CommandActor parent's soft limits were
+raised to 65535 within the existing hard limit, preserving the image and retrying
+requests. Retain the recovery record and exclude rollout 0 from timing; this
+startup incident is not GPU kernel performance.
+
 On this GB300 node the CIFS mount maps writes to a service UID. Keep repo and
 model mounts read-only, write run artifacts to node-local storage as the normal
 UID, and retain logs/metrics/profiles through the login host's NFS view. The

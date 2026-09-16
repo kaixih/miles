@@ -108,6 +108,7 @@ def _environment(args, rank):
 def _docker(args, rank, *, probe=False):
     cmd = ["docker", "run", "--gpus", "all", "--network", "host", "--ipc", "host",
            "--privileged", "--ulimit", "memlock=-1", "--ulimit", "stack=67108864",
+           "--ulimit", "nofile=65535:65535",
            "--shm-size", "16g", "--user", f"{args.uid}:{args.gid}", "--workdir", "/opt/miles"]
     cmd += ["--rm"] if probe else ["--detach", "--name", _name(args, rank)]
     for source, target, readonly in [
