@@ -47,7 +47,9 @@ def checkpoint_metadata(root, iteration):
     raw = metadata.read_bytes()
     result = None
     for count, (op, arg, position) in enumerate(pickletools.genops(raw)):
-        if count > 2_000_000:
+        # Each opcode occupies at least one input byte. The 32 MiB file cap
+        # bounds this walk without rejecting real large-model DCP metadata.
+        if count >= len(raw):
             raise ValueError('Too many metadata pickle operations')
         name = op.name
         if name in ('PROTO', 'FRAME'):

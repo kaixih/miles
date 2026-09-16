@@ -197,6 +197,11 @@ def node_capture():
     if any(p.exists() for p in (frozen, partial, pin)):
         raise ValueError('Capture destination/pin already exists; inspect rather than overwrite')
     guard = identity_guard()
+    process_stat = Path('/proc/self/stat').read_text().rpartition(') ')[2].split()
+    persist(Path(RAID, 'manifests', f'checkpoint9-observer-{os.getpid()}.json'),
+            {'pid': os.getpid(), 'parent_pid': os.getppid(), 'start_ticks': int(process_stat[19]),
+             'uid': os.getuid(), 'run_id': RUN_ID, 'ssh_connection': os.environ.get('SSH_CONNECTION'),
+             'started_at': utc(), 'identity': guard, 'source_root': SOURCE, 'destination_root': FROZEN})
     last_identity_check = time.monotonic()
     while time.time() < WAIT_DEADLINE:
         if time.monotonic() - last_identity_check >= 60:
