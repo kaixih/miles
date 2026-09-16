@@ -192,3 +192,14 @@ Source files are `generate.py`, `experiment.json`, `template.html`, `assets/*`,
 artifacts. Plotly3.1.0 is bundled locally; the CSS/navigation and paired-timing
 selection reuse the original report's design and evidence logic. No runtime,
 collector, cluster, model, or original-report file is modified by this builder.
+
+## Optional actor-update analysis
+
+`--actor-profile /absolute/path/actor-profile.json` adds verified actor evidence
+inside the existing stage-timing slide10; the deck remains16 slides and all
+generation curves/figures remain unchanged. Missing input preserves the current
+layout. Individually verified unmatched diagnostics are supported; matched
+workload is a separate, explicit attestation. See [ACTOR_PROFILE.md](ACTOR_PROFILE.md)
+for raw per-update category fields, timing semantics, identity and attachment
+hash requirements. Never substitute a main actor-timer ratio for measured
+forward/backward/recompute or kernel-category evidence.

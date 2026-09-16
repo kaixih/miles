@@ -132,6 +132,90 @@ def paired_timing(comparison, source_sha256=None):
     return result
 
 
+ACTOR_CATEGORIES = ("forward", "backward", "recompute", "moe", "communication", "optimizer")
+ACTOR_BASES = {"gpu_kernel_interval_union_ms": "GPU interval union ms / update",
+               "cpu_annotation_elapsed_ms": "CPU annotation elapsed ms / update"}
+ACTOR_IDENTITIES = ("initial_state_id", "batch_sha256", "training_recipe_sha256")
+
+
+def actor_evidence(data, experiment_id, identities):
+    """Trace validity and matched-workload eligibility are independent claims."""
+    result = {"status": "pending", "matching_status": "diagnostic_unmatched", "runs": [],
+              "categories": list(ACTOR_CATEGORIES), "measurement_label": None}
+    if not data: return result
+    if data.get("schema") != "qwen3-actor-profile-v1" or data.get("experiment_id") != experiment_id:
+        raise ValueError("Actor profile schema/experiment mismatch")
+    basis = data.get("measurement_basis")
+    if basis not in ACTOR_BASES: raise ValueError("Explicit actor timing basis required")
+    result["measurement_label"] = ACTOR_BASES[basis]
+    if not isinstance(data.get("scope"), str) or not data["scope"] or len(data["scope"]) > 180:
+        raise ValueError("Actor scope must concisely identify the diagnostic workload")
+    result["scope"] = data["scope"]
+    records = data.get("runs", [])
+    if not isinstance(records, list) or len({r.get("run_label") for r in records}) != len(records):
+        raise ValueError("Actor records require distinct platforms")
+    for record in records:
+        if (record.get("run_label"), record.get("source_run_id")) not in identities:
+            raise ValueError("Actor profile must bind to an exact main run")
+        if record.get("verified") is not True: continue
+        if not all(isinstance(record.get(k), str) and record[k] for k in ["capture_run_id", "scope", "trace", "source_trace_sha256"]):
+            raise ValueError("Verified actor capture needs exact identity, scope and trace")
+        if not record.get("evidence_refs"): raise ValueError("Verified actor capture needs audit references")
+        ranks = record.get("rank_ids", [])
+        if not ranks or any(type(v) is not int or v < 0 for v in ranks) or len(set(ranks)) != len(ranks):
+            raise ValueError("Actor rank scope required")
+        samples = record.get("samples", [])
+        if not samples: raise ValueError("Verified actor capture needs raw per-update samples")
+        ids = [v.get("update_id") for v in samples]
+        if any(type(v) is not int or v < 0 for v in ids) or len(set(ids)) != len(ids):
+            raise ValueError("Actor update IDs must be distinct nonnegative integers")
+        means = {}
+        for category in ACTOR_CATEGORIES:
+            values = []
+            for sample in samples:
+                if set(sample.get("durations_ms", {})) != set(ACTOR_CATEGORIES):
+                    raise ValueError("Every actor category must be explicit, including unknowns")
+                value = sample["durations_ms"][category]
+                if value is None:
+                    if not record.get("unattributed_reasons", {}).get(category):
+                        raise ValueError("Unknown actor category needs an attribution reason")
+                elif type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+                    raise ValueError("Actor durations must be finite nonnegative values or null")
+                values.append(value)
+            # Unknown observations do not silently shorten a category's cohort.
+            means[category] = statistics.mean(values) if all(v is not None for v in values) else None
+        result["runs"].append({"run_label": record["run_label"], "capture_run_id": record["capture_run_id"],
+                               "update_ids": ids, "rank_ids": ranks, "mean_ms": means})
+    if result["runs"]: result["status"] = "available"
+    matched = data.get("matched_workload", {})
+    if matched.get("verified") is True:
+        verified = [r for r in records if r.get("verified") is True]
+        if len(verified) != 2 or len(result["runs"]) != 2 or not matched.get("evidence_refs") or not matched.get("identity_scope"):
+            raise ValueError("Matched actor workload requires two verified captures and identity audit")
+        for key in ACTOR_IDENTITIES:
+            values = [r.get("input_identity", {}).get(key) for r in verified]
+            if any(not isinstance(v, str) or len(v) != 64 or any(c not in "0123456789abcdef" for c in v) for v in values) or values[0] != values[1]:
+                raise ValueError("Claimed matched actor workload differs: " + key)
+        if any(result["runs"][0][key] != result["runs"][1][key] for key in ["rank_ids", "update_ids"]):
+            raise ValueError("Matched actor rank/update scope differs")
+        result["matching_status"] = "matched_workload"
+        result["identity_scope"] = matched["identity_scope"]
+    return result
+
+
+def copy_actor_assets(data, source, output):
+    if not data: return
+    verified = [r for r in data.get("runs", []) if r.get("verified") is True]
+    verify_refs(verified + [data.get("matched_workload", {})], source, output)
+    copy_profile_assets({"profiles": verified}, source, output)
+    for record in verified:
+        for kind, field in [("trace", "source_trace_sha256"), ("image", "source_image_sha256")]:
+            asset = record.get("attachments", {}).get(kind, {})
+            if kind == "trace" or record.get(kind):
+                if asset.get("status") != "available" or not record.get(field) or asset.get("sha256") != record[field]:
+                    raise ValueError("Actor " + kind + " missing or hash mismatch")
+
+
 def validate_inputs(inputs, provenance):
     experiment = inputs["experiment"]
     if not experiment or experiment.get("schema") != "qwen3-cudagraph-experiment-v1":
@@ -254,7 +338,7 @@ def verify_refs(records, source, output):
         record["verified_receipts"] = checked
 
 
-def build_report(experiment=None, runs=None, profiles=None, diagnostics=None, run_health=None, output=None):
+def build_report(experiment=None, runs=None, profiles=None, diagnostics=None, run_health=None, output=None, actor_profile=None):
     output = (output or ROOT / "site").resolve()
     old_report = ROOT.parent / "rubin-gb300-qwen3"
     if output == old_report or old_report in output.parents:
@@ -265,11 +349,17 @@ def build_report(experiment=None, runs=None, profiles=None, diagnostics=None, ru
         value, record = read_evidence(path, name)
         inputs[name] = value
         provenance.append(record)
+    if actor_profile is not None:
+        inputs["actor_profile"], record = read_evidence(actor_profile, "actor_profile")
+        provenance.append(record)
     validate_inputs(inputs, provenance)
+    actor = actor_evidence(inputs.get("actor_profile"), inputs["experiment"]["experiment_id"],
+                           {(b["label"], b["run_id"]) for b in inputs["experiment"]["run_bindings"]})
     output.mkdir(parents=True, exist_ok=True)
     verify_refs((inputs["profiles"] or {}).get("graph_evidence", []), profiles, output)
     verify_refs((inputs["diagnostics"] or {}).get("pairs", []), diagnostics, output)
     copy_profile_assets(inputs["profiles"], profiles, output)
+    copy_actor_assets(inputs.get("actor_profile"), actor_profile, output)
     for item in (inputs["profiles"] or {}).get("profiles", []):
         trace = item.get("attachments", {}).get("trace", {})
         expected = item.get("source_trace_sha256")
@@ -284,7 +374,7 @@ def build_report(experiment=None, runs=None, profiles=None, diagnostics=None, ru
     comparison_sha = next(p for p in provenance if p["section"] == "comparison").get("sha256")
     envelope = {"schema": "qwen3-cudagraph-offline-slides-v1", "generated_at": datetime.now(timezone.utc).isoformat(),
                 "inputs": inputs, "provenance": provenance,
-                "derived": {"paired_timing": paired_timing(inputs["comparison"], comparison_sha)},
+                "derived": {"paired_timing": paired_timing(inputs["comparison"], comparison_sha), "actor_profile": actor},
                 "plotly": {"version": "3.1.0", "sha256": sha256(assets / PLOTLY)},
                 "notice": "New experiment only. Missing measurements remain pending. No old curves imported."}
     raw = json.dumps(envelope, ensure_ascii=True, allow_nan=False, separators=(",", ":"))
@@ -305,6 +395,7 @@ def main():
     parser.add_argument("--profiles", type=Path, help="New graph/profile evidence with matching experiment_id")
     parser.add_argument("--diagnostics", type=Path, help="Separate generation-only OFF/ON diagnostics")
     parser.add_argument("--run-health", type=Path)
+    parser.add_argument("--actor-profile", type=Path, help="Optional bounded actor-update trace analysis; never alters main timing")
     parser.add_argument("--output", type=Path, default=ROOT / "site")
     print(json.dumps(build_report(**vars(parser.parse_args())), indent=2))
 

@@ -106,6 +106,19 @@ const evidenceChecks=await page.evaluate(()=>{
     }
   }
   if(document.querySelectorAll('.profile-layout').length!==input.experiment.requested.platforms.length*2||document.querySelectorAll('.slide').length!==16)failures.push('Expected four distinct stage slides in the 16-slide deck');
+  const actor=report.derived.actor_profile,actorPanel=document.querySelector('.actor-panel');
+  if(actor?.status==='available'&&(actor.runs||[]).length){
+    if(!actorPanel||actorPanel.dataset.actorStatus!==actor.matching_status||!actorPanel.textContent.includes(actor.scope))failures.push('Actor diagnostic scope/status missing');
+    for(const platform of input.experiment.requested.platforms){
+      const expected=actor.runs.find(r=>r.run_label===platform),row=actorPanel?.querySelector(`[data-actor-platform="${platform}"]`);
+      if(!row){failures.push('Actor platform row missing');continue;}
+      for(const category of actor.categories){
+        const cell=row.querySelector(`[data-category="${category}"]`),value=expected?.mean_ms?.[category];
+        if(Number.isFinite(value)?Number(cell?.dataset.value)!==value:cell?.dataset.value!=='unknown')failures.push('Actor raw-derived value or unknown changed');
+      }
+    }
+    if(!document.getElementById('stage-chart').classList.contains('actor-stage'))failures.push('Actor panel did not use compact existing slide');
+  }else if(actorPanel||document.getElementById('stage-chart').classList.contains('actor-stage'))failures.push('Missing actor input changed existing stage layout');
   const diagnosticPairs=(input.diagnostics?.pairs||[]).filter(pair=>pair.verified===true);
   const diagnosticSlide=document.getElementById('slide-11').textContent;
   if(!diagnosticSlide.includes('prefill + decode')||/mean decode/i.test(diagnosticSlide))failures.push('HTTP generation duration is mislabeled as decode-only');
