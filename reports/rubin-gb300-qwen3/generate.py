@@ -4,6 +4,8 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
+import statistics
 from pathlib import Path
 import shutil
 
@@ -65,6 +67,71 @@ def copy_profile_assets(data, source, destination):
             item["attachments"][kind] = attachment
 
 
+PAIRED_STAGE_KEYS = ("rollout", "actor_train", "log_probs", "ref_log_probs", "update_weights")
+
+
+def paired_timing(comparison, source_sha256=None):
+    """Derive same-ID stage statistics without mutating original per-run evidence."""
+    runs = (comparison or {}).get("runs", [])
+    result = {"status": "pending", "reason": None, "comparison_sha256": source_sha256,
+              "run_labels": [r.get("label") for r in runs], "rollout_ids": [], "count": 0,
+              "statistics": {}, "stage_keys": list(PAIRED_STAGE_KEYS),
+              "selection": "Intersection of completed, explicitly unprofiled, timing-eligible IDs; rollout0 and configured exclusions removed.",
+              "step_difference_seconds_second_minus_first": None, "largest_observed_stage_gap": None}
+    if len(runs) != 2:
+        result["reason"] = "Exactly two supplied runs are required for a paired comparison."
+        return result
+    if len(set(result["run_labels"])) != 2:
+        raise ValueError("Paired timing requires distinct run labels")
+    selected = []
+    for run in runs:
+        complete = set(run.get("completed_training_rollouts", []))
+        excluded = set(run.get("metadata", {}).get("exclude_timing_rollouts", []))
+        eligible = {}
+        for row in run.get("rows", []):
+            index = row.get("rollout_id")
+            if (row.get("training_stage_complete") is True and row.get("profiled") is False
+                    and row.get("unprofiled_timing_eligible") is True
+                    and index in complete and index not in excluded and index != 0):
+                if type(index) is not int or index < 0 or index in eligible:
+                    raise ValueError("Invalid or duplicate eligible rollout ID")
+                eligible[index] = row
+        selected.append(eligible)
+    ids = sorted(set(selected[0]) & set(selected[1]))
+    result.update(rollout_ids=ids, count=len(ids))
+    if not ids:
+        result["reason"] = "No shared completed, unprofiled timing-eligible rollout IDs yet."
+        return result
+    result["status"] = "available"
+    # Missing/nonfinite values never silently shorten one run's metric cohort.
+    for index, run in enumerate(runs):
+        values = {}
+        for key in ("step", *PAIRED_STAGE_KEYS):
+            samples = [selected[index][i].get("common", {}).get(key + "_seconds") for i in ids]
+            missing = [i for i, v in zip(ids, samples) if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v)]
+            values[key] = {"count": len(ids) if not missing else 0, "required_count": len(ids),
+                           "missing_rollout_ids": missing,
+                           "mean_seconds": statistics.mean(samples) if not missing else None,
+                           "median_seconds": statistics.median(samples) if not missing else None}
+        result["statistics"][run["label"]] = values
+    first, second = (result["statistics"][r["label"]] for r in runs)
+    for key in ("step", *PAIRED_STAGE_KEYS):
+        if first[key]["mean_seconds"] is None or second[key]["mean_seconds"] is None:
+            # A partially observed stage stays pending on both sides of its bar.
+            first[key]["paired_metric_available"] = second[key]["paired_metric_available"] = False
+            result["status"] = "partial"
+        else:
+            first[key]["paired_metric_available"] = second[key]["paired_metric_available"] = True
+    if first["step"]["paired_metric_available"]:
+        result["step_difference_seconds_second_minus_first"] = second["step"]["mean_seconds"] - first["step"]["mean_seconds"]
+    gaps = [{"stage": key, "difference_seconds_second_minus_first": second[key]["mean_seconds"] - first[key]["mean_seconds"]}
+            for key in PAIRED_STAGE_KEYS if first[key]["paired_metric_available"]]
+    result["largest_observed_stage_gap"] = max(gaps, key=lambda x: abs(x["difference_seconds_second_minus_first"])) if gaps else None
+    if result["status"] == "partial":
+        result["reason"] = "At least one stage lacks values across the complete shared cohort; that stage is not plotted."
+    return result
+
+
 def build_report(runs=None, build=None, profiles=None, historical=None, output=None, run_health=None):
     output = (output or ROOT / "site").resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -103,6 +170,7 @@ def build_report(runs=None, build=None, profiles=None, historical=None, output=N
     envelope = {"schema": "rubin-gb300-offline-report-v1",
                 "generated_at": datetime.now(timezone.utc).isoformat(),
                 "inputs": inputs, "provenance": evidence,
+                "derived": {"paired_timing": paired_timing(comparison, next(r for r in evidence if r["section"] == "comparison").get("sha256"))},
                 "plotly": {"version": "3.1.0", "source": "https://cdn.plot.ly/plotly-3.1.0.min.js",
                            "sha256": sha256(assets / PLOTLY)},
                 "notice": "A static snapshot of supplied evidence. No live monitoring or remote reads."}

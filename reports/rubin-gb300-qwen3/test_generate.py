@@ -84,6 +84,51 @@ class EvidenceTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "run label and run_id"):
                 module.build_report(runs=runs, run_health=health, output=root / "rejected")
 
+    def test_paired_stage_cohort_uses_intersection_without_changing_raw_statistics(self):
+        def row(i, value, **changes):
+            return {"rollout_id": i, "training_stage_complete": True, "profiled": False,
+                    "unprofiled_timing_eligible": True,
+                    "common": {key + "_seconds": value for key in ("step", *module.PAIRED_STAGE_KEYS)}, **changes}
+        source = {"schema": "miles-qwen3-comparison-v1", "runs": [
+            {"label": "rubin", "completed_training_rollouts": list(range(7)), "metadata": {"exclude_timing_rollouts": [4]},
+             "unprofiled_stage_statistics": {"rollout": {"mean_seconds": 999}},
+             "rows": [row(0, 9999), row(1, 10), row(2, 20), row(3, 30, profiled=True), row(4, 40), row(5, 50, unprofiled_timing_eligible=False), row(6, 60)]},
+            {"label": "gb300", "completed_training_rollouts": [0, 1, 2, 3, 4, 5], "metadata": {},
+             "rows": [row(0, 9999), row(1, 20), row(2, 40), row(3, 60), row(4, 80), row(5, 100), row(6, 120)]}]}
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            root = Path(directory); path = root / "runs.json"; path.write_text(json.dumps(source))
+            module.build_report(runs=path, output=root / "site")
+            data = json.loads((root / "site/report-data.json").read_text())
+        paired = data["derived"]["paired_timing"]
+        self.assertEqual(data["inputs"]["comparison"], source)
+        self.assertEqual(paired["rollout_ids"], [1, 2])
+        self.assertEqual(paired["count"], 2)
+        self.assertEqual(paired["statistics"]["rubin"]["rollout"]["mean_seconds"], 15)
+        self.assertEqual(paired["statistics"]["gb300"]["rollout"]["median_seconds"], 30)
+        self.assertEqual(paired["step_difference_seconds_second_minus_first"], 15)
+        self.assertIsNotNone(paired["comparison_sha256"])
+
+    def test_empty_or_missing_paired_cohort_stays_pending(self):
+        self.assertEqual(module.paired_timing(None)["status"], "pending")
+        result = module.paired_timing({"runs": [{"label": "a", "rows": []}, {"label": "b", "rows": []}]})
+        self.assertEqual(result["count"], 0)
+        self.assertEqual(result["statistics"], {})
+        self.assertIsNone(result["largest_observed_stage_gap"])
+
+    def test_missing_stage_does_not_shrink_one_side_of_paired_cohort(self):
+        source = {"runs": [{"label": label, "completed_training_rollouts": [1, 2], "rows": [
+            {"rollout_id": i, "training_stage_complete": True, "profiled": False,
+             "unprofiled_timing_eligible": True,
+             "common": {"rollout_seconds": None if label == "b" and i == 2 else i * 10}}
+            for i in [1, 2]]} for label in ["a", "b"]]}
+        paired = module.paired_timing(source)
+        self.assertEqual(paired["status"], "partial")
+        self.assertEqual(paired["rollout_ids"], [1, 2])
+        self.assertEqual(paired["statistics"]["b"]["rollout"]["missing_rollout_ids"], [2])
+        self.assertFalse(paired["statistics"]["a"]["rollout"]["paired_metric_available"])
+        self.assertFalse(paired["statistics"]["b"]["rollout"]["paired_metric_available"])
+        self.assertIsNone(paired["statistics"]["b"]["rollout"]["mean_seconds"])
+
 
 if __name__ == "__main__":
     unittest.main()

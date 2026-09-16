@@ -195,3 +195,29 @@ Optional build `reproduction` fields (`repository`, `branch`, `dockerfile`,
 command. Appendix hashes are explicitly labeled prefixes; full hashes remain in
 the JSON and asset manifest. The build-stage flow is a conceptual summary, not a
 claim about the exact execution order.
+
+### Paired stage bars
+
+The stage bars use `derived.paired_timing`, calculated directly from the supplied
+`--runs` bytes by `generate.py`. The cohort is the intersection of exactly two
+runs' completed, explicitly unprofiled, timing-eligible rollout IDs, excluding
+rollout0 and every configured timing exclusion. Both bars use the same IDs and
+show N/IDs on the slide, with count and median in hover text. The derivation is
+bound to the input SHA256; it does not read an external analysis summary.
+
+Individual step and generation-throughput curves keep **all eligible points for
+each run**. Original `unprofiled_stage_statistics` and raw observations are left
+unchanged in `inputs.comparison`. An empty intersection remains pending. If either
+run lacks a finite value for one stage anywhere in the shared cohort, that stage
+is pending on both sides; the renderer never silently shortens one side's cohort.
+
+The findings may describe the measured step means and largest observed stage-timer
+gap. This is a system-level observation: nested timers are not additive, generated
+shapes can differ, and hardware causation awaits profiling. The existing differing
+training-budget and software/image cautions remain visible.
+
+`test_generate.py` covers intersection selection, exclusions, preservation of raw
+statistics, empty cohorts and missing stage values. `check_slides.mjs` independently
+recomputes the cohort and stage means/medians from raw rows, then checks both the
+derived JSON and rendered bar values. It also continues to verify the unchanged
+per-run line-curve selections.

@@ -4,6 +4,8 @@ const REPORT = JSON.parse(document.getElementById("report-data").textContent);
 const INPUT = REPORT.inputs;
 const comparison = INPUT.comparison || {};
 const runs = comparison.runs || [];
+const paired = REPORT.derived?.paired_timing || {status:"pending",rollout_ids:[],count:0,statistics:{}};
+const stageNames=[["rollout","Generation"],["actor_train","Actor update"],["log_probs","Old log prob"],["ref_log_probs","Reference"],["update_weights","Weight sync"]];
 const build = INPUT.build || {};
 const profiles = INPUT.profiles || {};
 const palette = ["#087f96", "#d4773e", "#726198", "#528269"];
@@ -149,10 +151,18 @@ slide("Runtime and generation throughput", "08 / Performance curves", `
   <div class="chart-columns"><div><h3 class="chart-title">Miles step timer · after warmup</h3><div id="time-chart" class="chart half"></div></div><div><h3 class="chart-title">Generation throughput · after warmup</h3><div id="throughput-chart" class="chart half"></div></div></div>
   <p class="chart-note">${trainingBudgetsDiffer?`Training budgets: ${e(budgetComparison)} tokens/GPU. No hardware-only speedup inference.<br>`:""}Excludes warmup, checkpoint saves, background copying and intervals with unknown timing coverage. Step = train wait + train.</p>`, `${coldStartNote} Throughput = retained output tokens / generation seconds / GPUs. Exclusions include a following-rollout guard; raw timings remain downloadable.`);
 
-slide("Time in each measured stage", "09 / Unprofiled timing", `
-  <p class="subtitle">Means use only completed, explicitly unprofiled rollouts after the configured warmup exclusion.</p>
+const pairedNames=(paired.run_labels||[]).map(label=>niceName(runs.find(run=>run.label===label)||{label}));
+const pairGap=paired.step_difference_seconds_second_minus_first;
+const largestGap=paired.largest_observed_stage_gap;
+const stageLabel=key=>stageNames.find(([id])=>id===key)?.[1]||key;
+const measuredGap=paired.count && finite(pairGap) && largestGap
+  ? `Shared N=${paired.count}: step means ${number(paired.statistics[paired.run_labels[0]].step.mean_seconds)} / ${number(paired.statistics[paired.run_labels[1]].step.mean_seconds)} s (${pairedNames.join(" / ")}). Largest measured stage gap: ${stageLabel(largestGap.stage)}, ${number(Math.abs(largestGap.difference_seconds_second_minus_first))} s. Cause awaits profiling.`
+  : "A shared timing cohort or complete stage measurements are pending; cause awaits profiling.";
+slide("Time in each measured stage", "09 / Paired unprofiled timing", `
+  <p class="subtitle">${paired.count?`Same rollout IDs on both systems · N=${paired.count} · means and medians from this shared cohort.`:"Paired stage comparison pending: no shared eligible rollout IDs."}</p>
   <div id="stage-chart" class="chart short"></div>
-  <div class="callout">Stage timers overlap. Their sum is not a wall-time breakdown.</div>`, "Unknown profiling coverage excludes a run from this summary. The exact count and median remain in the evidence JSON.");
+  <p id="paired-cohort" class="chart-note">${paired.count?`Shared rollout IDs: ${e(paired.rollout_ids.join(", "))}.`:e(paired.reason||"Two completed timing cohorts are required.")}</p>
+  <div class="callout">Nested timers are not additive. Observed system gaps do not establish a hardware cause.</div>`, "Both runs exclude warmup, saves and background I/O. Per-run line curves and raw statistics remain unchanged; versions and training-token budgets differ.");
 
 function profileSlide(label, index) {
   const records=profiles.profiles || [];
@@ -178,7 +188,7 @@ for (const run of runs.slice(0,2)) {
 }
 if (!findings.length) findings.push(["Learning","The current Miles runs have no supplied result records yet."]);
 const profileSummary = profiles.summary || profiles.gap_summary;
-findings.push(["Measured gap", profileSummary ? textValue(profileSummary) : "A causal GPU-speed conclusion is pending comparable timings and profile evidence."]);
+findings.push(["Measured gap", profileSummary ? textValue(profileSummary) : measuredGap]);
 findings.push(["Scope",trainingBudgetsDiffer?`Training budgets differ: ${budgetComparison} tokens/GPU. Recipe, runtime and hardware all affect timings; this is not a hardware-only speedup comparison.`:"This compares the recorded Rubin and upstream GB300 software stacks. Version and kernel differences remain part of the result."]);
 slide("Findings at this snapshot", "12 / Conclusions", `
   <ul class="observations">${findings.slice(0,4).map(([label,body])=>`<li><strong>${e(label)}</strong><span class="body">${e(body)}</span></li>`).join("")}</ul>`, "Only supplied metrics and profile observations support these statements. No projected final reward or extrapolated speedup.");
@@ -257,11 +267,11 @@ for (const [i,run] of runs.entries()) {
   }
 }
 draw("eval-chart",evalTraces,{yTitle:"Recorded evaluation metric",emptyTitle:"Evaluation evidence pending",emptyMessage:"Training reward stays separate. No held-out score is inferred from the training curve."});
-const stageNames=[["rollout","Generation"],["actor_train","Actor update"],["log_probs","Old log prob"],["ref_log_probs","Reference"],["update_weights","Weight sync"]];
-draw("stage-chart",runs.map((run,i)=>({name:niceName(run),type:"bar",marker:{color:palette[i]},x:stageNames.map(([,name])=>name),
-  y:stageNames.map(([key])=>run.unprofiled_stage_statistics?.[key]?.mean_seconds ?? null),
-  customdata:stageNames.map(([key])=>[run.unprofiled_stage_statistics?.[key]?.count ?? 0,run.unprofiled_stage_statistics?.[key]?.median_seconds ?? null]),
-  hovertemplate:"%{x}<br>Mean %{y:.3f} s<br>n=%{customdata[0]}<br>Median %{customdata[1]:.3f} s<extra>%{fullData.name}</extra>"})),{xTitle:"",yTitle:"Mean seconds",layout:{barmode:"group"},emptyMessage:"Eligible timings require explicit profiling coverage and completed training. No unprofiled timing is assumed."});
+draw("stage-chart",paired.count ? runs.map((run,i)=>({name:niceName(run),type:"bar",marker:{color:palette[i]},x:stageNames.map(([,name])=>name),
+  y:stageNames.map(([key])=>paired.statistics[run.label]?.[key]?.paired_metric_available ? paired.statistics[run.label][key].mean_seconds : null),
+  customdata:stageNames.map(([key])=>[paired.statistics[run.label]?.[key]?.count ?? 0,paired.statistics[run.label]?.[key]?.median_seconds ?? null,paired.rollout_ids.join(", ")]),
+  hovertemplate:"%{x}<br>Paired mean %{y:.3f} s<br>Shared n=%{customdata[0]}<br>Median %{customdata[1]:.3f} s<br>IDs %{customdata[2]}<extra>%{fullData.name}</extra>"})) : [],{xTitle:"",yTitle:"Mean seconds · shared cohort",layout:{barmode:"group"},emptyTitle:"Paired timings pending",emptyMessage:paired.reason||"No shared eligible cohort is available; no stage comparison is inferred."});
+
 for (const [id,key] of [["historical-reward-chart","training_reward_mean"],["historical-truncation-chart","capacity_clip_ratio_not_engine_truncation"]]) {
   draw(id,historical?[{name:"Historical GB300 / VeRL",type:"scatter",mode:"lines+markers",x:historical.rows.map(r=>r.rollout_id),y:historical.rows.map(r=>r.common?.[key]??null),line:{color:"#726198",width:3},marker:{size:5}}]:[],{percent:true,yTitle:id.includes("reward")?"Reward":"Capacity clip fraction",emptyMessage:"No historical baseline was supplied. It will remain separate from current Miles results."});
 }

@@ -91,7 +91,34 @@ const evidenceChecks=await page.evaluate(()=>{
   });
   const stepSelections=timingSelections(timeTraces,'step_seconds','steady step');
   const throughputSelections=timingSelections(throughputTraces,'output_tokens_per_gpu_generation_second','steady generation throughput');
-  return {failures,training_budget_comparison:{tokens_per_gpu:budgets,mismatch:budgetMismatch,recipe_warning:recipeWarning,performance_warning:performanceWarning},step_selections:stepSelections,generation_throughput_selections:throughputSelections,evaluation_series:evalTraces.map(trace=>trace.name),hardware_visible:!failures.some(x=>/device|engineering/.test(x))};
+  const paired=report.derived?.paired_timing;
+  const pairKeys=['rollout','actor_train','log_probs','ref_log_probs','update_weights'];
+  const pairLabels=['Generation','Actor update','Old log prob','Reference','Weight sync'];
+  const eligibleForPair=run=>(run.rows||[]).filter(row=>row.rollout_id!==0 && row.training_stage_complete===true && row.profiled===false && row.unprofiled_timing_eligible===true && (run.completed_training_rollouts||[]).includes(row.rollout_id) && !(run.metadata?.exclude_timing_rollouts||[]).includes(row.rollout_id));
+  const pairRows=runs.map(eligibleForPair);
+  const expectedPairIds=runs.length===2 ? pairRows[0].map(row=>row.rollout_id).filter(id=>pairRows[1].some(row=>row.rollout_id===id)).sort((a,b)=>a-b) : [];
+  const stageTraces=document.getElementById('stage-chart').data||[];
+  if (JSON.stringify(paired?.rollout_ids)!==JSON.stringify(expectedPairIds) || paired?.count!==expectedPairIds.length) failures.push('Paired stage cohort differs from the independent input intersection');
+  const median=values=>{const sorted=[...values].sort((a,b)=>a-b), middle=Math.floor(sorted.length/2);return sorted.length%2?sorted[middle]:(sorted[middle-1]+sorted[middle])/2;};
+  const near=(a,b)=>Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=1e-9*Math.max(1,Math.abs(b));
+  const expectedStages=runs.map((run,index)=>Object.fromEntries(pairKeys.map(key=>{
+    const values=expectedPairIds.map(id=>pairRows[index].find(row=>row.rollout_id===id)?.common?.[`${key}_seconds`]);
+    return [key,values.length&&values.every(Number.isFinite)?{mean:values.reduce((a,b)=>a+b,0)/values.length,median:median(values),count:values.length}:null];
+  })));
+  for (const [index,run] of runs.entries()) {
+    const name=run.metadata?.display_name||(/rubin/i.test(run.label)?'Rubin':/gb300/i.test(run.label)?'GB300':run.label);
+    const trace=stageTraces.find(trace=>trace.name===name);
+    const expectedY=pairKeys.map(key=>expectedStages.length===2&&expectedStages.every(stats=>stats[key])?expectedStages[index][key].mean:null);
+    if (!expectedY.some(Number.isFinite)) {if(trace)failures.push(`${run.label}: paired bars must be pending`);continue;}
+    if(JSON.stringify(trace?.x)!==JSON.stringify(pairLabels))failures.push(`${run.label}: paired stage labels differ`);
+    pairKeys.forEach((key,i)=>{
+      const expected=expectedY[i], actual=trace?.y[i], statistic=paired?.statistics?.[run.label]?.[key];
+      if(expected===null){if(actual!==null)failures.push(`${run.label}: missing paired stage was filled`);return;}
+      if(!near(actual,expected)||!near(statistic?.mean_seconds,expected)||!near(statistic?.median_seconds,expectedStages[index][key].median)||statistic?.count!==expectedPairIds.length||trace?.customdata[i]?.[0]!==expectedPairIds.length) failures.push(`${run.label}: paired ${key} bar/statistic differs from same-ID inputs`);
+    });
+  }
+  if(expectedPairIds.length && !document.getElementById('paired-cohort').textContent.includes(expectedPairIds.join(', '))) failures.push('Shared stage cohort IDs are not visible');
+  return {failures,paired_stage_cohort:{rollout_ids:expectedPairIds,count:expectedPairIds.length,status:paired?.status,bar_values:stageTraces.map(trace=>({name:trace.name,x:trace.x,y:trace.y,customdata:trace.customdata}))},training_budget_comparison:{tokens_per_gpu:budgets,mismatch:budgetMismatch,recipe_warning:recipeWarning,performance_warning:performanceWarning},step_selections:stepSelections,generation_throughput_selections:throughputSelections,evaluation_series:evalTraces.map(trace=>trace.name),hardware_visible:!failures.some(x=>/device|engineering/.test(x))};
 });
 const report={slides:count,errors,external_requests:network,checks,evidence_checks:evidenceChecks,keyboard:{space,end,overview},mobile_horizontal_overflow:mobileOverflow};
 await writeFile(path.join(output,'browser-checks.json'),JSON.stringify(report,null,2)+'\n');
