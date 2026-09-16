@@ -65,11 +65,11 @@ def copy_profile_assets(data, source, destination):
             item["attachments"][kind] = attachment
 
 
-def build_report(runs=None, build=None, profiles=None, historical=None, output=None):
+def build_report(runs=None, build=None, profiles=None, historical=None, output=None, run_health=None):
     output = (output or ROOT / "site").resolve()
     output.mkdir(parents=True, exist_ok=True)
     inputs, evidence = {}, []
-    for name, path in [("comparison", runs), ("build", build), ("profiles", profiles), ("historical", historical)]:
+    for name, path in [("comparison", runs), ("build", build), ("profiles", profiles), ("historical", historical), ("run_health", run_health)]:
         value, record = read_evidence(path, name)
         inputs[name] = value
         evidence.append(record)
@@ -78,6 +78,17 @@ def build_report(runs=None, build=None, profiles=None, historical=None, output=N
         raise ValueError("--runs must use schema miles-qwen3-comparison-v1")
     if comparison and not isinstance(comparison.get("runs"), list):
         raise ValueError("Comparison runs must be a list")
+    health = inputs["run_health"]
+    if health:
+        if health.get("schema") != "miles-run-health-v1" or not isinstance(health.get("runs"), list):
+            raise ValueError("--run-health must use schema miles-run-health-v1 with a runs list")
+        if "comparison_sha256" in health:
+            comparison_sha = next(record for record in evidence if record["section"] == "comparison").get("sha256")
+            if comparison_sha is None or health["comparison_sha256"] != comparison_sha:
+                raise ValueError("Run-health comparison_sha256 must match the supplied --runs file SHA256")
+        identities = {(r.get("label"), r.get("metadata", {}).get("run_id")) for r in (comparison or {}).get("runs", [])}
+        if any((r.get("label"), r.get("run_id")) not in identities for r in health["runs"]):
+            raise ValueError("Run-health records must match a comparison run label and run_id")
     if not inputs["historical"] and comparison:
         inputs["historical"] = comparison.get("historical_baseline")
     copy_profile_assets(inputs["profiles"], profiles, output)
@@ -128,6 +139,7 @@ def main():
     parser.add_argument("--build", type=Path, help="Rubin build report JSON")
     parser.add_argument("--profiles", type=Path, help="Profile metadata JSON with local attachments")
     parser.add_argument("--historical", type=Path, help="Optional raw VeRL baseline or normalized historical JSON")
+    parser.add_argument("--run-health", type=Path, help="Optional explicit run issue metadata; never inferred from Ray status")
     parser.add_argument("--output", type=Path, default=ROOT / "site")
     args = parser.parse_args()
     print(json.dumps(build_report(**vars(args)), indent=2))

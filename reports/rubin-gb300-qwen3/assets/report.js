@@ -15,10 +15,15 @@ const textValue = value => value == null ? "Not recorded" : typeof value === "ob
 const pending = (title="Evidence pending", message="This snapshot contains no measurements for this section.") => `<div class="pending-box"><strong>${e(title)}</strong><p>${e(message)}</p></div>`;
 const last = (run, key) => [...(run.rows || [])].reverse().find(row => finite(row.common?.[key]))?.common?.[key];
 const niceName = run => run.metadata?.display_name || (/rubin/i.test(run.label) ? "Rubin" : /gb300/i.test(run.label) ? "GB300" : run.label);
+const healthFor = run => run?.metadata?.run_health
+  ? (typeof run.metadata.run_health==="object" ? run.metadata.run_health : {run_health:run.metadata.run_health,issue:run.metadata.issue})
+  : (INPUT.run_health?.runs||[]).find(r=>r.label===run?.label && r.run_id===run?.metadata?.run_id) || null;
+const activeIssues=runs.filter(run=>healthFor(run)?.issue);
 function status(run) {
   if (!run) return {label:"Pending", css:"pending"};
   const s = run.metadata?.status;
   if (["FAILED", "STOPPED", "CANCELED", "TIMED_OUT"].includes(s)) return {label:s.replaceAll("_", " "), css:"failed"};
+  if (healthFor(run)?.issue) return {label:({recovery_pending:"Recovery pending",training_pending_after_recovery:"Training pending",partial_inference_recovery:"Partial recovery",workers_registered_workload_pending:"Workload pending"}[healthFor(run).run_health]||"Investigating"), css:"pending"};
   if (run.partial === false && s === "SUCCEEDED") return {label:"Complete", css:"complete"};
   return {label: s === "SUCCEEDED" ? "Terminal / incomplete evidence" : s || "Partial snapshot", css:"partial"};
 }
@@ -37,7 +42,7 @@ const finished = runs.length >= 2 && runs.every(run => !run.partial && run.metad
 slide("Qwen3 on Rubin & GB300", "Experiment report / September 2026", `
   <h1>Qwen3 on Rubin<br><span>&amp;</span> GB300</h1>
   <p class="cover-subtitle">A four-GPU Miles / SGLang comparison<br>Learning behavior, performance, and kernel evidence</p>
-  <div class="cover-bottom"><div><p class="status ${finished ? "complete" : "partial"}">${finished ? "Both runs complete" : runs.length ? "Experiment in progress" : "Awaiting experiment evidence"}</p><p class="small muted">Qwen3-30B-A3B / GSM8K / GRPO</p></div><p class="small">Rubin uses the preserved CUDA 13.4 build.<br>GB300 uses the upstream Miles container.</p></div>`, `Snapshot generated ${REPORT.generated_at.replace("T"," ").slice(0,19)} UTC`, "dark cover");
+  <div class="cover-bottom"><div><p class="status ${activeIssues.length ? "pending" : finished ? "complete" : "partial"}">${activeIssues.length ? activeIssues.map(run=>`${niceName(run)}: ${status(run).label.toLowerCase()}`).join(" / ") : finished ? "Both runs complete" : runs.length ? "Experiment in progress" : "Awaiting experiment evidence"}</p><p class="small muted">Qwen3-30B-A3B / GSM8K / GRPO</p></div><p class="small">Rubin uses the preserved CUDA 13.4 build.<br>GB300 uses the upstream Miles container.</p></div>`, `Metrics snapshot ${(comparison.collected_at||REPORT.generated_at).replace("T"," ").slice(0,19)} UTC${INPUT.run_health?.observed_at?`; operational note ${INPUT.run_health.observed_at.replace("T"," ").slice(0,19)} UTC`:""}`, "dark cover");
 
 // 2. System status: missing second run stays visibly pending.
 const displayRuns = runs.length ? [...runs.slice(0,2)] : [null,null];
@@ -49,7 +54,7 @@ slide("One node and four GPUs per system", "01 / Comparison scope", `
     const name=run ? niceName(run) : i===0 ? "Rubin" : "GB300";
     return `<div class="rule"><div class="run-status"><h3 class="run-name ${i===1?"orange":""}">${e(name)}</h3><span class="status ${state.css}">${e(state.label)}</span></div>
       <div class="stats-row"><div class="metric"><div class="big-number">${run ? e((run.completed_training_rollouts||[]).length) : "—"}</div><div class="number-label">complete training rollouts${meta.expected_rollouts ? ` / ${e(meta.expected_rollouts)}`:""}</div></div><div class="metric"><div class="big-number">${pct(run && last(run,"training_reward_mean"))}</div><div class="number-label">latest training reward</div></div></div>
-      <div class="run-details hardware-details"><div class="hardware-name">${e(meta.hardware?.name || "Hardware not recorded")}</div><div>${finite(meta.hardware?.memory_mib_per_gpu) ? `${number(meta.hardware.memory_mib_per_gpu,0)} MiB per GPU` : "GPU memory not recorded"}${meta.hardware?.engineering_sample === true ? " · Engineering sample" : ""}</div><div>${e(meta.gpus ?? "Unrecorded")} GPUs · ${e(meta.optimizer_steps_per_rollout ?? "Unrecorded")} optimizer updates / rollout</div></div></div>`;
+      <div class="run-details hardware-details"><div class="hardware-name">${e(meta.hardware?.name || "Hardware not recorded")}</div><div>${finite(meta.hardware?.memory_mib_per_gpu) ? `${number(meta.hardware.memory_mib_per_gpu,0)} MiB per GPU` : "GPU memory not recorded"}${meta.hardware?.engineering_sample === true ? " · Engineering sample" : ""}</div><div>${e(meta.gpus ?? "Unrecorded")} GPUs · ${e(meta.optimizer_steps_per_rollout ?? "Unrecorded")} optimizer updates / rollout</div>${healthFor(run)?.issue ? `<p class="run-issue">${e(healthFor(run).issue)} Ray: ${e(meta.status||"unknown")}.</p>` : ""}</div></div>`;
   }).join("")}</div><div class="callout">${runs.some(r=>r.metadata?.hardware?.engineering_sample === true) ? "Rubin is an engineering sample; its measured capacity and software stack define this comparison." : "Library versions and kernel choices can differ. The results describe each recorded system configuration."}</div>`, "Hardware comes from recorded device metadata. A partial snapshot never counts as a completed run.");
 
 // Build schema supports components/changes/validation while retaining the full original input.
@@ -121,9 +126,17 @@ slide("Truncation and response length", "06 / Generation behavior", `
   <p class="subtitle">Output length changes the amount of work and can affect the reward curve.</p>
   <div class="chart-columns"><div><h3 class="chart-title">Engine-reported truncation</h3><div id="truncation-chart" class="chart half"></div></div><div><h3 class="chart-title">Mean output length</h3><div id="length-chart" class="chart half"></div></div></div>`, "Metrics describe retained samples. Dynamic filtering can select a different population from all generated responses.");
 
+const unknownEvalPhase=runs.flatMap(run=>(run.rows||[]).flatMap(row=>(row.eval||[]).filter(event=>event.weight_phase==="unknown"||!event.weight_phase).map(()=>`${niceName(run)}: recorded weight phase unknown${(run.rows||[]).every(row=>!(row.train_steps||[]).length)?"; 0 observed optimizer updates":""}.`)));
+const evalProgress=runs.flatMap(run=>{
+  const events=(run.rows||[]).flatMap(row=>(row.eval||[]).map(event=>({...event,rollout_id:row.rollout_id}))).filter(event=>finite(event.metrics?.["eval/gsm8k"]));
+  const first=events[0], latest=events.at(-1);
+  if (events.length<2 || first.weight_phase!=="before_this_update" || latest.weight_phase!=="after_this_update") return [];
+  const completed=(run.completed_training_rollouts||[]).filter(id=>id<=latest.rollout_id).length;
+  return [`${niceName(run)} eval: ${pct(first.metrics["eval/gsm8k"])} → ${pct(latest.metrics["eval/gsm8k"])} after ${completed} completed rollouts.`];
+});
 slide("Gradient signal and evaluation", "07 / Learning evidence", `
   <p class="subtitle">Optimizer updates and evaluation events retain their own step and policy alignment.</p>
-  <div class="chart-columns"><div><h3 class="chart-title">Optimizer gradient norm</h3><div id="gradient-chart" class="chart half"></div></div><div><h3 class="chart-title">Recorded evaluation</h3><div id="eval-chart" class="chart half"></div></div></div>`, "A GRPO loss near zero can still produce nonzero gradients. Evaluation is labeled by its recorded metric and policy phase.");
+  <div class="chart-columns"><div><h3 class="chart-title">Optimizer gradient norm</h3><div id="gradient-chart" class="chart half"></div></div><div><h3 class="chart-title">Recorded evaluation</h3><div id="eval-chart" class="chart half"></div></div></div>${evalProgress.length||unknownEvalPhase.length?`<p class="chart-note">${e([...evalProgress,...new Set(unknownEvalPhase)].slice(0,2).join(" "))}</p>`:""}`, "A GRPO loss near zero can still produce nonzero gradients. Evaluation is labeled by its recorded metric and policy phase.");
 
 const coldStartSteps=runs.map(run=>({name:niceName(run),seconds:(run.rows||[]).find(r=>r.rollout_id===0)?.common?.step_seconds})).filter(r=>finite(r.seconds));
 const coldStartNote=coldStartSteps.length ? `Recorded rollout 0 step: ${coldStartSteps.map(r=>`${r.name} ${number(r.seconds,1)} s`).join("; ")}.` : "Cold-start step totals remain in the evidence JSON.";
@@ -157,7 +170,7 @@ profileSlide("GB300",11);
 const findings=[];
 for (const run of runs.slice(0,2)) {
   const valid=(run.rows||[]).filter(r=>finite(r.common?.training_reward_mean));
-  findings.push([niceName(run),valid.length ? `${valid.length} reward observations. Initial ${pct(valid[0].common.training_reward_mean)}, latest ${pct(valid[valid.length-1].common.training_reward_mean)}. ${status(run).label}.` : "No reward measurements in this snapshot."]);
+  findings.push([niceName(run),valid.length ? `${valid.length} reward observations. Initial ${pct(valid[0].common.training_reward_mean)}, latest ${pct(valid[valid.length-1].common.training_reward_mean)}. ${status(run).label}.` : `No training reward measurements in this snapshot.${healthFor(run)?.issue?` ${healthFor(run).issue}`:""}`]);
 }
 if (!findings.length) findings.push(["Learning","The current Miles runs have no supplied result records yet."]);
 const profileSummary = profiles.summary || profiles.gap_summary;

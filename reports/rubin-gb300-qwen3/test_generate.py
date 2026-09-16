@@ -58,6 +58,32 @@ class EvidenceTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "schema"):
                 module.build_report(runs=path, output=root / "site")
 
+    def test_health_metadata_cannot_attach_to_a_different_run(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            root = Path(directory)
+            source = {"schema": "miles-qwen3-comparison-v1", "runs": [
+                {"label": "gb300", "metadata": {"run_id": "run-one", "status": "RUNNING"}, "rows": []}]}
+            runs, health = root / "runs.json", root / "health.json"
+            runs.write_text(json.dumps(source))
+            record = {"schema": "miles-run-health-v1", "runs": [
+                {"label": "gb300", "run_id": "run-one", "run_health": "recovery_pending", "issue": "Recovery pending"}]}
+            health.write_text(json.dumps(record))
+            module.build_report(runs=runs, run_health=health, output=root / "site")
+            result = json.loads((root / "site/report-data.json").read_text())
+            self.assertEqual(result["inputs"]["comparison"], source)
+            self.assertEqual(result["inputs"]["run_health"], record)
+            record["comparison_sha256"] = "0" * 64
+            health.write_text(json.dumps(record))
+            with self.assertRaisesRegex(ValueError, "comparison_sha256 must match"):
+                module.build_report(runs=runs, run_health=health, output=root / "stale-rejected")
+            record["comparison_sha256"] = module.sha256(runs)
+            health.write_text(json.dumps(record))
+            module.build_report(runs=runs, run_health=health, output=root / "matched")
+            record["runs"][0]["run_id"] = "another-run"
+            health.write_text(json.dumps(record))
+            with self.assertRaisesRegex(ValueError, "run label and run_id"):
+                module.build_report(runs=runs, run_health=health, output=root / "rejected")
+
 
 if __name__ == "__main__":
     unittest.main()

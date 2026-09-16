@@ -163,6 +163,14 @@ The scope slide displays `metadata.hardware.name`, `memory_mib_per_gpu`, and the
 engineering-sample qualification. The recipe slide shows recorded parallelism,
 training-token budget, rollout kernel choices, and CUDA graph settings.
 
+Optional `--run-health snapshot-health.json` accepts `miles-run-health-v1` with
+`runs[{label, run_id, run_health, issue}]`. It records explicit investigation or
+recovery notes without changing the collector JSON; identities must match.
+Keep its observation time and evidence references current. Native comparison
+`metadata.run_health` / `metadata.issue` takes precedence over this sidecar.
+Ray `RUNNING` alone never suppresses a recorded issue. Unknown evaluation weight
+phases remain visible, including when no optimizer updates have been observed.
+
 Optional build `reproduction` fields (`repository`, `branch`, `dockerfile`,
 `build_helper`, and local evidence paths) supply the appendix entry points.
 `reproduction.txt` preserves those fields and the exact `image.reference` pull

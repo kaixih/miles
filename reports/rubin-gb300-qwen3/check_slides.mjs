@@ -59,6 +59,15 @@ const evidenceChecks=await page.evaluate(()=>{
   const timeTraces=document.getElementById('time-chart').data||[];
   const evalTraces=document.getElementById('eval-chart').data||[];
   if (evalTraces.some(trace=>/none_reward_ratio|num_training_samples|truncated_ratio/.test(trace.name))) failures.push('Evaluation diagnostics must not appear as score traces');
+  for (const run of runs) {
+    const name=run.metadata?.display_name||(/rubin/i.test(run.label)?'Rubin':/gb300/i.test(run.label)?'GB300':run.label);
+    const events=(run.rows||[]).flatMap(row=>(row.eval||[]).map(event=>({...event,rollout_id:row.rollout_id}))).filter(event=>Number.isFinite(event.metrics?.['eval/gsm8k']));
+    const actual=evalTraces.find(trace=>trace.name===`${name} gsm8k`);
+    if (events.length && (JSON.stringify(actual?.x)!==JSON.stringify(events.map(e=>e.rollout_id)) || JSON.stringify(actual?.y)!==JSON.stringify(events.map(e=>e.metrics['eval/gsm8k'])) || JSON.stringify(actual?.customdata)!==JSON.stringify(events.map(e=>e.weight_phase||'unknown')))) failures.push(`${run.label}: evaluation score or policy phase mismatch`);
+    if (events.some(e=>e.weight_phase==='unknown') && !document.getElementById('slide-8').textContent.includes(`${name}: recorded weight phase unknown`)) failures.push(`${run.label}: unknown evaluation phase is hidden`);
+    const health=run.metadata?.run_health ? (typeof run.metadata.run_health==='object'?run.metadata.run_health:{issue:run.metadata.issue}) : (report.inputs.run_health?.runs||[]).find(record=>record.label===run.label&&record.run_id===run.metadata?.run_id);
+    if (health?.issue && !hardwareText.includes(health.issue)) failures.push(`${run.label}: known run issue is hidden`);
+  }
   const stepSelections=runs.map(run=>{
     const name=run.metadata?.display_name||(/rubin/i.test(run.label)?'Rubin':/gb300/i.test(run.label)?'GB300':run.label);
     const expected=(run.rows||[]).filter(row=>row.rollout_id!==0 && row.training_stage_complete===true && row.profiled===false && row.unprofiled_timing_eligible===true && !(run.metadata?.exclude_timing_rollouts||[]).includes(row.rollout_id));

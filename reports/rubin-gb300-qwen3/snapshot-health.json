@@ -1,0 +1,50 @@
+{
+  "schema": "miles-run-health-v1",
+  "observed_at": "2026-09-16T00:47:03+00:00",
+  "comparison_sha256": "babab20bcb0ba51c9259ce3826d589436268c83a04685396c9da0eeb263ebd64",
+  "runs": [
+    {
+      "label": "gb300",
+      "run_id": "20260915-j2198810-qwen3-a1",
+      "run_health": "workers_registered_workload_pending",
+      "issue": "All four healthy workers registered at 00:47 UTC; four-engine workload and rollout 0 confirmation pending.",
+      "source_log": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3/gb300/logs/qwen3_train.log",
+      "source_log_sha256": "18426bed2c37d651e36da0fb3af948833b0753a65f5f24e5cbb6116dc756e0c7",
+      "evidence_line": 592858,
+      "evidence": "\u001b[36m(CommandActor pid=9033)\u001b[0m httpx.ConnectError: All connection attempts failed",
+      "scope": "The snapshot has an initial evaluation but no completed training rollout or optimizer update. Ray RUNNING does not establish workload health.",
+      "recovery": {
+        "changed_at": "2026-09-16T00:39:18+00:00",
+        "source": "Root task verified live router and parent process limits",
+        "old_soft_nofile": 1024,
+        "new_soft_nofile": 65535,
+        "hard_nofile": 524288,
+        "image_changed": false,
+        "successful_training_recovery_verified": false,
+        "verified_at": "2026-09-16T00:40:20+00:00",
+        "inference_recovery_verified": true,
+        "router_pid": 9867,
+        "router_open_fds": 4066,
+        "health_http_status": 200,
+        "new_http_200_responses": 276,
+        "new_connect_errors": 0,
+        "new_tracebacks": 0,
+        "remaining_condition": "Awaiting confirmation of four-engine workload and first completed training rollout",
+        "inference_recovery_scope": "All four healthy workers are registered after exactly three quarantined workers were restored; their model weight version remains 1. This does not establish that all four are busy.",
+        "full_four_engine_recovery_verified": false,
+        "latest_followup_source": "Root task update after the 00:43 UTC snapshot; no additional GPU inference was run by report generation.",
+        "workers_registered_at": "2026-09-16T00:47:03+00:00",
+        "all_four_workers_health_http_status": 200,
+        "all_four_workers_model_weight_version": 1,
+        "optimizer_updates_at_registration": 0,
+        "reregistered_quarantined_workers": 3,
+        "all_four_workers_registered": true,
+        "all_four_busy_verified": false,
+        "full_four_engine_workload_verified": false,
+        "worker_recovery_record": "recovery/router-workers-20260916.json"
+      },
+      "evidence_line_sha256_without_lf": "8ae4a40a4039515be252c1777771fa8531ca4b2354e027ab8ed5d4c3a8fc5583"
+    }
+  ],
+  "snapshot_at": "2026-09-16T00:43:12.170917+00:00"
+}

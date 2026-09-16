@@ -93,7 +93,10 @@ responses succeeded, but the first 2048-response rollout exhausted the Miles
 router's file descriptors and produced HTTP connection failures. On the running
 job, only the identified router and its CommandActor parent's soft limits were
 raised to 65535 within the existing hard limit, preserving the image and retrying
-requests. Retain the recovery record and exclude rollout 0 from timing; this
+requests. Failed health checks had also quarantined three engines. They were
+re-registered only after all four engines reported healthy with weight version 1
+and the log confirmed no optimizer update had occurred. Retain both recovery
+records and exclude rollout 0 from timing; this
 startup incident is not GPU kernel performance.
 
 On this GB300 node the CIFS mount maps writes to a service UID. Keep repo and
