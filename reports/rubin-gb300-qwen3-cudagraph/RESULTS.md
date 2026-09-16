@@ -136,39 +136,69 @@ and [the diagnostic runbook](../../lab/rubin_two_node/SGLANG_GRAPH_DIAGNOSTIC.md
 for the bounded runtime procedure. The offline HTML deck includes its input
 hashes, raw observations and downloadable trace evidence.
 
-## Actor window supplement — GB300 verified, Rubin queued
+## Actor supplement — one matching microbatch on each platform
 
-The original 1.7733× actor-stage ratio remains unchanged. On the exact main
-cohort (rollout IDs 1–48), GB300 processed only 0.309% more reported prompt and
-response tokens and 0.474% more scheduled microbatches. Normalizing the native
-actor timer by its reported token numerator gives 1.7678×. This is descriptive
-normalization; padding, recomputation and expert routing are not measured by
-that numerator.
+The original main learning runs and their 1.7733× actor-stage ratio remain
+unchanged. On the main cohort, GB300 processed only 0.309% more reported prompt
+and response tokens and 0.474% more scheduled microbatches. That workload audit
+is retained separately; the sampled trace below does not measure the whole
+main actor stage.
 
-A new real initial-policy batch (256 prompts × 8, or 2,048 samples) is frozen
-for both systems. GB300 completed four real updates, global batch 512, TP1/EP4,
-and 4,096 training tokens/GPU, using the original upstream image and frozen
-Miles source. All 16 rank-update receipts are NORMAL with positive finite
-gradients. Unprofiled updates 2/3 took 46.74766/44.95255 seconds using each
-update's slowest rank. They belong to this initial-policy diagnostic, not the
-main timing cohort.
+Both systems completed an actor-only replay of the same newly generated,
+frozen initial-policy batch: 256 prompts × 8 responses, four real updates of
+512 samples, four GPUs, TP1/EP4 and a 4,096-token training budget per GPU. Both
+used frozen Miles e73d8d68 and the same recorded initial HF/release construction
+with a fresh optimizer. Every rank/update completed normally with finite,
+positive gradients. All 16 packing fingerprints match across platforms;
+the selected four sequences have identical ordered sample IDs and token
+hashes (4,096 total tokens, including 3,644 response tokens).
 
-The retained stackless trace captures rank 0, update 1, microbatch 1 (0-based),
-including four sequences and 4,096 tokens. CPU forward/backward elapsed times
-are 629.904/1,417.741 ms; checkpoint recomputation is included in backward.
-Kernel union coverage is 294.188 ms within the 2,048.494 ms CPU window. This is
-trace coverage, not physical GPU utilization, and uncovered time is not a
-measurement of host-launch overhead. Many short kernels and gaps motivate a
-paired dispatch/synchronization investigation; profiler overhead remains.
-The GPU attribution directly attached to the outer backward scope is incomplete
-because most autograd work runs on another thread; it is not used as total
-backward GPU cost. Pure recompute is not separately resolved. Optimizer and
-final gradient synchronization are outside the selected window.
+Slide 16 uses only this one microbatch's time window:
 
-Slide 16 contains the actual GB300 microbatch window, its total elapsed time,
-forward/backward timing and source evidence. Every number on that slide refers
-to the same microbatch. Full-update diagnostic timings remain in this audit;
-slide 10 retains the original main-stage chart.
-Rubin's paired capture is pending allocation 2208878; no forward/backward
-platform ratio or explanation of the entire 1.77× gap is claimed yet. The
-original rollout figures and the 16-slide count are preserved.
+| Same microbatch | Rubin | GB300 |
+|---|---:|---:|
+| Total elapsed | 0.785 s | 2.048 s |
+| Forward | 0.244 s | 0.630 s |
+| Backward, including recomputation | 0.540 s | 1.418 s |
+| GPU kernel interval coverage inside that window | 0.432 s | 0.294 s |
+
+The total and forward/backward values are elapsed CPU annotation ranges and
+include dispatch and waits. The tiny remainder outside the F/B annotations
+and rounding explain why the displayed components need not sum exactly to
+the total. GPU kernel coverage is the union of recorded kernel intervals
+within that same window; it is neither a second elapsed-time denominator nor
+a measurement of physical GPU utilization.
+
+Rubin's measured microbatch finishes sooner even though its GPU kernel
+coverage is longer. The trace therefore does not support explaining this
+sample's elapsed-time advantage by uniformly faster GPU kernels. Recorded GPU
+activity, including memory operations, leaves about 0.352 s uncovered on Rubin
+versus 1.753 s on GB300. Those intervals contain host work, waits and profiler
+overhead that this capture does not fully attribute. Dispatch and scheduling
+are candidates for further investigation; uncovered intervals are not proof
+that the GPU was physically idle.
+
+Longer Rubin communication-kernel intervals account for much of the difference
+in GPU coverage. NCCL kernels can wait or spin, so their duration alone does
+not measure network bandwidth or identify an interconnect problem. Kernel
+families overlap across streams and must not be added as a critical-path
+breakdown. The trace also shows different attention implementations: Rubin
+uses the FA2 kernel family and GB300 uses the FlashAttention CuTe Sm100 family.
+Their training stacks differ (Torch 2.15/cu134 and TE 2.19 on Rubin versus
+Torch 2.13/cu130 and TE 2.17 on GB300).
+
+This is a profiled rank-0 sample from a fresh initial-policy diagnostic.
+Identical batch, recipe and initial construction do not establish bitwise
+identical weights after warmup. Profiler overhead also differs with software.
+The trace locates a large difference outside recorded GPU execution, but does
+not establish a hardware-only cause or fully explain the main 1.77× ratio.
+Optimizer and final gradient synchronization lie outside this microbatch;
+pure recomputation is not separated from backward. Direct GPU attribution to
+the outer backward scope is incomplete because autograd uses another thread.
+
+Both exact diagnostic containers are stopped and both allocations released
+after hash-verified retention. Complete traces, native receipts, independent
+trace QC and the paired workload audit are downloadable from the deck. Full
+update timings remain in those audits. Slide 10 keeps the original main-stage
+chart; slide 16 contains both microbatch windows. The original rollout figures
+and the 16-slide count are preserved.

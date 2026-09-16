@@ -1,9 +1,9 @@
-# GB300 actor window: Rubin comparison pending
+# GB300 actor window: paired Rubin evidence verified
 
 This is actual diagnostic evidence from `actor-profile-gb300-j2208879-v2`.
 The four-GPU replay completed four full optimizer updates. The trace captures
 rank 0, update 1, microbatch 1 (0-based): four sequences, 4,096 total tokens.
-The initial-policy rollout batch is frozen for the later Rubin replay.
+The initial-policy rollout batch was frozen and shared with the Rubin replay.
 
 ![Actual actor timeline](actor-timeline.png)
 
@@ -32,8 +32,11 @@ retained at:
 
 Trace SHA256: `db4fa4de886985e968e0311dd2cf828235359e0446bfddb5e910603d9138c7c7`.
 Its full raw JSON and all four-rank packing/timing receipts are retained in the
-same durable phase. The GB300 allocation has been released. Rubin remains
-queued as job 2208878; no paired actor-window ratio is claimed.
+same durable phase. Both allocations have been released. The [Rubin evidence](../rubin-v1/README.md)
+and [paired audit](../rubin-v1/pairing-audit.json) now verify the same selected
+samples/token hashes, four-rank packing, frozen batch, initial construction and
+reviewed recipe. Software differs; post-warmup state equality is unverified,
+and the paired windows do not establish a hardware-only explanation.
 
 See the source [capture audit](capture-audit.json), [independent trace QC](independent-trace-qc.json),
 [main workload audit](main-workload-audit.json) and [file checksums](sha256.json).

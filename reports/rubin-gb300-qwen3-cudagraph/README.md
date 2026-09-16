@@ -36,12 +36,12 @@ and the measured results summary, without model/checkpoint files.
 
 ## Actor supplement in the existing slides
 
-The current supplement has a verified GB300 forward/backward microbatch;
-Rubin's paired window remains pending. See [actual evidence and limits](actor-evidence/gb300-v2/README.md).
+The supplement contains verified Rubin and GB300 forward/backward traces of
+the same microbatch. See [paired evidence and limits](actor-evidence/rubin-v1/README.md).
 To include it when rebuilding the complete main experiment above, append:
 
 ```bash
---actor-profile outputs/rubin-gb300-qwen3-cudagraph/actor-update/actor-profile.gb300-verified-rubin-pending.json
+--actor-profile outputs/rubin-gb300-qwen3-cudagraph/actor-update/actor-profile.paired-verified.json
 ```
 
 This changes only slide16. Slide10 retains the original main stage bars; actor

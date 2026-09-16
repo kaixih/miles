@@ -1,0 +1,823 @@
+{
+  "all_updates_audit": {
+    "gb300": {
+      "actual_image": "radixark/miles@sha256:226f63d28e4b1482e0a6948ba3d486c1b1635648d079c82c9501640b24657986",
+      "actual_image_id": "sha256:226f63d28e4b1482e0a6948ba3d486c1b1635648d079c82c9501640b24657986",
+      "all_updates": [
+        {
+          "grad_norm": 0.1686907857656479,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank0/step0-packing.json",
+            "sha256": "1f5caa72f3200f4981c8043c12f6a50beb83b8f2fae97c6b35ff8561c4384120"
+          },
+          "packing_fingerprint": "0e3358d3f146944b21bc0a89124bc667289c354cb36a4449284c03f545714f71",
+          "rank": 0,
+          "response_tokens": 103011,
+          "samples": 136,
+          "step": 0,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank0/step0-timing.json",
+            "sha256": "5e47534d013df6f35d47cc40fb6a4027387de77419801b93eff63e5fbe93fb89"
+          },
+          "total_tokens": 113743,
+          "update_seconds_raw_audit_only": 81.19584471499547
+        },
+        {
+          "grad_norm": 0.1748650074005127,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank0/step1-packing.json",
+            "sha256": "c2866825e0e9a3b08f8cf65ad7d9959307f929bc6f1739c7e9df4efd58af4db8"
+          },
+          "packing_fingerprint": "b93f369c8db0f889c4fd957c3883607453aeccc4fdf19cd0bf147eafab3ee7a5",
+          "rank": 0,
+          "response_tokens": 100352,
+          "samples": 130,
+          "step": 1,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank0/step1-timing.json",
+            "sha256": "2abc82798c35f0b85fd73fa435616b09131213f2e4b74fcc488897d89fa42af4"
+          },
+          "total_tokens": 111238,
+          "update_seconds_raw_audit_only": 47.43088781111874
+        },
+        {
+          "grad_norm": 0.18787145614624023,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank0/step2-packing.json",
+            "sha256": "006890e0054a3841e17c57a3b50efc774ad898a97419b8be7ac7697928bb5df0"
+          },
+          "packing_fingerprint": "e0cc4f88d7a62b3798754f71fc9fc6e04b3474b2f6bddee8868f735be1ffd7d2",
+          "rank": 0,
+          "response_tokens": 102530,
+          "samples": 131,
+          "step": 2,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank0/step2-timing.json",
+            "sha256": "ef9b927679b05787b133a11cd501b61f351ccf3ac71ef242e7b322a495c574f5"
+          },
+          "total_tokens": 113473,
+          "update_seconds_raw_audit_only": 46.74754859483801
+        },
+        {
+          "grad_norm": 0.18997058272361755,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank0/step3-packing.json",
+            "sha256": "a0cf4df5f0336100b517934a49126ce518b86dca4b07a6f8650c696f59f74b7d"
+          },
+          "packing_fingerprint": "b6b284f6d56f9eb0528bcb1ed5cb250b9944ab59c302e5c9aa15a436343230ab",
+          "rank": 0,
+          "response_tokens": 98529,
+          "samples": 126,
+          "step": 3,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank0/step3-timing.json",
+            "sha256": "e07981c94cba71bb2db871fd3c82230a814f2b0fcf2d98d828b70b740b607b4a"
+          },
+          "total_tokens": 108591,
+          "update_seconds_raw_audit_only": 44.9525362290442
+        },
+        {
+          "grad_norm": 0.1686907857656479,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank1/step0-packing.json",
+            "sha256": "5da2147f88437a30f6e9b3fccdde85786e0565d190cf58d00a0e8425cbd5df2a"
+          },
+          "packing_fingerprint": "690d0c9d00cf66ea004964b28712e8a2d76aab3b7c009830a8407c350f00486d",
+          "rank": 1,
+          "response_tokens": 102843,
+          "samples": 131,
+          "step": 0,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank1/step0-timing.json",
+            "sha256": "900e410bce80da81b772ea1924c10293613e1d403e674b39bc3b93d3144e5a92"
+          },
+          "total_tokens": 113690,
+          "update_seconds_raw_audit_only": 81.19585453998297
+        },
+        {
+          "grad_norm": 0.1748650074005127,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank1/step1-packing.json",
+            "sha256": "b3e61394e88087905f0fda93af2f9a88569243d19bdb352eab49520f1ffb3707"
+          },
+          "packing_fingerprint": "7e6e68075aa3cadd17a8e1883e444156177c6f08b17f589ff80c171395cb4fb2",
+          "rank": 1,
+          "response_tokens": 101005,
+          "samples": 122,
+          "step": 1,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank1/step1-timing.json",
+            "sha256": "907ee35bc09d59b0ffb3739ae90e1687a50c7f650d21ff5cfae183ecc013b013"
+          },
+          "total_tokens": 111084,
+          "update_seconds_raw_audit_only": 47.430874530924484
+        },
+        {
+          "grad_norm": 0.18787145614624023,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank1/step2-packing.json",
+            "sha256": "0391ae694036e023b7266c26c7daae95bbf7fe66c122161cff402d6274f36d6f"
+          },
+          "packing_fingerprint": "6e7c1c536e51fdf7beed818794c6d8962c86d1dbb25126faa8911d3537bfc15d",
+          "rank": 1,
+          "response_tokens": 102485,
+          "samples": 126,
+          "step": 2,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank1/step2-timing.json",
+            "sha256": "aa855875260f80af8bcc287510a2e3019f01bc9e28213a2ec76525404d1bfb6f"
+          },
+          "total_tokens": 112886,
+          "update_seconds_raw_audit_only": 46.747556146932766
+        },
+        {
+          "grad_norm": 0.18997058272361755,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank1/step3-packing.json",
+            "sha256": "eb4fdc908a18a814860ab1d9578f717c85319972ef1ea59d328f50c8f9ba3225"
+          },
+          "packing_fingerprint": "1b25af50feb0c3b275ad8bc3a2a67409d4402bd8956ea254d3dd2d190f0e1a6e",
+          "rank": 1,
+          "response_tokens": 97577,
+          "samples": 123,
+          "step": 3,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank1/step3-timing.json",
+            "sha256": "acbfd86048284caca01e681ef6a439354859f6a611f258fd37f1799ec21465b7"
+          },
+          "total_tokens": 107078,
+          "update_seconds_raw_audit_only": 44.9525497648865
+        },
+        {
+          "grad_norm": 0.1686907857656479,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank2/step0-packing.json",
+            "sha256": "0c6357477d511fd9b956d14fe590ad7a45010eab1a89e65d80d5edc5e4c2e94b"
+          },
+          "packing_fingerprint": "2a972ccc9e3ee91005c4b933718dc4a308ebf3371cc58756e4451ff624f3937f",
+          "rank": 2,
+          "response_tokens": 102055,
+          "samples": 122,
+          "step": 0,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank2/step0-timing.json",
+            "sha256": "8a973ea58f8db4c093612c97697b429568f2acee0ca8ed180219ba6c64db8c96"
+          },
+          "total_tokens": 112375,
+          "update_seconds_raw_audit_only": 81.19584151497111
+        },
+        {
+          "grad_norm": 0.1748650074005127,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank2/step1-packing.json",
+            "sha256": "d29f20701871a803b23d95efa71cfb76579d66c9b386c11d4f50140682e0f96c"
+          },
+          "packing_fingerprint": "698d2f9381d48f8ceb8adc845d38c063f47d537282a0f232938f2224938be2c2",
+          "rank": 2,
+          "response_tokens": 100956,
+          "samples": 124,
+          "step": 1,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank2/step1-timing.json",
+            "sha256": "66f694e9bbc8a482fe12fa9a31d74e592ce9319c45fdd0c85919624a35e97309"
+          },
+          "total_tokens": 111044,
+          "update_seconds_raw_audit_only": 47.430870787007734
+        },
+        {
+          "grad_norm": 0.18787145614624023,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank2/step2-packing.json",
+            "sha256": "ad609540722cde92c1855ae513f71ea9e13568af67b2db0fb9b80401274df9a2"
+          },
+          "packing_fingerprint": "ed1ab37e94607bf47035c94017364c2360568ccf908b622325b9116fbcbb95dd",
+          "rank": 2,
+          "response_tokens": 101572,
+          "samples": 128,
+          "step": 2,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank2/step2-timing.json",
+            "sha256": "249d3c200676df63367b85ed4e880695984266d3853af602c91ee0821d10ef85"
+          },
+          "total_tokens": 111946,
+          "update_seconds_raw_audit_only": 46.7476624189876
+        },
+        {
+          "grad_norm": 0.18997058272361755,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank2/step3-packing.json",
+            "sha256": "63ccbe4c2a7d4580320435f19ea0a847d5e2102e6bacd10279712647c71236cd"
+          },
+          "packing_fingerprint": "76afca315f6a74484a7329eb374b367638e85de4340d8053d5f94ccfa2f3c240",
+          "rank": 2,
+          "response_tokens": 96393,
+          "samples": 138,
+          "step": 3,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank2/step3-timing.json",
+            "sha256": "f6c69358737aff67c782bbb0551241784430fbfc9a46a4d5adaea8cdebdbde0d"
+          },
+          "total_tokens": 107076,
+          "update_seconds_raw_audit_only": 44.952537124976516
+        },
+        {
+          "grad_norm": 0.1686907857656479,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank3/step0-packing.json",
+            "sha256": "3f042225bf55ec39d044ddbc481b37ec0555cc76eeaa845455c763b19422ae7b"
+          },
+          "packing_fingerprint": "68d311b1496ce83d1c2fe3fd94f91c377354193a8a2c3c90f62d45ce5de14d6c",
+          "rank": 3,
+          "response_tokens": 101870,
+          "samples": 123,
+          "step": 0,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank3/step0-timing.json",
+            "sha256": "aa634ce80efe8140542a8b95e2f931f20775e61485c438e3013df699db9d7c77"
+          },
+          "total_tokens": 111947,
+          "update_seconds_raw_audit_only": 81.19584948313423
+        },
+        {
+          "grad_norm": 0.1748650074005127,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank3/step1-packing.json",
+            "sha256": "d4a2aca704b3970b49170fbc1025b3638acc5f6fa516adc45bf60087ea6f3606"
+          },
+          "packing_fingerprint": "3409cf3994d4441050d0c74ba0445b0ec6eff7ed9cc0463dc235125411fb8de1",
+          "rank": 3,
+          "response_tokens": 99660,
+          "samples": 136,
+          "step": 1,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank3/step1-timing.json",
+            "sha256": "5cc1a28087ef27b815e1901090fd35d3d6ac1161a22707725ab3999bec1f5e69"
+          },
+          "total_tokens": 110847,
+          "update_seconds_raw_audit_only": 47.43088310700841
+        },
+        {
+          "grad_norm": 0.18787145614624023,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank3/step2-packing.json",
+            "sha256": "ca8c1426ade9c1e835009e6a7da7f51c9f9e3b4a5501819150f4ab76056cf69f"
+          },
+          "packing_fingerprint": "3282d589cf9775da77ea45a89f622ccb72e26e9c1ba4764cf803bd4f7b0d671d",
+          "rank": 3,
+          "response_tokens": 101726,
+          "samples": 127,
+          "step": 2,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank3/step2-timing.json",
+            "sha256": "864cd495f1356be759628bc10b4231ad20ce0d339fcc770537bcbcaacd96127f"
+          },
+          "total_tokens": 111888,
+          "update_seconds_raw_audit_only": 46.747663538903
+        },
+        {
+          "grad_norm": 0.18997058272361755,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank3/step3-packing.json",
+            "sha256": "b4b2c6226968158d65e37f022cb2ae6eb41a671d96b96aab58f8e936f15207f5"
+          },
+          "packing_fingerprint": "c35525045b591c863ceb98b194dbe10eefaa322e65574d199c5e5222e72b70b6",
+          "rank": 3,
+          "response_tokens": 96206,
+          "samples": 125,
+          "step": 3,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank3/step3-timing.json",
+            "sha256": "c6f6e4eab210f248fe7c8e922cb2f4f4f81b2297937aab69daab326440dc261c"
+          },
+          "total_tokens": 106376,
+          "update_seconds_raw_audit_only": 44.95253805303946
+        }
+      ],
+      "batch_validation": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/batch-validation.json",
+        "sha256": "1e50c06bfb1e58658c6046a3c1b417f0184dd14cdc50a4a11618711a83a17f48"
+      },
+      "container_identity": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/container-identity.json",
+        "sha256": "f6569f55ee61bb0ce94b613fa636e8b9ca6d03a7b11a5d11cdbb4046627a4cf8"
+      },
+      "final_ray_jobs": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/final-ray-jobs.json",
+        "sha256": "f983f250dcb957a13ec2d9f12a3e7140547d67bc54818e31b11646146cf681d4"
+      },
+      "hook_sha256": "6438857854b3a1dd80ea1dc640b24aad1486ee5df5f2472780afc6f2c05ae9fc",
+      "native_schedule_sha256": "968b3c2ab8e80b5d30992bb572bae8aa7cbc6b2fba7137d851bb71ee51bf489f",
+      "retention": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/retention.json",
+        "sha256": "2784247b972a620feec15ca46f248a09e0485132425933ada579ef37eeca3cf3"
+      },
+      "reviewed_submission": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/reviewed-submission.json",
+        "sha256": "df2da496cdb9f30e927d928aacdb4ef66bf871f444c6b7e55ccc81e13765d0eb"
+      },
+      "runtime_environment": {
+        "CUDA_DEVICE_MAX_CONNECTIONS": "1",
+        "GLOO_SOCKET_IFNAME": "enP5p9s0",
+        "HF_HUB_OFFLINE": "1",
+        "MASTER_ADDR": "10.85.212.9",
+        "MILES_ACTOR_PROFILE_CONFIG": "{\"capture_seconds\": 180, \"capture_window\": \"single_forward_backward_microbatch\", \"deadline_epoch\": 1789580093.250599, \"export_seconds\": 120, \"hf_checkpoint\": \"/home/scratch.kaixih_ent/models/Qwen3-30B-A3B\", \"initial_model_id\": \"dee695031d37f74916da5811202778c7470ef9f3e5b88af792a1ec2e8acc4304\", \"max_rss_growth_bytes\": 8589934592, \"max_trace_bytes\": 536870912, \"microbatch_index\": 1, \"output_root\": \"/run-output/actor-profile\", \"ref_load\": \"/home/scratch.kaixih_ent/models/Qwen3-30B-A3B_torch_dist\", \"rollout_path\": \"/inputs/rollout-0.pt\", \"rollout_sha256\": \"3778824ffd2c4b2ad7d1cd5f54ccfd6614f7af99d93d46fe0e371296813fca1d\", \"run_id\": \"actor-profile-gb300-j2208879-v2\", \"schedule_source_sha256\": \"968b3c2ab8e80b5d30992bb572bae8aa7cbc6b2fba7137d851bb71ee51bf489f\", \"target\": [0, 1, 0], \"train_step_source_sha256\": \"a80fad89392d2e6abefe560d9082949f7eabe41eb4757d11bb31e7e8caa395ef\", \"world_size\": 4}",
+        "MILES_ACTOR_PROFILE_RUN_ID": "actor-profile-gb300-j2208879-v2",
+        "NCCL_CUMEM_ENABLE": "1",
+        "NCCL_DEBUG": "INFO",
+        "NCCL_NVLS_ENABLE": "0",
+        "NCCL_SOCKET_IFNAME": "enP5p9s0",
+        "PYTHONPATH": "/opt/actor-profile:/opt/miles:/root/Megatron-LM",
+        "PYTHONUNBUFFERED": "1",
+        "RUBIN_RUN_ID": "actor-profile-gb300-j2208879-v2",
+        "SGLANG_ENABLE_SPEC_V2": "0",
+        "TRANSFORMERS_OFFLINE": "1",
+        "no_proxy": "127.0.0.1,10.85.212.9"
+      },
+      "torch": "2.13.0+cu130",
+      "train_step_sha256": "a80fad89392d2e6abefe560d9082949f7eabe41eb4757d11bb31e7e8caa395ef"
+    },
+    "rubin": {
+      "actual_image": "gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin@sha256:a03106bdd90c5d6067fbff246fff25df979f9da8486eb0dac795a315a2346d6c",
+      "actual_image_id": "sha256:3054a5be3f8233acac5e91c700803b3aeb1bd4ed6d1d792f2981091727b1efaf",
+      "all_updates": [
+        {
+          "grad_norm": 0.16891147196292877,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank0/step0-packing.json",
+            "sha256": "1f5caa72f3200f4981c8043c12f6a50beb83b8f2fae97c6b35ff8561c4384120"
+          },
+          "packing_fingerprint": "0e3358d3f146944b21bc0a89124bc667289c354cb36a4449284c03f545714f71",
+          "rank": 0,
+          "response_tokens": 103011,
+          "samples": 136,
+          "step": 0,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank0/step0-timing.json",
+            "sha256": "255fedab21cdabdfdda32c81c73ac8430a8ffe6cee25fd0f8674604730ad8e45"
+          },
+          "total_tokens": 113743,
+          "update_seconds_raw_audit_only": 51.984423191985115
+        },
+        {
+          "grad_norm": 0.1857227087020874,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank0/step1-packing.json",
+            "sha256": "c2866825e0e9a3b08f8cf65ad7d9959307f929bc6f1739c7e9df4efd58af4db8"
+          },
+          "packing_fingerprint": "b93f369c8db0f889c4fd957c3883607453aeccc4fdf19cd0bf147eafab3ee7a5",
+          "rank": 0,
+          "response_tokens": 100352,
+          "samples": 130,
+          "step": 1,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank0/step1-timing.json",
+            "sha256": "ab22ba40e8ff823d85a58fe78caf1c08e3aa569b6115f892e0b81cf76a141840"
+          },
+          "total_tokens": 111238,
+          "update_seconds_raw_audit_only": 21.521099098958075
+        },
+        {
+          "grad_norm": 0.193868026137352,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank0/step2-packing.json",
+            "sha256": "006890e0054a3841e17c57a3b50efc774ad898a97419b8be7ac7697928bb5df0"
+          },
+          "packing_fingerprint": "e0cc4f88d7a62b3798754f71fc9fc6e04b3474b2f6bddee8868f735be1ffd7d2",
+          "rank": 0,
+          "response_tokens": 102530,
+          "samples": 131,
+          "step": 2,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank0/step2-timing.json",
+            "sha256": "7191b33ece3cb21104811ed81864848a546e9edd288817778a9ccf71212e68ce"
+          },
+          "total_tokens": 113473,
+          "update_seconds_raw_audit_only": 20.504360986000393
+        },
+        {
+          "grad_norm": 0.19261310994625092,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank0/step3-packing.json",
+            "sha256": "a0cf4df5f0336100b517934a49126ce518b86dca4b07a6f8650c696f59f74b7d"
+          },
+          "packing_fingerprint": "b6b284f6d56f9eb0528bcb1ed5cb250b9944ab59c302e5c9aa15a436343230ab",
+          "rank": 0,
+          "response_tokens": 98529,
+          "samples": 126,
+          "step": 3,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank0/step3-timing.json",
+            "sha256": "569061bcc0cba26972dd3e68c52e5c5d6148bebcfe3bd9e3eefa5e0869adbb51"
+          },
+          "total_tokens": 108591,
+          "update_seconds_raw_audit_only": 19.840932917024475
+        },
+        {
+          "grad_norm": 0.16891147196292877,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank1/step0-packing.json",
+            "sha256": "5da2147f88437a30f6e9b3fccdde85786e0565d190cf58d00a0e8425cbd5df2a"
+          },
+          "packing_fingerprint": "690d0c9d00cf66ea004964b28712e8a2d76aab3b7c009830a8407c350f00486d",
+          "rank": 1,
+          "response_tokens": 102843,
+          "samples": 131,
+          "step": 0,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank1/step0-timing.json",
+            "sha256": "26d0a19c9dbd143d90683397a0b66682a2d76df64570a8ca52348b36c570847e"
+          },
+          "total_tokens": 113690,
+          "update_seconds_raw_audit_only": 51.9844302010024
+        },
+        {
+          "grad_norm": 0.1857227087020874,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank1/step1-packing.json",
+            "sha256": "b3e61394e88087905f0fda93af2f9a88569243d19bdb352eab49520f1ffb3707"
+          },
+          "packing_fingerprint": "7e6e68075aa3cadd17a8e1883e444156177c6f08b17f589ff80c171395cb4fb2",
+          "rank": 1,
+          "response_tokens": 101005,
+          "samples": 122,
+          "step": 1,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank1/step1-timing.json",
+            "sha256": "991f077d6141af015ad1096a91770433fbd759b9db280b8e716615f533ec77f3"
+          },
+          "total_tokens": 111084,
+          "update_seconds_raw_audit_only": 21.521095599979162
+        },
+        {
+          "grad_norm": 0.193868026137352,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank1/step2-packing.json",
+            "sha256": "0391ae694036e023b7266c26c7daae95bbf7fe66c122161cff402d6274f36d6f"
+          },
+          "packing_fingerprint": "6e7c1c536e51fdf7beed818794c6d8962c86d1dbb25126faa8911d3537bfc15d",
+          "rank": 1,
+          "response_tokens": 102485,
+          "samples": 126,
+          "step": 2,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank1/step2-timing.json",
+            "sha256": "61862f6ddf59d25a0462790c8fdc889e5b026f44c5dae00301171a10deef790a"
+          },
+          "total_tokens": 112886,
+          "update_seconds_raw_audit_only": 20.504350643022917
+        },
+        {
+          "grad_norm": 0.19261310994625092,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank1/step3-packing.json",
+            "sha256": "eb4fdc908a18a814860ab1d9578f717c85319972ef1ea59d328f50c8f9ba3225"
+          },
+          "packing_fingerprint": "1b25af50feb0c3b275ad8bc3a2a67409d4402bd8956ea254d3dd2d190f0e1a6e",
+          "rank": 1,
+          "response_tokens": 97577,
+          "samples": 123,
+          "step": 3,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank1/step3-timing.json",
+            "sha256": "9b242dcae64580f3dba6b555cc86e0aaefc153bcf89f46e57060064288e35bd6"
+          },
+          "total_tokens": 107078,
+          "update_seconds_raw_audit_only": 19.84092700999463
+        },
+        {
+          "grad_norm": 0.16891147196292877,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank2/step0-packing.json",
+            "sha256": "0c6357477d511fd9b956d14fe590ad7a45010eab1a89e65d80d5edc5e4c2e94b"
+          },
+          "packing_fingerprint": "2a972ccc9e3ee91005c4b933718dc4a308ebf3371cc58756e4451ff624f3937f",
+          "rank": 2,
+          "response_tokens": 102055,
+          "samples": 122,
+          "step": 0,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank2/step0-timing.json",
+            "sha256": "08c1109e1b5fc59c34d47bfa0d03a2bfaa1ac159d0178bba3f654e1dc42e47df"
+          },
+          "total_tokens": 112375,
+          "update_seconds_raw_audit_only": 51.984500357997604
+        },
+        {
+          "grad_norm": 0.1857227087020874,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank2/step1-packing.json",
+            "sha256": "d29f20701871a803b23d95efa71cfb76579d66c9b386c11d4f50140682e0f96c"
+          },
+          "packing_fingerprint": "698d2f9381d48f8ceb8adc845d38c063f47d537282a0f232938f2224938be2c2",
+          "rank": 2,
+          "response_tokens": 100956,
+          "samples": 124,
+          "step": 1,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank2/step1-timing.json",
+            "sha256": "2332218bff8ad2a0e9b4839323a7a1b0c872672ee6aa84d4951ca868a32f8ee8"
+          },
+          "total_tokens": 111044,
+          "update_seconds_raw_audit_only": 21.521154073008802
+        },
+        {
+          "grad_norm": 0.193868026137352,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank2/step2-packing.json",
+            "sha256": "ad609540722cde92c1855ae513f71ea9e13568af67b2db0fb9b80401274df9a2"
+          },
+          "packing_fingerprint": "ed1ab37e94607bf47035c94017364c2360568ccf908b622325b9116fbcbb95dd",
+          "rank": 2,
+          "response_tokens": 101572,
+          "samples": 128,
+          "step": 2,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank2/step2-timing.json",
+            "sha256": "b3f54f58c96c06b9a3764922565084c4fb4218e8057972cb23a0ba5de1b17f74"
+          },
+          "total_tokens": 111946,
+          "update_seconds_raw_audit_only": 20.504449644999113
+        },
+        {
+          "grad_norm": 0.19261310994625092,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank2/step3-packing.json",
+            "sha256": "63ccbe4c2a7d4580320435f19ea0a847d5e2102e6bacd10279712647c71236cd"
+          },
+          "packing_fingerprint": "76afca315f6a74484a7329eb374b367638e85de4340d8053d5f94ccfa2f3c240",
+          "rank": 2,
+          "response_tokens": 96393,
+          "samples": 138,
+          "step": 3,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank2/step3-timing.json",
+            "sha256": "ddd1e029457635df1f11f46214e72731f3856e66530fd5f2668caa1dcd8b760a"
+          },
+          "total_tokens": 107076,
+          "update_seconds_raw_audit_only": 19.841035093995742
+        },
+        {
+          "grad_norm": 0.16891147196292877,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank3/step0-packing.json",
+            "sha256": "3f042225bf55ec39d044ddbc481b37ec0555cc76eeaa845455c763b19422ae7b"
+          },
+          "packing_fingerprint": "68d311b1496ce83d1c2fe3fd94f91c377354193a8a2c3c90f62d45ce5de14d6c",
+          "rank": 3,
+          "response_tokens": 101870,
+          "samples": 123,
+          "step": 0,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank3/step0-timing.json",
+            "sha256": "8a082c526f4f9d6c099d4fceb94fcdbe26312d5e8ea3f83d1b0070868be64239"
+          },
+          "total_tokens": 111947,
+          "update_seconds_raw_audit_only": 51.98449379397789
+        },
+        {
+          "grad_norm": 0.1857227087020874,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank3/step1-packing.json",
+            "sha256": "d4a2aca704b3970b49170fbc1025b3638acc5f6fa516adc45bf60087ea6f3606"
+          },
+          "packing_fingerprint": "3409cf3994d4441050d0c74ba0445b0ec6eff7ed9cc0463dc235125411fb8de1",
+          "rank": 3,
+          "response_tokens": 99660,
+          "samples": 136,
+          "step": 1,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank3/step1-timing.json",
+            "sha256": "f05710e75ddf7b4da145aac07ca5d4a15998290ff531284fc75417b901d69698"
+          },
+          "total_tokens": 110847,
+          "update_seconds_raw_audit_only": 21.521156054048333
+        },
+        {
+          "grad_norm": 0.193868026137352,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank3/step2-packing.json",
+            "sha256": "ca8c1426ade9c1e835009e6a7da7f51c9f9e3b4a5501819150f4ab76056cf69f"
+          },
+          "packing_fingerprint": "3282d589cf9775da77ea45a89f622ccb72e26e9c1ba4764cf803bd4f7b0d671d",
+          "rank": 3,
+          "response_tokens": 101726,
+          "samples": 127,
+          "step": 2,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank3/step2-timing.json",
+            "sha256": "2a98ca812a1239ab3d0be87b4d5206e0b38facadaec4864184d7182191b4b81e"
+          },
+          "total_tokens": 111888,
+          "update_seconds_raw_audit_only": 20.504454921989236
+        },
+        {
+          "grad_norm": 0.19261310994625092,
+          "packing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank3/step3-packing.json",
+            "sha256": "b4b2c6226968158d65e37f022cb2ae6eb41a671d96b96aab58f8e936f15207f5"
+          },
+          "packing_fingerprint": "c35525045b591c863ceb98b194dbe10eefaa322e65574d199c5e5222e72b70b6",
+          "rank": 3,
+          "response_tokens": 96206,
+          "samples": 125,
+          "step": 3,
+          "timing": {
+            "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank3/step3-timing.json",
+            "sha256": "d1aa60656b28eb47fce7aec9ed381ab15f909c72fb70677573ef0e02149e57a0"
+          },
+          "total_tokens": 106376,
+          "update_seconds_raw_audit_only": 19.84102295502089
+        }
+      ],
+      "batch_validation": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/batch-validation.json",
+        "sha256": "1e50c06bfb1e58658c6046a3c1b417f0184dd14cdc50a4a11618711a83a17f48"
+      },
+      "container_identity": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/container-identity.json",
+        "sha256": "e890eacda011be6d07c4e28ed75d6ac6965c559ca0ffc5bc583c842282ccc710"
+      },
+      "final_ray_jobs": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/final-ray-jobs.json",
+        "sha256": "ac0c9c04553b4820a7186049b9ebc0dfd260e33b0736ec109676323279e04a02"
+      },
+      "hook_sha256": "6438857854b3a1dd80ea1dc640b24aad1486ee5df5f2472780afc6f2c05ae9fc",
+      "native_schedule_sha256": "968b3c2ab8e80b5d30992bb572bae8aa7cbc6b2fba7137d851bb71ee51bf489f",
+      "retention": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/retention.json",
+        "sha256": "231403af0ea111c9d1282daafa20cc09a5105565c49ef73db92fe2cfedb0c325"
+      },
+      "reviewed_submission": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/reviewed-submission.json",
+        "sha256": "649f6da20ef4342678ec29b7c8c8da1b6c8850df787fc2624a3465879cef28cf"
+      },
+      "runtime_environment": {
+        "CUDA_DEVICE_MAX_CONNECTIONS": "1",
+        "GLOO_SOCKET_IFNAME": "mp0",
+        "HF_HUB_OFFLINE": "1",
+        "MASTER_ADDR": "10.102.74.69",
+        "MILES_ACTOR_PROFILE_CONFIG": "{\"capture_seconds\": 180, \"capture_window\": \"single_forward_backward_microbatch\", \"deadline_epoch\": 1789585602.097439, \"export_seconds\": 120, \"hf_checkpoint\": \"/home/scratch.kaixih_ent/models/Qwen3-30B-A3B\", \"initial_model_id\": \"dee695031d37f74916da5811202778c7470ef9f3e5b88af792a1ec2e8acc4304\", \"max_rss_growth_bytes\": 8589934592, \"max_trace_bytes\": 536870912, \"microbatch_index\": 1, \"output_root\": \"/run-output/actor-profile\", \"ref_load\": \"/home/scratch.kaixih_ent/models/Qwen3-30B-A3B_torch_dist\", \"rollout_path\": \"/inputs/rollout-0.pt\", \"rollout_sha256\": \"3778824ffd2c4b2ad7d1cd5f54ccfd6614f7af99d93d46fe0e371296813fca1d\", \"run_id\": \"actor-profile-rubin-j2208878-v1\", \"schedule_source_sha256\": \"968b3c2ab8e80b5d30992bb572bae8aa7cbc6b2fba7137d851bb71ee51bf489f\", \"target\": [0, 1, 0], \"train_step_source_sha256\": \"a80fad89392d2e6abefe560d9082949f7eabe41eb4757d11bb31e7e8caa395ef\", \"world_size\": 4}",
+        "MILES_ACTOR_PROFILE_RUN_ID": "actor-profile-rubin-j2208878-v1",
+        "NCCL_CUMEM_ENABLE": "1",
+        "NCCL_DEBUG": "INFO",
+        "NCCL_NVLS_ENABLE": "0",
+        "NCCL_SOCKET_IFNAME": "mp0",
+        "PYTHONPATH": "/opt/actor-profile:/opt/miles:/opt/Megatron-LM",
+        "PYTHONUNBUFFERED": "1",
+        "RUBIN_RUN_ID": "actor-profile-rubin-j2208878-v1",
+        "SGLANG_ENABLE_SPEC_V2": "0",
+        "TRANSFORMERS_OFFLINE": "1",
+        "no_proxy": "localhost,127.0.0.1,10.102.74.69"
+      },
+      "torch": "2.15.0.dev20260818+cu134",
+      "train_step_sha256": "a80fad89392d2e6abefe560d9082949f7eabe41eb4757d11bb31e7e8caa395ef"
+    }
+  },
+  "at": "2026-09-16T18:39:00.219633+00:00",
+  "base_actor_sha256": "b7cc3bdcc704be5c986aab27e798f8f9b2bd4ae19ee4107020736aa4be406e7a",
+  "batch": {
+    "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rollout-0.pt",
+    "sha256": "3778824ffd2c4b2ad7d1cd5f54ccfd6614f7af99d93d46fe0e371296813fca1d"
+  },
+  "checks": {
+    "capture_run_identity_verified": true,
+    "post_warmup_bitwise_state_not_claimed": true,
+    "retained_artifacts_verified": true,
+    "same_four_rank_packing": true,
+    "same_frozen_batch": true,
+    "same_initial_construction": true,
+    "same_selected_tokens_and_order": true,
+    "same_training_recipe": true,
+    "software_differences_disclosed": true
+  },
+  "common": {
+    "batch_sha256": "3778824ffd2c4b2ad7d1cd5f54ccfd6614f7af99d93d46fe0e371296813fca1d",
+    "initial_state_id": "dee695031d37f74916da5811202778c7470ef9f3e5b88af792a1ec2e8acc4304",
+    "selected_microbatch_sha256": "dbe70215116080930d3499ce33345d16359e3b032baa8adbea17bc0b2743c5de",
+    "training_recipe_sha256": "a1ac499b4ba4e6940b105cc676f02d47afd08de19ce057b21cb08d0ea1c32c1b"
+  },
+  "environment_identity_exclusions": [
+    "GLOO_SOCKET_IFNAME",
+    "MASTER_ADDR",
+    "MILES_ACTOR_PROFILE_CONFIG",
+    "MILES_ACTOR_PROFILE_RUN_ID",
+    "NCCL_SOCKET_IFNAME",
+    "NO_PROXY",
+    "PYTHONPATH",
+    "RUBIN_RUN_ID",
+    "no_proxy"
+  ],
+  "experiment_id": "qwen3-cudagraph-nightly-v1",
+  "experiment_sha256": "4a4c4853a752378b8fc058e1b53c242f92c9a777ecdf94915c8e4292f3f68de9",
+  "helper_sha256": "43c7ac2c14edcf157bc5094afa686b2a68a1378112ff263ac9f906870fecda2e",
+  "initial_construction": {
+    "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/initial-construction.json",
+    "sha256": "16d5cde90cde02fc5c010388da5ff355812a7696f0e956064a52a7c0bd16257b"
+  },
+  "limitations": [
+    "One rank0 F/B microbatch only; optimizer/final gradient synchronization outside capture.",
+    "Initial identity covers inventories/metadata and fresh optimizer construction, not every tensor byte.",
+    "Same initialization and input do not prove bitwise post-warmup state equivalence.",
+    "Stack differences and profiler overhead preclude a hardware-only causal conclusion.",
+    "Whole-update timings are retained as raw audit and are not the presentation scope."
+  ],
+  "reviewer": "rubin_smoke independent local pairing audit",
+  "runs": {
+    "gb300": {
+      "analysis": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-analysis.json",
+        "sha256": "02111cbac712eff07ef803c556b083b924d763879ae842c2aa2b2ec91c77764c"
+      },
+      "capture_run_id": "actor-profile-gb300-j2208879-v2",
+      "image": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-timeline.png",
+        "sha256": "6c042849e2727137493f937fe54015ba758d9753c3bd4fcbaf1f1ad7d2ca5382"
+      },
+      "independent_qc": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/trace-qc-v2/independent-trace-qc.json",
+        "sha256": "10f79fc5fe130ebb29680b2a6273a4e8a3c793a26cb7b618a16e1eb7b931b44f"
+      },
+      "packing": {
+        "0": {
+          "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank0/step1-packing.json",
+          "sha256": "c2866825e0e9a3b08f8cf65ad7d9959307f929bc6f1739c7e9df4efd58af4db8"
+        },
+        "1": {
+          "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank1/step1-packing.json",
+          "sha256": "b3e61394e88087905f0fda93af2f9a88569243d19bdb352eab49520f1ffb3707"
+        },
+        "2": {
+          "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank2/step1-packing.json",
+          "sha256": "d29f20701871a803b23d95efa71cfb76579d66c9b386c11d4f50140682e0f96c"
+        },
+        "3": {
+          "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank3/step1-packing.json",
+          "sha256": "d4a2aca704b3970b49170fbc1025b3638acc5f6fa516adc45bf60087ea6f3606"
+        }
+      },
+      "plan": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2.plan.json",
+        "sha256": "9ab4d3f7d47e017b6ee59d94234cf458dff33666b689b66b20ef5388626ce2d2"
+      },
+      "receipt": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank0/receipt.json",
+        "sha256": "fa188687d3a64276a2786dcbeacf78845e05aa469a8de03cf21846fa1bf597f7"
+      },
+      "source_run_id": "20260916-gb300-j2203647-cg",
+      "trace": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/gb300/replay-v2/node-output/actor-profile/rank0/actor-update.json.gz",
+        "sha256": "db4fa4de886985e968e0311dd2cf828235359e0446bfddb5e910603d9138c7c7"
+      }
+    },
+    "rubin": {
+      "analysis": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-analysis.json",
+        "sha256": "348eb93d8556fdc2ed96c4f6d89dfe0720df454941adaf67b8ac73e921a5a710"
+      },
+      "capture_run_id": "actor-profile-rubin-j2208878-v1",
+      "image": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-timeline.png",
+        "sha256": "cdd00c5205e97b819f7737693f920af142428ce4cd820d7d086d631de9975677"
+      },
+      "independent_qc": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/trace-qc-v1/independent-trace-qc.json",
+        "sha256": "36ae995910858e5ee75c3ce4eda5b026756b4ffa08eff2bdf8688dbd36646f46"
+      },
+      "packing": {
+        "0": {
+          "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank0/step1-packing.json",
+          "sha256": "c2866825e0e9a3b08f8cf65ad7d9959307f929bc6f1739c7e9df4efd58af4db8"
+        },
+        "1": {
+          "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank1/step1-packing.json",
+          "sha256": "b3e61394e88087905f0fda93af2f9a88569243d19bdb352eab49520f1ffb3707"
+        },
+        "2": {
+          "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank2/step1-packing.json",
+          "sha256": "d29f20701871a803b23d95efa71cfb76579d66c9b386c11d4f50140682e0f96c"
+        },
+        "3": {
+          "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank3/step1-packing.json",
+          "sha256": "d4a2aca704b3970b49170fbc1025b3638acc5f6fa516adc45bf60087ea6f3606"
+        }
+      },
+      "plan": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1.plan.json",
+        "sha256": "3d7bc12282ad5ad8c8bcc4562b3a961162c57ef96d291cef3929f8eef32a9bbe"
+      },
+      "receipt": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank0/receipt.json",
+        "sha256": "66e113454c34a484886134c9fbabd6aedddb2f9f5a4f53e528939767f03f1099"
+      },
+      "source_run_id": "20260916-rubin-j2203648-cg",
+      "trace": {
+        "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank0/actor-update.json.gz",
+        "sha256": "c604e788d708f0a2d95d1e0d40d7b3a9ee0751cd247a23fd2b24704f1e3f677f"
+      }
+    }
+  },
+  "schema": "actor-microbatch-pairing-audit-v1",
+  "software_disclosure": "Rubin image a03106bdd90c uses Torch 2.15.0.dev20260818+cu134, Transformer Engine 2.19.0+5e52bef, FlashAttention 2.8.3.post1, Ray 2.58.0. GB300 upstream image 226f63d28e4b uses Torch 2.13.0+cu130 (CUDA13.0 build), Transformer Engine 2.17.0, FlashAttention 2.7.4.post1 and installed FA4 4.0.0b19. Both report Megatron commit73b54618f7e58e0f25f619bcfecbe2640765475a and identical reviewed native schedule SHA. SGLang distribution metadata is Rubin 0.0.0 versus GB300 0.5.20.dev58+gaea7fb9; Rubin0.0.0 is package metadata, not an upstream release version. Actor debug_train_only bypasses SGLang generation. Installed FlashAttention versions do not by themselves prove which kernel the training trace used. Software stacks differ; no hardware-only cause or bitwise post-warmup state equality is claimed.",
+  "status": "PASS",
+  "verification": "VERIFIED"
+}

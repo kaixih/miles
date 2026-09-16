@@ -47,11 +47,13 @@
   "runtime_note": "Keep the prior Rubin image and unmodified upstream GB300 image. Software versions differ; results describe the recorded systems.",
   "diagnostic_note": "Both platforms retained ON prefill and decode traces with actual decode replay. GB300 also completed a matched initial-policy OFF/ON generation diagnostic. Rubin OFF is unavailable after post-ON wrapper teardown failure; no Rubin OFF/ON speedup is claimed.",
   "actor_supplement": {
-    "status": "gb300_verified_rubin_pending",
-    "scope": "One rank0 forward/backward microbatch in a fresh frozen initial-policy replay; separate unprofiled full-update timings.",
+    "status": "both_captures_complete",
+    "scope": "One rank0 forward/backward microbatch per platform from a frozen initial-policy batch; whole-update timings remain in downloadable audits only.",
     "gb300_capture_run_id": "actor-profile-gb300-j2208879-v2",
     "rubin_allocation_job": 2208878,
     "main_stage_ratio_not_reinterpreted": true,
-    "presentation_scope": "Slide16 uses one microbatch throughout: total elapsed, forward/backward and GPU kernel coverage. Whole-update diagnostic timings remain in audits only."
+    "presentation_scope": "Slide16 uses one microbatch throughout: total elapsed, forward/backward and GPU kernel coverage. Whole-update diagnostic timings remain in audits only.",
+    "rubin_capture_run_id": "actor-profile-rubin-j2208878-v1",
+    "original_learning_runs_unchanged": true
   }
 }

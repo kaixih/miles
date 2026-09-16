@@ -1,0 +1,217 @@
+{
+  "schema": "actor-microbatch-independent-trace-qc-v1",
+  "status": "QC_PASS_WITH_SCOPE_LIMITATIONS",
+  "audit_completed_utc": "2026-09-16T18:34:54.872850+00:00",
+  "platform": "Rubin",
+  "method": {
+    "access": "Offline retained files only; no runtime/network actions.",
+    "checks": [
+      "Verified compressed/raw trace and receipt hashes before parsing.",
+      "Independently parsed event validity, single selected F/B window, thread IDs and interval unions.",
+      "Recomputed counts and times match the hash-bound source analysis; correlation attribution is reviewed source-analysis output."
+    ]
+  },
+  "sources": {
+    "durable_node_output": "/home/scratch.kaixih_ent/repro/miles-actor-update/20260916-rubin-j2208878/phases/replay-v1/node-output",
+    "local_node_output": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output",
+    "trace_relative_path": "actor-profile/rank0/actor-update.json.gz",
+    "trace_sha256": "c604e788d708f0a2d95d1e0d40d7b3a9ee0751cd247a23fd2b24704f1e3f677f",
+    "trace_bytes": 6688612,
+    "decoded_trace_sha256": "e2aa6548d402935e63a1e55f669d091dba5585055ef1fc56076ea28e4a7c24f7",
+    "decoded_trace_bytes": 72354582,
+    "source_analysis_relative_path": "actor-analysis.json",
+    "source_analysis_sha256": "348eb93d8556fdc2ed96c4f6d89dfe0720df454941adaf67b8ac73e921a5a710",
+    "capture_receipt_relative_path": "actor-profile/rank0/receipt.json",
+    "capture_receipt_sha256": "66e113454c34a484886134c9fbabd6aedddb2f9f5a4f53e528939767f03f1099",
+    "analyzer_sha256": "5c8e3157bff64e917b8c46706172d6808de4bf70b41c34abb2aa26f31b830715",
+    "qc_helper_sha256": "45a9a788ad73f951155f9ba9838f80283e76b5d2ad23b6383d18126b1917edd4"
+  },
+  "event_integrity": {
+    "raw_events": 263956,
+    "positive_finite_complete_events": 168880,
+    "excluded_complete_events": 0,
+    "excluded_all_zero_duration": true,
+    "excluded_categories": {},
+    "excluded_names": {},
+    "negative_duration_complete_events": 0,
+    "zero_duration_kernels": 0,
+    "positive_kernels_outside_selected_cpu_window": 0
+  },
+  "capture_scope": {
+    "cpu_annotation": "actor.selected_microbatch",
+    "capture_window": "single_forward_backward_microbatch",
+    "microbatch_index": 1,
+    "event_index": 71,
+    "start_timestamp_us": 6615512676663.736,
+    "duration_ms": 785.336087890625,
+    "cpu_pid": 4129,
+    "cpu_tid": 4129,
+    "device": "0",
+    "gpu_annotation_matches": 1,
+    "gpu_annotation_duration_ms": 0.002242,
+    "rank": 0,
+    "target": [
+      0,
+      1,
+      0
+    ],
+    "receipt_status": "COMPLETE",
+    "selected_cpu_range_count": 1,
+    "packing_fingerprint": "b93f369c8db0f889c4fd957c3883607453aeccc4fdf19cd0bf147eafab3ee7a5",
+    "selected_microbatch": {
+      "index": 1,
+      "local_indices": [
+        140,
+        141,
+        142,
+        143
+      ],
+      "response_tokens": 3644,
+      "samples": [
+        {
+          "global_sample_index": 512,
+          "length": 1147,
+          "local_index": 140,
+          "response_length": 1024,
+          "tokens_sha256": "4727827eb139d8672ca4a744a6785ba3edded68b2fb93726f95415b6eac5f628"
+        },
+        {
+          "global_sample_index": 513,
+          "length": 1147,
+          "local_index": 141,
+          "response_length": 1024,
+          "tokens_sha256": "b7cbb464d34c11bd216c52e5fc1f1ea3d43058cc1ac943349c6e17b76809fde1"
+        },
+        {
+          "global_sample_index": 514,
+          "length": 1147,
+          "local_index": 142,
+          "response_length": 1024,
+          "tokens_sha256": "4e8927734563030e57adc13903e1435f3d53dd2ab43d5e44375897b610012524"
+        },
+        {
+          "global_sample_index": 605,
+          "length": 655,
+          "local_index": 143,
+          "response_length": 572,
+          "tokens_sha256": "0922431022e2dce469a907183628c8f2af9e0a201843befa96375e351b09901d"
+        }
+      ],
+      "total_tokens": 4096
+    },
+    "optimizer": null,
+    "final_gradient_sync": null,
+    "pure_recompute": null
+  },
+  "cpu_elapsed_basis": {
+    "forward": {
+      "count": 1,
+      "thread": 4129,
+      "inclusive_ms": 243.5690830078125
+    },
+    "backward": {
+      "count": 1,
+      "thread": 4129,
+      "inclusive_ms": 540.3002529296875
+    },
+    "checkpoint_recompute_and_backward": {
+      "count": 48,
+      "thread_counts": {
+        "7365": 48
+      },
+      "inclusive_union_ms": 535.0256240234374
+    },
+    "rationale": "Use complete CPU schedule annotations for elapsed F/B, including dispatch and waits. Same-thread GPU attribution to the outer backward can omit autograd worker-thread launches; nested categories are non-additive."
+  },
+  "gpu_activity": {
+    "kernel_count": 19128,
+    "kernel_cumulative_ms": 478.5865068359375,
+    "kernel_union_ms": 431.9940146484375,
+    "kernel_overlap_ms": 46.5924921875,
+    "kernel_union_percent_of_profiled_window": 55.00753388383726,
+    "all_gpu_events_including_memcpy_memset": 19845,
+    "all_gpu_activity_union_ms": 433.45803515625,
+    "all_gpu_activity_uncovered_ms": 351.878052734375,
+    "kernel_duration_p50_us": 11.232,
+    "kernel_duration_p95_us": 50.081,
+    "kernel_duration_max_us": 2486.197,
+    "all_gpu_activity_gap_count": 12417,
+    "all_gpu_activity_gaps_at_least_1ms": 0,
+    "largest_all_gpu_activity_gap_ms": 0.8345029296875,
+    "coverage_interpretation": "Recorded activity interval coverage, not physical GPU utilization, occupancy or idle time."
+  },
+  "correlation_attribution": {
+    "linked_kernel_count": 16246,
+    "linked_kernel_count_fraction": 0.8493308239230447,
+    "linked_kernel_cumulative_fraction": 0.9246361778210311,
+    "ambiguous_kernel_count": 2882,
+    "ambiguous_kernel_cumulative_ms": 36.0681083984375,
+    "outer_backward_same_thread_kernel_count": 2,
+    "outer_backward_same_thread_gpu_union_ms": 0.00316796875,
+    "checkpoint_recompute_and_backward_gpu_union_ms": 289.6560576171875,
+    "limits": "Attribution totals are from the hash-bound source analysis, using unique External ID/runtime links plus same-thread CPU containment. They were reviewed, not independently recomputed here. The outer backward value is not total backward GPU cost; pure recompute remains inseparable without an explicit range."
+  },
+  "host_dispatch_observations": {
+    "cuda_runtime_driver_api_events": 71091,
+    "cuda_api_interval_union_ms": 115.223099609375,
+    "top_cuda_apis_by_cumulative_ms": [
+      {
+        "name": "cuLaunchKernelEx",
+        "events": 13539,
+        "cumulative_ms": 42.636095703125,
+        "union_ms": 42.636095703125,
+        "overlap_ms": 0.0,
+        "window_uncovered_ms": 742.6999921875
+      },
+      {
+        "name": "cudaLaunchKernel",
+        "events": 4053,
+        "cumulative_ms": 16.8934453125,
+        "union_ms": 16.8934453125,
+        "overlap_ms": 0.0,
+        "window_uncovered_ms": 768.442642578125
+      },
+      {
+        "name": "cudaEventSynchronize",
+        "events": 96,
+        "cumulative_ms": 9.1933916015625,
+        "union_ms": 9.1933916015625,
+        "overlap_ms": 0.0,
+        "window_uncovered_ms": 776.1426962890624
+      },
+      {
+        "name": "cudaEventQuery",
+        "events": 3416,
+        "cumulative_ms": 9.062130859375,
+        "union_ms": 9.058548828125,
+        "overlap_ms": 0.003582031249999673,
+        "window_uncovered_ms": 776.2775390625
+      },
+      {
+        "name": "cuLaunchKernel",
+        "events": 1392,
+        "cumulative_ms": 6.92562109375,
+        "union_ms": 6.92562109375,
+        "overlap_ms": 0.0,
+        "window_uncovered_ms": 778.410466796875
+      }
+    ],
+    "interpretation": "Short kernels and gaps can motivate dispatch/software/profiler-overhead hypotheses. Uncovered time cannot be assigned wholesale to host launch overhead, GPU idle, network wait or hardware differences."
+  },
+  "gpu_annotation_caveat": {
+    "matching_gpu_user_annotation_count": 1,
+    "gpu_annotation_durations_us": [
+      2.242
+    ],
+    "interpretation": "The complete CPU selected range defines this audit window. A GPU user annotation need not enclose the forward/backward sample."
+  },
+  "recomputed_analysis_matches": true,
+  "report_limits": [
+    "One rank0 microbatch, not a whole optimizer update.",
+    "Optimizer/final gradient synchronization excluded; pure recompute may be inseparable from backward.",
+    "CPU and GPU semantic categories overlap and are non-additive.",
+    "Profiler instrumentation and capture-boundary synchronization perturb this sample; compare separate unprofiled updates.",
+    "A single-platform trace does not establish a hardware cause or explain the earlier 1.77x system-level actor timing ratio."
+  ],
+  "blocking_analysis_bug_found": false
+}

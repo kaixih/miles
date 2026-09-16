@@ -1,0 +1,139 @@
+{
+  "schema": "actor-microbatch-compact-evidence-v1",
+  "status": "VERIFIED_WITH_SCOPE_LIMITATIONS",
+  "capture_run_id": "actor-profile-rubin-j2208878-v1",
+  "run_status": "SUCCEEDED",
+  "capture_scope": {
+    "rank": 0,
+    "update_id": 1,
+    "microbatch_index": 1,
+    "capture_window": "single_forward_backward_microbatch",
+    "selected_microbatch": {
+      "index": 1,
+      "local_indices": [
+        140,
+        141,
+        142,
+        143
+      ],
+      "response_tokens": 3644,
+      "samples": [
+        {
+          "global_sample_index": 512,
+          "length": 1147,
+          "local_index": 140,
+          "response_length": 1024,
+          "tokens_sha256": "4727827eb139d8672ca4a744a6785ba3edded68b2fb93726f95415b6eac5f628"
+        },
+        {
+          "global_sample_index": 513,
+          "length": 1147,
+          "local_index": 141,
+          "response_length": 1024,
+          "tokens_sha256": "b7cbb464d34c11bd216c52e5fc1f1ea3d43058cc1ac943349c6e17b76809fde1"
+        },
+        {
+          "global_sample_index": 514,
+          "length": 1147,
+          "local_index": 142,
+          "response_length": 1024,
+          "tokens_sha256": "4e8927734563030e57adc13903e1435f3d53dd2ab43d5e44375897b610012524"
+        },
+        {
+          "global_sample_index": 605,
+          "length": 655,
+          "local_index": 143,
+          "response_length": 572,
+          "tokens_sha256": "0922431022e2dce469a907183628c8f2af9e0a201843befa96375e351b09901d"
+        }
+      ],
+      "total_tokens": 4096
+    },
+    "optimizer": null,
+    "final_gradient_sync": null
+  },
+  "review": {
+    "independent_trace_qc": "QC_PASS_WITH_SCOPE_LIMITATIONS",
+    "cross_platform_pairing_audit": "PASS_VERIFIED",
+    "matched_workload_claimed": true,
+    "matching_scope": "Same frozen batch, initial construction, reviewed recipe, selected sample/token order and all four-rank packing; not bitwise post-warmup state equivalence."
+  },
+  "durable_phase": "/home/scratch.kaixih_ent/repro/miles-actor-update/20260916-rubin-j2208878/phases/replay-v1",
+  "container_id": "c1815b26c2a2be61bd9e5dbaf74d5a48d8c5621e60b3cd9edb67b8b6c34c44e3",
+  "retention_verified_at": "2026-09-16T18:32:01.813088+00:00",
+  "source_destination_verified": true,
+  "sources": {
+    "full_analysis": {
+      "local_path": "outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-analysis.json",
+      "bytes": 855839,
+      "sha256": "348eb93d8556fdc2ed96c4f6d89dfe0720df454941adaf67b8ac73e921a5a710"
+    },
+    "trace_gzip": {
+      "local_path": "outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank0/actor-update.json.gz",
+      "bytes": 6688612,
+      "sha256": "c604e788d708f0a2d95d1e0d40d7b3a9ee0751cd247a23fd2b24704f1e3f677f"
+    },
+    "capture_receipt": {
+      "local_path": "outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-profile/rank0/receipt.json",
+      "bytes": 2925,
+      "sha256": "66e113454c34a484886134c9fbabd6aedddb2f9f5a4f53e528939767f03f1099"
+    },
+    "timeline_image": {
+      "local_path": "outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/node-output/actor-timeline.png",
+      "bytes": 134378,
+      "sha256": "cdd00c5205e97b819f7737693f920af142428ce4cd820d7d086d631de9975677"
+    },
+    "retention": {
+      "local_path": "outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/retention.json",
+      "bytes": 6860,
+      "sha256": "231403af0ea111c9d1282daafa20cc09a5105565c49ef73db92fe2cfedb0c325"
+    },
+    "analysis_command": {
+      "local_path": "outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/analysis-command.json",
+      "bytes": 4089,
+      "sha256": "318c519288ca8b092f8897bd8bf09868e5baa2d3e4544c5489f9224b8a3cd4c7"
+    },
+    "phase_plan": {
+      "local_path": "outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/phase-plan.json",
+      "bytes": 3158,
+      "sha256": "dc7eb19d094c1bd3c713ce5fd3f7a6361d01806641d5f89c39e59bba42de316c"
+    },
+    "reviewed_submission": {
+      "local_path": "outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/reviewed-submission.json",
+      "bytes": 14339,
+      "sha256": "649f6da20ef4342678ec29b7c8c8da1b6c8850df787fc2624a3465879cef28cf"
+    },
+    "final_ray_jobs": {
+      "local_path": "outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/final-ray-jobs.json",
+      "bytes": 5222,
+      "sha256": "ac0c9c04553b4820a7186049b9ebc0dfd260e33b0736ec109676323279e04a02"
+    },
+    "stopped_container": {
+      "local_path": "outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/replay-v1/stopped.json",
+      "bytes": 133,
+      "sha256": "9e55ca0c8cffda05dded13f4a541c6a32c105fe026b49ba86a76c1df6b8ed3d8"
+    },
+    "independent_trace_qc": {
+      "local_path": "outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/trace-qc-v1/independent-trace-qc.json",
+      "bytes": 8689,
+      "sha256": "36ae995910858e5ee75c3ce4eda5b026756b4ffa08eff2bdf8688dbd36646f46"
+    },
+    "pairing_audit": {
+      "local_path": "outputs/rubin-gb300-qwen3-cudagraph/actor-update/rubin/pairing-review/pairing-audit.json",
+      "bytes": 47975,
+      "sha256": "2053e106d0112ff02d83cec28eb9684afad73d1c677a4dbc4b14db9194ca128a"
+    }
+  },
+  "raw_trace_retained_from_receipt": {
+    "bytes": 72354582,
+    "sha256": "e2aa6548d402935e63a1e55f669d091dba5585055ef1fc56076ea28e4a7c24f7"
+  },
+  "analysis_source_sha256": "5c8e3157bff64e917b8c46706172d6808de4bf70b41c34abb2aa26f31b830715",
+  "limitation": "One profiled rank-0 F/B microbatch per platform. Software differs; post-warmup state equality is unverified; no hardware-only inference.",
+  "common_pairing_identities": {
+    "batch_sha256": "3778824ffd2c4b2ad7d1cd5f54ccfd6614f7af99d93d46fe0e371296813fca1d",
+    "initial_state_id": "dee695031d37f74916da5811202778c7470ef9f3e5b88af792a1ec2e8acc4304",
+    "selected_microbatch_sha256": "dbe70215116080930d3499ce33345d16359e3b032baa8adbea17bc0b2743c5de",
+    "training_recipe_sha256": "a1ac499b4ba4e6940b105cc676f02d47afd08de19ce057b21cb08d0ea1c32c1b"
+  }
+}
