@@ -7,6 +7,11 @@ disabled. The previous eager experiment and its HTML slides remain separate.
 Slide 11's OFF/ON control refers specifically to rollout decode CUDA Graph.
 Rubin's ON replay is verified, but its wrapper failed during post-ON cleanup
 before collecting OFF. This does not indicate a failure of the main run.
+The completed Rubin ON batch measurements are 0.943233520, 0.941131807,
+and 1.160340159 seconds, mean **1.014901829 seconds (1.015 s displayed)**.
+They were recorded before profiling, with 128 successful requests and 64 output
+tokens per request in each batch. ON is displayed independently; the missing
+OFF baseline still prevents a Rubin OFF/ON speedup calculation.
 The two retained actor microbatch traces contain no graph launch or setup
 events; see [the trace scan](actor-evidence/actor-graph-mode.json), bound to their
 SHA256 values. The actor gap therefore needs a separate host/software explanation.

@@ -74,10 +74,17 @@ slide("Stage timing on the same rollout IDs","09 / Paired system measurements",`
 function diagnosticRow(label){
   const pair=(diagnostics.pairs||[]).find(item=>item.platform===label);
   const verified=pair?.verified===true;
-  const state=verified?"available":pair?.status==="unavailable"?"unavailable":"pending";
+  const measured=mode=>pair?.[mode]?.timing_verified===true&&finite(pair[mode].generation_seconds_mean);
+  const partial=!verified&&(measured("off")||measured("on"));
+  const state=verified?"available":partial?"partial":pair?.status==="unavailable"?"unavailable":"pending";
   const reason=pair?.status_reason||(verified?"Verified matched OFF/ON pair.":"Awaiting complete matched OFF/ON evidence.");
   const replay=pair?.actual_trace_condition_proof?.on_decode_replay_observed===true;
-  return `<tr data-diagnostic-platform="${e(label)}" data-diagnostic-status="${state}" data-diagnostic-verified="${verified}"><td>${e(name(label))}</td>${verified?`<td data-mode="off">${number(pair.off?.generation_seconds_mean,3)} s</td><td data-mode="on">${number(pair.on?.generation_seconds_mean,3)} s</td><td><strong>Matched comparison</strong></td>`:`<td colspan="3"><strong>${replay?"ON replay verified; OFF comparison unavailable.":state==="unavailable"?"Comparison unavailable.":"Comparison pending."}</strong><br><span class="small">${e(replay&&state==="unavailable"?"The wrapper failed during cleanup after ON; OFF never started.":reason)}</span></td>`}</tr>`;
+  const cells=["off","on"].map(mode=>`<td data-mode="${mode}">${measured(mode)?`${number(pair[mode].generation_seconds_mean,3)} s`:pair?.status==="unavailable"?"Not collected":"Pending"}</td>`).join("");
+  const receipt=pair?.on?.verified_receipts?.[0];
+  const modes=["off","on"].filter(measured).map(mode=>mode.toUpperCase()).join(" / ");
+  const status=verified?"Matched comparison":partial?`${modes} measured${measured("on")&&replay?"; replay verified":""}`:state==="unavailable"?"Comparison unavailable":"Comparison pending";
+  const detail=partial&&measured("on")&&!pair?.off&&pair?.status==="unavailable"?"OFF was not collected after a cleanup-script error.":verified?"":reason;
+  return `<tr data-diagnostic-platform="${e(label)}" data-diagnostic-status="${state}" data-diagnostic-verified="${verified}"><td>${e(name(label))}</td>${cells}<td><strong>${e(status)}</strong>${detail?`<br><span class="small">${e(detail)}</span>`:""}${receipt?` <a class="small" href="${e(receipt.url)}" download>Measurements</a>`:""}</td></tr>`;
 }
 slide("Rollout decode: CUDA Graph OFF vs ON","10 / Attribution",`
   <p class="subtitle">Both main runs already use decode CUDA Graph. This separate control measures its effect on generation.</p>

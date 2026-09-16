@@ -16,7 +16,7 @@ function render(pairs){
   return slides[10];
 }
 const unavailable={platform:'rubin',verified:false,status:'unavailable',status_reason:'ON capture retained; OFF did not run; see receipt.',on:{generation_seconds_mean:123.456}};
-const verified={platform:'gb300',verified:true,status:'available',off:{generation_seconds_mean:8},on:{generation_seconds_mean:4}};
+const verified={platform:'gb300',verified:true,status:'available',off:{timing_verified:true,generation_seconds_mean:8},on:{timing_verified:true,generation_seconds_mean:4}};
 const mixed=render([unavailable,verified]);
 assert.match(mixed,/data-diagnostic-platform="rubin" data-diagnostic-status="unavailable"/);
 assert.match(mixed,/ON capture retained; OFF did not run; see receipt/);
@@ -25,4 +25,8 @@ assert.match(mixed,/>8 s</);assert.match(mixed,/>4 s</);assert.ok(!mixed.include
 assert.match(mixed,/prefill \+ decode/);assert.ok(!/mean decode/i.test(mixed));
 for(const label of experiment.requested.platforms)assert.match(render([]),new RegExp(`data-diagnostic-platform="${label}" data-diagnostic-status="pending"`));
 assert.match(render([{...unavailable,status_reason:'<unsafe>'}]),/&lt;unsafe&gt;/);
-console.log('PASS: both platform rows, unavailable vs pending, no unpaired timing, HTTP scope, escaping.');
+const onOnly=render([{...unavailable,actual_trace_condition_proof:{on_decode_replay_observed:true},off:null,on:{timing_verified:true,generation_seconds_mean:1.015}},verified]);
+assert.match(onOnly,/data-diagnostic-platform="rubin" data-diagnostic-status="partial" data-diagnostic-verified="false"/);
+assert.match(onOnly,/<td data-mode="off">Not collected<\/td><td data-mode="on">1.015 s<\/td>/);
+assert.match(onOnly,/ON measured; replay verified/);
+console.log('PASS: independently measured ON shown without inventing OFF or a matched pair; unverified timing hidden; HTTP scope and escaping.');

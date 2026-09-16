@@ -139,6 +139,22 @@ class EvidenceGuards(unittest.TestCase):
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 G.build_report(experiment=self.write("experiment.json",self.experiment), diagnostics=self.write("diagnostics.json",diagnostic), output=self.root/"site")
 
+    def test_measured_on_survives_missing_off_without_verifying_pair(self):
+        diagnostic=self.diagnostic_fixture()
+        pair=diagnostic["pairs"][0]
+        pair.update(verified=False,off=None,status="unavailable")
+        pair["on"].update(verified=True,evidence_refs=pair["evidence_refs"],generation_seconds_mean=999)
+        G.build_report(experiment=self.write("experiment.json",self.experiment), diagnostics=self.write("diagnostics.json",diagnostic), output=self.root/"site")
+        saved=json.loads((self.root/"site/report-data.json").read_text())["inputs"]["diagnostics"]["pairs"][0]
+        self.assertFalse(saved["verified"])
+        self.assertIsNone(saved["off"])
+        self.assertTrue(saved["on"]["timing_verified"])
+        self.assertEqual(saved["on"]["generation_seconds_mean"],5.5)
+        self.assertEqual(len(saved["on"]["verified_receipts"]),1)
+        pair["on"].pop("evidence_refs")
+        with self.assertRaisesRegex(ValueError,"Standalone diagnostic timing needs evidence"):
+            G.build_report(experiment=self.write("experiment.json",self.experiment), diagnostics=self.write("diagnostics.json",diagnostic), output=self.root/"site")
+
     def test_original_report_output_is_protected(self):
         with self.assertRaisesRegex(ValueError, "preserved original"):
             G.build_report(output=ROOT.parent / "rubin-gb300-qwen3/site")

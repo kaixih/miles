@@ -321,17 +321,27 @@ def validate_inputs(inputs, provenance):
     for pair in diagnostics.get("pairs", []):
         if (pair.get("platform"), pair.get("source_run_id")) not in identities:
             raise ValueError("Diagnostic pair must bind to a new platform run")
-        if pair.get("verified") is not True:
-            continue
-        off, on = pair.get("off", {}), pair.get("on", {})
-        for field in ["image_digest", "initial_model_id", "request_sha256", "context_sha256", "cache_policy", "prefill_graph"]:
-            if field not in off or off.get(field) != on.get(field):
-                raise ValueError(f"Verified OFF/ON diagnostic mismatch: {field}")
-        if off.get("decode_graph") is not False or on.get("decode_graph") is not True:
-            raise ValueError("Diagnostic graph modes must be explicitly OFF and ON")
-        if not pair.get("evidence_refs"):
-            raise ValueError("Verified diagnostic pair needs evidence references")
-        for condition in [off, on]:
+        paired_verified = pair.get("verified") is True
+        if paired_verified:
+            off, on = pair.get("off") or {}, pair.get("on") or {}
+            for field in ["image_digest", "initial_model_id", "request_sha256", "context_sha256", "cache_policy", "prefill_graph"]:
+                if field not in off or off.get(field) != on.get(field):
+                    raise ValueError(f"Verified OFF/ON diagnostic mismatch: {field}")
+            if off.get("decode_graph") is not False or on.get("decode_graph") is not True:
+                raise ValueError("Diagnostic graph modes must be explicitly OFF and ON")
+            if not pair.get("evidence_refs"):
+                raise ValueError("Verified diagnostic pair needs evidence references")
+        for mode in ["off", "on"]:
+            condition = pair.get(mode)
+            if not condition:
+                continue
+            condition["timing_verified"] = False
+            if not paired_verified and condition.get("verified") is not True:
+                continue
+            if not paired_verified and not condition.get("evidence_refs"):
+                raise ValueError("Standalone diagnostic timing needs evidence references")
+            if condition.get("decode_graph") is not (mode == "on"):
+                raise ValueError("Diagnostic timing must bind to the stated graph mode")
             if condition.get("timing_scope") != "http_request_prefill_decode_queue_response":
                 raise ValueError("Verified diagnostic requires explicit full HTTP prefill+decode timing_scope")
             if "decode_ms" in condition:
@@ -342,6 +352,7 @@ def validate_inputs(inputs, provenance):
             condition["generation_seconds_mean"] = statistics.mean(values)
             condition["generation_seconds_median"] = statistics.median(values)
             condition["sample_count"] = len(values)
+            condition["timing_verified"] = True
 
 
 def verify_refs(records, source, output):
@@ -386,6 +397,8 @@ def build_report(experiment=None, runs=None, profiles=None, diagnostics=None, ru
     output.mkdir(parents=True, exist_ok=True)
     verify_refs((inputs["profiles"] or {}).get("graph_evidence", []), profiles, output)
     verify_refs((inputs["diagnostics"] or {}).get("pairs", []), diagnostics, output)
+    for pair in (inputs["diagnostics"] or {}).get("pairs", []):
+        verify_refs([pair[mode] for mode in ["off", "on"] if pair.get(mode)], diagnostics, output)
     copy_profile_assets(inputs["profiles"], profiles, output)
     copy_actor_assets(inputs.get("actor_profile"), actor_profile, output)
     for item in (inputs["profiles"] or {}).get("profiles", []):

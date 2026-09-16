@@ -1,0 +1,185 @@
+{
+  "schema": "rubin-on-timing-audit-v1",
+  "audited_at_utc": "2026-09-16T20:02:42.283704+00:00",
+  "capture_run_id": "rubin-j2203648-graph-v3",
+  "verdict": "ON_TIMING_VERIFIED_OFF_PAIR_INCOMPLETE",
+  "on_timing_verified": true,
+  "paired_comparison_verified": false,
+  "generation_seconds": [
+    0.9432335199962836,
+    0.9411318069905974,
+    1.160340158996405
+  ],
+  "generation_seconds_mean": 1.0149018286610954,
+  "repeats": 3,
+  "measurement_scope": "Unprofiled HTTP wall time for an entire batch of 128 requests, including prefill + decode, queueing and response delivery; one TP1 engine; cold radix cache before each batch. Excludes model load, graph construction, warmup, cache flush and subsequent profiler capture.",
+  "decode_graph": true,
+  "prefill_graph": false,
+  "request_sha256": "62fe9c8660a3301120cd9de3c675b5468646d4acb402a66e33e6fd8e26503fb0",
+  "context_sha256": "022a3ca40cd370726f53e4355f82612ed49169d3cd677ab2e94a0d1c8a1cbc18",
+  "image_digest": "sha256:a03106bdd90c5d6067fbff246fff25df979f9da8486eb0dac795a315a2346d6c",
+  "initial_model_id": "b4274d5c88083a9c764322f9f0f90994ec0733585dcbea13052af888129fbb60",
+  "measurements": [
+    {
+      "iteration": 1,
+      "generation_request_seconds": 0.9432335199962836,
+      "http_status": 200,
+      "response_count": 128,
+      "input_tokens": 10883,
+      "output_tokens": 8192,
+      "completion_tokens_each": 64,
+      "cached_tokens_each": 0,
+      "batch_completed_at": "2026-09-16T10:16:51.595178+00:00",
+      "response_retained_at": "2026-09-16T10:16:51.588359+00:00",
+      "before_profiler_arming": true,
+      "source": "outputs/rubin-gb300-qwen3-cudagraph/diagnostics/rubin-j2203648-graph-v3/node-output/diagnostic/on/measured-1.json"
+    },
+    {
+      "iteration": 2,
+      "generation_request_seconds": 0.9411318069905974,
+      "http_status": 200,
+      "response_count": 128,
+      "input_tokens": 10883,
+      "output_tokens": 8192,
+      "completion_tokens_each": 64,
+      "cached_tokens_each": 0,
+      "batch_completed_at": "2026-09-16T10:16:52.566422+00:00",
+      "response_retained_at": "2026-09-16T10:16:52.559685+00:00",
+      "before_profiler_arming": true,
+      "source": "outputs/rubin-gb300-qwen3-cudagraph/diagnostics/rubin-j2203648-graph-v3/node-output/diagnostic/on/measured-2.json"
+    },
+    {
+      "iteration": 3,
+      "generation_request_seconds": 1.160340158996405,
+      "http_status": 200,
+      "response_count": 128,
+      "input_tokens": 10883,
+      "output_tokens": 8192,
+      "completion_tokens_each": 64,
+      "cached_tokens_each": 0,
+      "batch_completed_at": "2026-09-16T10:16:53.759825+00:00",
+      "response_retained_at": "2026-09-16T10:16:53.752032+00:00",
+      "before_profiler_arming": true,
+      "source": "outputs/rubin-gb300-qwen3-cudagraph/diagnostics/rubin-j2203648-graph-v3/node-output/diagnostic/on/measured-3.json"
+    }
+  ],
+  "unprofiled_evidence": {
+    "profiler_arm_http_status": 200,
+    "profiler_armed_at": "2026-09-16T10:16:53.803833+00:00",
+    "all_three_measured_batches_completed_before_arming": true,
+    "engine_log_completed_generate_requests_before_start_profile": 4,
+    "includes_one_excluded_warmup": true
+  },
+  "decode_replay_evidence": {
+    "independently_parsed_trace": "outputs/rubin-gb300-qwen3-cudagraph/diagnostics/rubin-j2203648-graph-v3/node-output/diagnostic/on/traces/rubin-j2203648-graph-v3-on-TP-0-DECODE.trace.json.gz",
+    "decode_steps": 4,
+    "cudaGraphLaunch_count": 4,
+    "kernel_event_count": 3986,
+    "one_graph_launch_inside_each_decode_step": true,
+    "matched_events": [
+      {
+        "decode_step": "step[DECODE bs=128 g_sq=128 g_sqsq=128 g_sqsk=11011 g_sk=11011]",
+        "decode_start_us": 6586026346912.93,
+        "decode_duration_us": 1587.937,
+        "graph_launch_start_us": 6586026347547.873,
+        "graph_launch_duration_us": 878.373,
+        "pid": 572,
+        "tid": 572
+      },
+      {
+        "decode_step": "step[DECODE bs=128 g_sq=128 g_sqsq=128 g_sqsk=11139 g_sk=11139]",
+        "decode_start_us": 6586026372167.716,
+        "decode_duration_us": 1031.431,
+        "graph_launch_start_us": 6586026372476.915,
+        "graph_launch_duration_us": 685.723,
+        "pid": 572,
+        "tid": 572
+      },
+      {
+        "decode_step": "step[DECODE bs=128 g_sq=128 g_sqsq=128 g_sqsk=11267 g_sk=11267]",
+        "decode_start_us": 6586026374792.631,
+        "decode_duration_us": 933.392,
+        "graph_launch_start_us": 6586026375049.56,
+        "graph_launch_duration_us": 641.75,
+        "pid": 572,
+        "tid": 572
+      },
+      {
+        "decode_step": "step[DECODE bs=128 g_sq=128 g_sqsq=128 g_sqsk=11395 g_sk=11395]",
+        "decode_start_us": 6586026383262.419,
+        "decode_duration_us": 955.828,
+        "graph_launch_start_us": 6586026383505.598,
+        "graph_launch_duration_us": 681.12,
+        "pid": 572,
+        "tid": 572
+      }
+    ]
+  },
+  "off_evidence": {
+    "off_directory_present": false,
+    "off_mode_data": null,
+    "engine_start_count": 1,
+    "only_started_engine_argv_matches_on": true,
+    "planned_order": [
+      "on",
+      "off"
+    ],
+    "wrapper_terminal": {
+      "at": "2026-09-16T10:16:57.670314+00:00",
+      "status": "FAILED",
+      "error": "PermissionError(13, 'Permission denied')"
+    },
+    "cleanup_failure": "PermissionError reading /proc/572/environ during runtime.stop(); OFF never started."
+  },
+  "interpretation": "The missing OFF baseline prevents an ON/OFF speedup claim; it does not invalidate the independently retained successful ON measurements. Graph replay proof is from a subsequent instrumented batch, not from the three unprofiled timing batches.",
+  "sources": {
+    "outputs/rubin-gb300-qwen3-cudagraph/diagnostics/rubin-j2203648-graph-v3/node-output/diagnostic/plan.json": {
+      "sha256": "fb710e0f591577a81a1a1ce10e98c1078dfcb97011be008f790db20cc0355ff9",
+      "bytes": 6665
+    },
+    "outputs/rubin-gb300-qwen3-cudagraph/diagnostics/rubin-j2203648-graph-v3/node-output/diagnostic/events.json": {
+      "sha256": "b14e790a5e30c7b39a7bee5b7d871c9fdc5b2bdd3dfddcc7c2b23982cdadff53",
+      "bytes": 134205
+    },
+    "outputs/rubin-gb300-qwen3-cudagraph/diagnostics/rubin-j2203648-graph-v3/node-output/diagnostic/on/summary.json": {
+      "sha256": "1d3cde78d20496073ed593e5bc4ad91efdbd80542a0bfa39012cedd003ebf712",
+      "bytes": 106175
+    },
+    "outputs/rubin-gb300-qwen3-cudagraph/diagnostics/rubin-j2203648-graph-v3/node-output/diagnostic/on/capture-request.json": {
+      "sha256": "c2272659b153d4877f3ec9d22e4066bee29d858552a0fa9a33de6aa7d225f13c",
+      "bytes": 354700
+    },
+    "outputs/rubin-gb300-qwen3-cudagraph/diagnostics/rubin-j2203648-graph-v3/node-output/diagnostic/terminal.json": {
+      "sha256": "8b04e18010bbd9087349088fd99aca7afe9dc4f2581106d210cf637975e58eea",
+      "bytes": 124
+    },
+    "outputs/rubin-gb300-qwen3-cudagraph/profile-evidence-final-20260916/diagnostics.json": {
+      "sha256": "325967c1eab37ec722bd7f615fe63b13ebd1382b5fe10f535ca5223fa027fe03",
+      "bytes": 367843
+    },
+    "outputs/rubin-gb300-qwen3-cudagraph/diagnostics/rubin-j2203648-graph-v3/node-output/diagnostic/on/measured-1.json": {
+      "sha256": "849122615e714b9aea9a882da1fe7dee03de8692d51fb5597be438839c4ccb0d",
+      "bytes": 383957
+    },
+    "outputs/rubin-gb300-qwen3-cudagraph/diagnostics/rubin-j2203648-graph-v3/node-output/diagnostic/on/measured-2.json": {
+      "sha256": "886b3b87a72641356153526dbf5c4cb29676a237b16d4c75948ecf685113507e",
+      "bytes": 383407
+    },
+    "outputs/rubin-gb300-qwen3-cudagraph/diagnostics/rubin-j2203648-graph-v3/node-output/diagnostic/on/measured-3.json": {
+      "sha256": "c2d78ca0b748f380a09a2e7a1fd9334ef664b75f19695d711741c17a69876e56",
+      "bytes": 383874
+    },
+    "outputs/rubin-gb300-qwen3-cudagraph/diagnostics/rubin-j2203648-graph-v3/node-output/diagnostic/on/traces/rubin-j2203648-graph-v3-on-TP-0-DECODE.trace.json.gz": {
+      "sha256": "ba1e7983d932630fc6ef97b13ae113ec46361db9ba3d18ba66f17fd71076f0bd",
+      "bytes": 265727
+    },
+    "outputs/rubin-gb300-qwen3-cudagraph/diagnostics/rubin-j2203648-graph-v3/wrapper-console.log": {
+      "sha256": "9b7bfb0c96a1a164a63ea11d4f2b8b47bfc1f572ef8bc356ac7b34b56e96e01d",
+      "bytes": 8098
+    },
+    "outputs/rubin-gb300-qwen3-cudagraph/diagnostics/rubin-j2203648-graph-v3/node-output/diagnostic/on/engine.log": {
+      "sha256": "e65a4740bf85606438952d5ab84c8ec2392b421bdc8d55781573217a659aa2d5",
+      "bytes": 41475
+    }
+  }
+}
