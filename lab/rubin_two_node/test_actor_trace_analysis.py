@@ -51,6 +51,15 @@ def fixture():
     ]}
 
 
+def microbatch_fixture():
+    document = fixture()
+    for event in document["traceEvents"]:
+        if event["name"] == "actor.selected_update":
+            event["name"] = "actor.selected_microbatch"
+            event["dur"] = 650 - event["ts"]
+    return document
+
+
 class ActorTraceAnalysisTests(unittest.TestCase):
     def test_async_correlation_and_overlapping_semantic_ranges(self):
         document = fixture()
@@ -174,6 +183,50 @@ class ActorTraceAnalysisTests(unittest.TestCase):
             record["rank"] = 1
             receipt.write_text(json.dumps(record))
             with self.assertRaisesRegex(ValueError, "rank0"):
+                analysis.analyze(trace, sha, receipt)
+
+    def test_microbatch_range_excludes_optimizer_and_requires_single_matching_window(self):
+        document = microbatch_fixture()
+        result = analysis.analyze_document(document, capture_window="single_forward_backward_microbatch")
+        self.assertEqual(result["window"]["microbatch_index"], 1)
+        self.assertEqual(result["window"]["cpu_annotation"], "actor.selected_microbatch")
+        self.assertIsNone(result["semantic_ranges_non_additive"]["optimizer"])
+        self.assertEqual(result["kernel_activity"]["events"], 3)
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            analysis.analyze_document(document)
+        document["traceEvents"].append(event("actor.selected_update", "user_annotation", 0, 1000))
+        with self.assertRaisesRegex(ValueError, "exactly one"):
+            analysis.analyze_document(document, capture_window="single_forward_backward_microbatch")
+        document = microbatch_fixture()
+        document["traceEvents"].append(event("actor.optimizer_step", "user_annotation", 610, 20))
+        with self.assertRaisesRegex(ValueError, "optimizer range"):
+            analysis.analyze_document(document, capture_window="single_forward_backward_microbatch")
+
+    def test_microbatch_receipt_must_match_trace_and_explicit_index(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            trace = root / "trace.json.gz"
+            with gzip.open(trace, "wt") as stream:
+                json.dump(microbatch_fixture(), stream)
+            sha = hashlib.sha256(trace.read_bytes()).hexdigest()
+            record = {"status": "COMPLETE", "rank": 0, "target": [0, 1, 0],
+                      "capture_window": "single_forward_backward_microbatch", "microbatch_index": 1,
+                      "trace": {"sha256": sha, "bytes": trace.stat().st_size}}
+            receipt = root / "receipt.json"
+            receipt.write_text(json.dumps(record))
+            result = analysis.analyze(trace, sha, receipt)
+            self.assertEqual(result["capture"]["capture_window"], "single_forward_backward_microbatch")
+            self.assertEqual(result["capture"]["microbatch_index"], 1)
+            for index in [None, 2, True]:
+                receipt.write_text(json.dumps({**record, "microbatch_index": index}))
+                with self.assertRaisesRegex(ValueError, "microbatch_index=1"):
+                    analysis.analyze(trace, sha, receipt)
+            old_record = {k: v for k, v in record.items() if k not in {"capture_window", "microbatch_index"}}
+            receipt.write_text(json.dumps(old_record))
+            with self.assertRaisesRegex(ValueError, "does not match"):
+                analysis.analyze(trace, sha, receipt)
+            receipt.write_text(json.dumps({**old_record, "microbatch_index": 1}))
+            with self.assertRaisesRegex(ValueError, "Full-update receipt"):
                 analysis.analyze(trace, sha, receipt)
 
 

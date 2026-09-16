@@ -67,7 +67,8 @@ def build_plan(options, now=None):
     forbidden = {"--load", "--ckpt-step", "--ref-ckpt-step", "--start-rollout-id", "--debug-train-only",
                  "--debug-rollout-only", "--debug-disable-optimizer", "--load-debug-rollout-data",
                  "--custom-megatron-init-path", "--custom-megatron-before-train-step-hook-path",
-                 "--dynamic-sampling-filter-path", "--train-backend", "--load-debug-rollout-data-subsample"}
+                 "--dynamic-sampling-filter-path", "--train-backend", "--load-debug-rollout-data-subsample",
+                 "--overlap-moe-expert-parallel-comm", "--virtual-pipeline-model-parallel-size"}
     if forbidden.intersection(groups):
         raise ValueError("Require the unmodified fresh main source plan: " + str(forbidden.intersection(groups)))
     def scalar(flag):
@@ -90,7 +91,7 @@ def build_plan(options, now=None):
             raise ValueError("Common token budget must fit context and not increase the recorded budget")
         groups[flag] = [str(options.max_tokens_per_gpu)]
         changes.append({"flag": flag, "old": old, "new": options.max_tokens_per_gpu})
-    for value in (options.rollout_sha256, options.train_step_source_sha256, options.initial_model_id):
+    for value in (options.rollout_sha256, options.train_step_source_sha256, options.schedule_source_sha256, options.initial_model_id):
         if not re.fullmatch("[0-9a-f]{64}", value):
             raise ValueError("Require explicit SHA256 identities")
     if digest_file(options.rollout_path) != options.rollout_sha256:
@@ -98,7 +99,9 @@ def build_plan(options, now=None):
     if Path(options.output_root).exists():
         raise ValueError("Use a new diagnostic output root")
     config = {"run_id": options.run_id, "deadline_epoch": options.deadline_epoch, "target": [0, 1, 0],
-              "world_size": 4, "output_root": options.output_root, "rollout_path": options.rollout_path,
+              "world_size": 4, "capture_window": "single_forward_backward_microbatch", "microbatch_index": 1,
+              "schedule_source_sha256": options.schedule_source_sha256,
+              "output_root": options.output_root, "rollout_path": options.rollout_path,
               "rollout_sha256": options.rollout_sha256, "train_step_source_sha256": options.train_step_source_sha256,
               "initial_model_id": options.initial_model_id, "hf_checkpoint": scalar("--hf-checkpoint"),
               "ref_load": scalar("--ref-load"), "capture_seconds": 180, "export_seconds": 120,
@@ -123,16 +126,18 @@ def build_plan(options, now=None):
             "entrypoint": shlex.join(["python3", "/opt/miles/train.py", *argv]), "config": config,
             "source_plan_sha256": digest_file(options.source_plan), "hook_sha256": digest_file(Path(__file__).with_name("actor_update_profile.py")),
             "removed": removed, "token_budget_overrides": changes, "prompt_data_path_override": prompt_override,
-            "scope": {"rollouts": 1, "optimizer_updates": 4, "captured_update": 1, "profile_ranks": [0],
+            "scope": {"rollouts": 1, "optimizer_updates": 4, "captured_update": 1, "captured_microbatch": 1,
+                      "capture_window": "single_forward_backward_microbatch", "optimizer_in_trace": False, "profile_ranks": [0],
                       "unprofiled_comparison_updates": [2, 3], "scheduler_horizon_preserved": 50},
             "required_outer_guards": ["exact diagnostic-only Ray/container identity and immutable image/source",
                 "read-only verified initial HF/release manifest matching initial_model_id",
                 "trusted complete 2048-sample rollout dump: tokens/rewards/loss masks/logprobs verified",
                 "original absolute lease deadline and exact-job/container guard, including model loading",
+                "review exact installed schedule source for sequential PP1 F_i/B_i ABI before supplying schedule-source-sha256",
                 "four rank packing fingerprints compared between platforms before paired interpretation",
                 "retain trace, logs and receipts before stopping exact diagnostic container"],
             "limitations": ["No main actor rollout dump existed; report whether this is newly generated initial-policy data.",
-                "One update is representative only of its recorded length/packing mix; rank 0 is not every EP rank.",
+                "One microbatch is representative only of its recorded length/packing mix; optimizer/final gradient sync are outside this trace and rank0 is not every EP rank.",
                 "Synchronization and profiling perturb timings. Compare unprofiled steps 2/3 separately; preceding diagnostic barrier excludes rank0 export skew.",
                 "Runtime byte/RSS limits are polled and can overshoot between observations."]}
 
@@ -142,6 +147,7 @@ def main():
     for name in ("source-plan", "run-id", "rollout-path", "rollout-sha256", "initial-model-id", "output-root"):
         parser.add_argument("--" + name, required=True)
     parser.add_argument("--train-step-source-sha256", required=True)
+    parser.add_argument("--schedule-source-sha256", required=True)
     parser.add_argument("--deadline-epoch", required=True, type=float)
     parser.add_argument("--max-tokens-per-gpu", type=int, default=4096)
     parser.add_argument("--prompt-data-path", default="/inputs/train.jsonl")

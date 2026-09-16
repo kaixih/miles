@@ -1,4 +1,4 @@
-"""Diagnostic-only Miles custom init hook; capture one rank-0 actor update.
+"""Diagnostic-only Miles custom init hook; capture one rank-0 forward/backward microbatch.
 
 The caller must supply an external exact-job deadline guard as well. This local
 watchdog exits only its own diagnostic actor, never another PID or main run.
@@ -45,6 +45,8 @@ def validate_config(config, env, now):
         raise ValueError("Require an original absolute deadline within one hour")
     if config.get("target") != [0, 1, 0] or config.get("world_size") != 4:
         raise ValueError("Only rollout 0 / second update / first attempt, world size 4 is supported")
+    if config.get("capture_window") != "single_forward_backward_microbatch" or config.get("microbatch_index") != 1:
+        raise ValueError("Require exactly the second forward/backward microbatch")
     for key, ceiling in (("capture_seconds", 180), ("export_seconds", 120),
                          ("max_trace_bytes", 512 * MIB), ("max_rss_growth_bytes", 16 * 1024 * MIB)):
         if not 0 < config[key] <= ceiling:
@@ -76,7 +78,8 @@ def packing_record(iterators, count):
                 tokens = tokens.detach().cpu().tolist()
             token_sha = hashlib.sha256(json.dumps(tokens, separators=(",", ":")).encode()).hexdigest()
             samples.append({"local_index": index, "length": int(data["total_lengths"][index]),
-                            "response_length": int(data["response_lengths"][index]), "tokens_sha256": token_sha})
+                            "response_length": int(data["response_lengths"][index]), "tokens_sha256": token_sha,
+                            "global_sample_index": int(data["sample_indices"][index]) if "sample_indices" in data else None})
         records.append({"offset": iterator.offset, "micro_batch_indices": batches, "samples": samples})
     value = {"num_microbatches": count, "iterators": records}
     return {**value, "fingerprint": hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()}
@@ -160,12 +163,11 @@ def annotations(torch, module, optimizer, models):
         def wrapped(*args, **kwargs):
             with torch.profiler.record_function(label):
                 return original(*args, **kwargs)
+        restored.append((owner, name, raw, name in vars(owner)))
         setattr(owner, name, staticmethod(wrapped) if isinstance(raw, staticmethod) else wrapped)
-        restored.append((owner, name, raw))
         names.append(label)
 
     try:
-        patch(type(optimizer), "step", "actor.optimizer_step")
         for name in ("all_to_all_single", "all_reduce", "all_gather_into_tensor", "reduce_scatter_tensor"):
             patch(torch.distributed, name, "actor.comm_enqueue." + name)
         schedule = importlib.import_module("megatron.core.pipeline_parallel.schedules")
@@ -184,9 +186,139 @@ def annotations(torch, module, optimizer, models):
                 patch(cls, "_checkpointed_forward", "actor.checkpointed_forward")
         yield names
     finally:
-        for owner, name, original in reversed(restored):
-            setattr(owner, name, original)
+        for owner, name, original, owned in reversed(restored):
+            if owned:
+                setattr(owner, name, original)
+            else:
+                delattr(owner, name)
 
+
+
+def validate_native_schedule(args, module, schedule, expected_sha):
+    expected = {"tensor_model_parallel_size": 1, "pipeline_model_parallel_size": 1,
+                "context_parallel_size": 1, "expert_model_parallel_size": 4}
+    if any(getattr(args, name, None) != value for name, value in expected.items()):
+        raise ValueError("Microbatch capture requires TP1/PP1/CP1/EP4")
+    if getattr(args, "overlap_moe_expert_parallel_comm", False):
+        raise ValueError("Overlapping MoE combined schedule is outside the capture ABI")
+    if module.get_forward_backward_func() is not schedule.forward_backward_no_pipelining:
+        raise ValueError("Expected the exact native no-pipeline schedule")
+    if digest_file(schedule.__file__) != expected_sha:
+        raise ValueError("Installed no-pipeline schedule source SHA mismatch")
+
+
+def selected_packing(packing, index):
+    if len(packing["iterators"]) != 1 or packing["num_microbatches"] <= index:
+        raise ValueError("Require one model chunk and at least two microbatches")
+    item = packing["iterators"][0]
+    indices = item["micro_batch_indices"][index]
+    records = {s["local_index"]: s for s in item["samples"]}
+    return {"index": index, "local_indices": indices, "samples": [records[i] for i in indices],
+            "total_tokens": sum(records[i]["length"] for i in indices),
+            "response_tokens": sum(records[i]["response_length"] for i in indices)}
+
+
+class MicrobatchCapture:
+    """One continuous profile/range spanning verified F_i then B_i calls.
+
+    Native PP1 source calls F0/B0, F1/B1, ... sequentially. Other schedule
+    variants are refused before entry; observed calls/paired tensor identity are
+    checked independently. No trace export happens in either wrapped function.
+    """
+    def __init__(self, torch, schedule, iterator, count, index=1):
+        if count <= index:
+            raise ValueError("Target microbatch does not exist")
+        self.torch, self.schedule, self.iterator = torch, schedule, iterator
+        self.count, self.index = count, index
+        self.forward_calls = self.backward_calls = 0
+        self.active = self.complete = False
+        self.stack, self.profiler, self.cleanup_error = None, None, None
+        self.last_output = None
+        self.initial_offset = iterator.offset
+        self.selected_indices = None
+
+    def close(self, exc=(None, None, None)):
+        if self.stack is not None:
+            stack, self.stack = self.stack, None
+            self.active = False
+            stack.__exit__(*exc)
+
+    def __enter__(self):
+        self.original_forward = self.schedule.forward_step
+        self.original_backward = self.schedule.backward_step
+        forward_signature = inspect.signature(self.original_forward)
+        backward_signature = inspect.signature(self.original_backward)
+
+        @functools.wraps(self.original_forward)
+        def forward(*values, **keywords):
+            bound = forward_signature.bind(*values, **keywords).arguments
+            current = bound.get("current_microbatch")
+            if current != self.forward_calls or self.forward_calls != self.backward_calls or self.forward_calls >= self.count:
+                raise RuntimeError("Native forward/backward order differs from sequential PP1 ABI")
+            if bound.get("data_iterator") is not self.iterator or bound.get("num_microbatches") != self.count:
+                raise RuntimeError("Native forward iterator/count does not match selected update")
+            if getattr(bound["config"], "overlap_moe_expert_parallel_comm", False):
+                raise RuntimeError("Combined overlapping MoE schedule is unsupported")
+            stride = 1 if self.iterator.micro_batch_indices is not None else self.iterator.micro_batch_size
+            if self.iterator.offset != self.initial_offset + current * stride:
+                raise RuntimeError("Observed native iterator offset differs from the recorded microbatch packing")
+            if current == self.index:
+                if self.iterator.micro_batch_indices is not None:
+                    self.selected_indices = list(self.iterator.micro_batch_indices[self.iterator.offset])
+                else:
+                    self.selected_indices = list(range(self.iterator.offset, self.iterator.offset + stride))
+                self.torch.cuda.synchronize()  # Drain previous MB before recording.
+                self.profiler = self.torch.profiler.profile(
+                    activities=[self.torch.profiler.ProfilerActivity.CPU, self.torch.profiler.ProfilerActivity.CUDA],
+                    record_shapes=False, profile_memory=False, with_stack=False, with_flops=False)
+                self.stack = contextlib.ExitStack()
+                self.stack.enter_context(self.profiler)
+                self.stack.enter_context(self.torch.profiler.record_function("actor.selected_microbatch"))
+                self.active = True
+            result = self.original_forward(*values, **keywords)
+            self.last_output = result[0]
+            self.forward_calls += 1
+            return result
+
+        @functools.wraps(self.original_backward)
+        def backward(*values, **keywords):
+            bound = backward_signature.bind(*values, **keywords).arguments
+            if self.forward_calls != self.backward_calls + 1 or bound.get("output_tensor") is not self.last_output:
+                raise RuntimeError("Native backward is not paired with its immediately preceding forward")
+            result = self.original_backward(*values, **keywords)
+            if self.backward_calls == self.index:
+                if not self.active:
+                    raise RuntimeError("Selected backward has no active profiler")
+                self.torch.cuda.synchronize()  # Complete only the selected F/B window.
+                self.close()
+                self.complete = True
+            self.backward_calls += 1
+            self.last_output = None
+            return result
+
+        self.schedule.forward_step, self.schedule.backward_step = forward, backward
+        return self
+
+    def __exit__(self, typ, value, tb):
+        try:
+            self.close((typ, value, tb))
+        except BaseException as cleanup:
+            self.cleanup_error = repr(cleanup)
+            if value is None:
+                raise
+            if hasattr(value, "add_note"):
+                value.add_note("Profiler cleanup also failed: " + repr(cleanup))
+        finally:
+            self.schedule.forward_step, self.schedule.backward_step = self.original_forward, self.original_backward
+        if value is None and (not self.complete or self.forward_calls != self.count or self.backward_calls != self.count):
+            raise RuntimeError("Incomplete native F/B capture or unexpected observed microbatch count")
+        return False
+
+    def observation(self):
+        return {"forward_calls": self.forward_calls, "backward_calls": self.backward_calls,
+                "expected_calls_each": self.count, "captured_forward_calls": int(self.complete),
+                "captured_backward_calls": int(self.complete), "capture_complete": self.complete,
+                "cleanup_error": self.cleanup_error, "selected_local_indices": self.selected_indices}
 
 def install(args):
     import torch
@@ -206,6 +338,8 @@ def install(args):
         raise ValueError("Miles train_one_step source mismatch")
     if (args.hf_checkpoint, args.ref_load) != (config["hf_checkpoint"], config["ref_load"]):
         raise ValueError("Initial policy paths differ from the planned recipe")
+    schedule = importlib.import_module("megatron.core.pipeline_parallel.schedules")
+    validate_native_schedule(args, module, schedule, config["schedule_source_sha256"])
     rank = torch.distributed.get_rank()
     output = Path(config["output_root"]) / ("rank" + str(rank))
     output.mkdir(parents=True, exist_ok=False)
@@ -258,22 +392,25 @@ def install(args):
 
         if not selected:
             return timed_result(original(*values, **keywords))
+        capture = None
         try:
+            chosen = selected_packing(packing, config["microbatch_index"])
+            validate_native_schedule(args, module, schedule, config["schedule_source_sha256"])
             with Budget(config, output) as budget:
-                torch.cuda.synchronize()
                 with annotations(torch, module, bound["optimizer"], bound["model"]) as labels:
-                    with torch.profiler.profile(activities=[torch.profiler.ProfilerActivity.CPU,
-                            torch.profiler.ProfilerActivity.CUDA], record_shapes=False, profile_memory=False,
-                            with_stack=False, with_flops=False) as profiler:
-                        with torch.profiler.record_function("actor.selected_update"):
-                            started, clock_start = time.time(), time.perf_counter()
-                            result = original(*values, **keywords)
-                            torch.cuda.synchronize()
-                            finished = (time.time(), time.perf_counter())
+                    with MicrobatchCapture(torch, schedule, bound["data_iterator"][0],
+                                           bound["num_microbatches"], config["microbatch_index"]) as capture:
+                        result = original(*values, **keywords)
+                        torch.cuda.synchronize()
+                        finished = (time.time(), time.perf_counter())
                 timed_result(result, finished)
+                if capture.selected_indices != chosen["local_indices"]:
+                    raise RuntimeError("Captured microbatch indices do not match the recorded packing")
+                # The full update/optimizer has returned. Peers wait at the next
+                # update boundary barrier, not inside a forward/backward call.
                 budget.exporting()
                 raw = output / "actor-update.json"
-                profiler.export_chrome_trace(str(raw))
+                capture.profiler.export_chrome_trace(str(raw))
                 if raw.stat().st_size > config["max_trace_bytes"] // 2:
                     raise RuntimeError("Raw trace exceeds reserved raw+gzip budget")
                 # Size is capped above and RSS remains guarded during validation/compression.
@@ -281,8 +418,8 @@ def install(args):
                 events = parsed["traceEvents"]
                 counts = {kind: sum(e.get("cat") == kind for e in events)
                           for kind in ("kernel", "cpu_op", "python_function")}
-                if not counts["kernel"] or not any(e.get("name") == "actor.selected_update" for e in events):
-                    raise RuntimeError("Trace lacks GPU kernels or the selected update range")
+                if not counts["kernel"] or not any(e.get("name") == "actor.selected_microbatch" for e in events):
+                    raise RuntimeError("Trace lacks GPU kernels or the selected microbatch range")
                 if counts["python_function"]:
                     raise RuntimeError("Unexpected Python stack events in stackless capture")
                 del events, parsed
@@ -293,15 +430,20 @@ def install(args):
                 record = {"status": "COMPLETE", "rank": 0, "target": config["target"], "start_epoch": started,
                           "end_epoch": time.time(), "annotations": labels, "event_counts": counts,
                           "packing_fingerprint": packing["fingerprint"],
+                          "capture_window": config["capture_window"], "microbatch_index": config["microbatch_index"],
+                          "selected_microbatch": chosen, "schedule_observation": capture.observation(),
+                          "schedule_source_sha256": config["schedule_source_sha256"],
+                          "optimizer": None, "final_gradient_sync": None,
                           "trace": {"path": str(compressed), "bytes": compressed.stat().st_size,
                                     "sha256": digest_file(compressed)},
                           "raw": {"bytes": raw.stat().st_size, "sha256": digest_file(raw)},
-                          "scope": "one full optimizer update incl forward/backward, collectives and optimizer; no rollout/offload/sync",
+                          "scope": "one sequential forward/backward microbatch including recompute/MoE enqueue; optimizer and final gradient synchronization excluded",
                           "profiler_options": {"with_stack": False, "record_shapes": False, "profile_memory": False}}
                 write_record(output / "receipt.json", record)
             return result
         except BaseException as error:
-            write_record(output / "failure.json", {"error": repr(error), "time": time.time(), "target": config["target"]})
+            write_record(output / "failure.json", {"error": repr(error), "time": time.time(), "target": config["target"],
+                         "schedule_observation": capture.observation() if capture is not None else None})
             raise
 
     module.train_one_step = train_step
