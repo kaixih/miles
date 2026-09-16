@@ -1,7 +1,7 @@
 # Qwen3 CUDA Graph: separate offline HTML slides
 
 This directory belongs to the **new** decode-graph experiment. The original
-`../rubin-gb300-qwen3` report stays unchanged. The initial14-slide deck contains
+`../rubin-gb300-qwen3` report stays unchanged. The 16-slide deck contains
 planned scope and explicit **PENDING / UNMEASURED** sections, with no old curves
 or screenshots copied as new measurements.
 
@@ -89,11 +89,24 @@ scope. Prefill remains explicitly separate from decode.
 Each `profiles` object supports:
 
 ```text
-run_label, source_run_id, capture_run_id, verified,
+run_label, source_run_id, capture_run_id, stage: "prefill" | "decode", verified,
+decode_graph: boolean, prefill_graph: boolean,
 title, scope, observations: [up to three concise measured statements], caption,
 image: local PNG/JPEG/WebP, trace: local JSON/JSON.gz/etc,
 source_trace_sha256: exact compressed-file SHA256
 ```
+
+The deck reserves four separate profile slides: Rubin prefill, Rubin decode,
+GB300 prefill and GB300 decode (16 slides total). Each platform/stage pair accepts
+one explicitly selected primary capture; missing stages remain pending. Optional
+`decode_graph` and `prefill_graph` booleans visibly label the diagnostic condition
+(ON/OFF); absent fields display unknown, never an inferred graph mode. A record
+must name its stage, and duplicate platform/stage records are rejected rather
+than silently showing only the first. Select the intended OFF or ON primary
+capture explicitly; keep alternatives in linked receipts or trace downloads.
+The stage label organizes the figure, not a claim that every recorded forward
+belongs to that stage. The scope must state actual EXTEND/DECODE annotations,
+batch/token counts, mixed windows and early-prefill export limitations.
 
 The builder copies only explicit local attachments and checks the declared trace
 hash. A verified profile requires the complete local trace. Unverified images

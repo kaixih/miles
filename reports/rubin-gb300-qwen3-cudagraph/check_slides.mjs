@@ -86,6 +86,26 @@ const evidenceChecks=await page.evaluate(()=>{
   if(!(input.profiles?.graph_evidence||[]).some(p=>p.verified===true)&&!proofSlide.includes('Pending verification'))failures.push('Requested graph mode was presented as verified');
   const traces=(input.profiles?.profiles||[]).filter(p=>p.verified===true);
   if(!traces.length&&document.querySelectorAll('.profile-frame img').length)failures.push('Unverified or old profile image rendered');
+  const profileSlots=[];
+  for(const platform of input.experiment.requested.platforms){
+    for(const stage of ['prefill','decode']){
+      const layouts=[...document.querySelectorAll('.profile-layout')].filter(el=>el.dataset.profilePlatform===platform&&el.dataset.profileStage===stage);
+      const item=traces.find(p=>p.run_label===platform&&p.stage===stage), layout=layouts[0];
+      if(layouts.length!==1){failures.push(`Missing or duplicate ${platform}/${stage} profile slide`);continue;}
+      const img=layout.querySelector('img'), link=layout.querySelector('a[download]');
+      if(item){
+        const mode=v=>v===true?'ON':v===false?'OFF':'unknown';
+        if(!layout.querySelector('.profile-condition')?.textContent.includes(`decode graph ${mode(item.decode_graph)}; prefill graph ${mode(item.prefill_graph)}`))failures.push(`${platform}/${stage}: diagnostic condition label mismatch`);
+      }
+      if(item){
+        if(layout.dataset.profileVerified!=='true'||layout.dataset.profileTraceSha!==item.source_trace_sha256||link?.getAttribute('href')!==item.attachments.trace.url||!layout.textContent.includes(item.scope))failures.push(`${platform}/${stage}: wrong trace evidence selected`);
+        const wantedImage=item.attachments.image;
+        if(wantedImage?.status==='available'&&(img?.getAttribute('src')!==wantedImage.url||!img.complete||img.naturalWidth===0))failures.push(`${platform}/${stage}: wrong or missing stage screenshot`);
+      }else if(img||link||layout.dataset.profileVerified!=='false'||!layout.textContent.includes('pending'))failures.push(`${platform}/${stage}: missing stage is not pending`);
+      profileSlots.push({platform,stage,verified:!!item,trace_sha256:item?.source_trace_sha256||null});
+    }
+  }
+  if(document.querySelectorAll('.profile-layout').length!==input.experiment.requested.platforms.length*2||document.querySelectorAll('.slide').length!==16)failures.push('Expected four distinct stage slides in the 16-slide deck');
   const diagnosticPairs=(input.diagnostics?.pairs||[]).filter(pair=>pair.verified===true);
   const diagnosticSlide=document.getElementById('slide-11').textContent;
   if(!diagnosticSlide.includes('prefill + decode')||/mean decode/i.test(diagnosticSlide))failures.push('HTTP generation duration is mislabeled as decode-only');
@@ -96,7 +116,7 @@ const evidenceChecks=await page.evaluate(()=>{
       if(condition?.timing_scope!=='http_request_prefill_decode_queue_response'||!values.length||values.some(v=>!Number.isFinite(v)||v<=0)||Math.abs(condition.generation_seconds_mean-mean)>1e-9||condition.sample_count!==values.length||'decode_ms' in condition)failures.push('HTTP generation raw/derived diagnostic mismatch');
     }
   }
-  return {failures,run_count:runs.length,timing,paired_ids:report.derived.paired_timing.rollout_ids,verified_profile_count:traces.length,verified_generation_pairs:diagnosticPairs.length};
+  return {failures,run_count:runs.length,timing,paired_ids:report.derived.paired_timing.rollout_ids,verified_profile_count:traces.length,profile_slots:profileSlots,verified_generation_pairs:diagnosticPairs.length};
 });
 const report={slides:count,errors,external_requests:network,checks,evidence_checks:evidenceChecks,keyboard:{space,end,overview},mobile_horizontal_overflow:mobileOverflow};
 await writeFile(path.join(output,'browser-checks.json'),JSON.stringify(report,null,2)+'\n');

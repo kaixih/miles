@@ -18,13 +18,27 @@ the exact watchdog-locked Ray submission must be SUCCEEDED with the matching
 and train exits, all 50 completed rounds and updates0–199. No other Ray job may
 be active. Original source-plan/container/image identity must still match.
 
-Before stopping the exact completed main container, the operator snapshots and
-SHA-verifies small logs, watchdog and checkpoint49 metadata to
-`<durable-main>/diagnostics/<ID>/main-before`. It excludes checkpoint shards,
-models, inputs and caches. Appending telemetry is retained as a recorded fixed
-prefix with before/after lengths and a source-prefix rehash; after the scoped
-main stop, final stable telemetry/watchdog are retained separately in
-`main-final`. Existing files and IDs are never overwritten.
+The main has a split storage layout. The login-host `run_dir` contains
+`logs/qwen3_train.log`, `train_exit.json`, driver/launch receipts and the original
+source plan. The node-local `node_run_dir` contains watchdog, checkpoint49
+metadata and `logs/gpu-telemetry.csv`; it need not contain the training log or
+exit receipt. The operator never synthesizes those missing node files.
+
+Before stopping the exact completed main container, the operator copies and
+SHA-verifies closed login artifacts and the original plan's recorded source
+files into `<durable-main>/diagnostics/<ID>/main-login`. It parses that retained
+training log for 50/200 completion, then rechecks the original login artifact
+and source hashes immediately before stop. Login logs have an explicit 512 MiB
+per-file allowance; JSON/source files retain a 128 MiB limit and all login
+artifacts together are capped at 1 GiB.
+
+Node-local watchdog, checkpoint metadata and telemetry are separately retained
+in `main-before`, excluding checkpoint shards, models, inputs and caches.
+Appending telemetry is retained as a recorded fixed prefix with before/after
+lengths and a source-prefix rehash; post-stop telemetry/watchdog are retained
+separately in `main-final`, with actual source stability recorded. The node's
+128 MiB per-file/512 MiB total evidence bounds and diagnostic output cap remain
+unchanged. Existing files and IDs are never overwritten.
 
 It creates `<node-main-parent>/graph-diagnostic-<ID>/{source,run,cache}`, checks
 normal-UID host/container read/write/delete probes, and launches a fresh labeled

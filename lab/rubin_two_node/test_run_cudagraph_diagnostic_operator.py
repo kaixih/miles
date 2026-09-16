@@ -2,8 +2,10 @@
 import copy
 import datetime as dt
 import importlib.util
+import io
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -11,7 +13,7 @@ import tempfile
 import time
 import unittest
 from unittest.mock import Mock, patch
-from contextlib import ExitStack
+from contextlib import ExitStack, redirect_stdout
 
 DIR = Path(__file__).parent
 sys.path.insert(0, str(DIR))
@@ -55,27 +57,54 @@ def completed(c):
 
 
 class OperatorTests(unittest.TestCase):
-    def exercise_execution(self, directory, incomplete=False, unstable=False):
-        """Exercise real execute control flow with filesystem receipts and mocked remote boundaries."""
+    def exercise_execution(self, directory, incomplete=False, unstable=False, missing_update=False):
+        """Real split login/node files, node read/snapshot, retention and log parser; no GPU or SSH."""
         directory = str(Path(directory).resolve())
         c = {**config(), "run_dir": directory, "durable": directory + "/diagnostics/diag",
-             "dashboard": "http://10.0.0.1:28265", "platform": "rubin", "source_commit": "c" * 40}
+             "dashboard": "http://10.0.0.1:28265", "platform": "rubin", "source_commit": "c" * 40,
+             "repo": directory + "/frozen-source", "node_run_dir": directory + "/node/run",
+             "node_base": directory + "/node/diag"}
         c["lease_timestamp"] = int(time.time()) + 7200
         c["soft_timestamp"], c["hard_timestamp"] = c["lease_timestamp"] - 5400, c["lease_timestamp"] - 3600
         state, jobs, driver, train, summary = completed(c)
         if incomplete: jobs[0]["status"] = "RUNNING"
         main_info, diag_info = info(c), info(c, True)
         main_info["Id"], diag_info["Id"] = "a" * 64, "d" * 64
+        frozen = Path(c["repo"], "lab/launcher.py"); frozen.parent.mkdir(parents=True)
+        frozen.write_text("# frozen main launcher evidence\n")
         plan = {"run_id": c["run_id"], "git_commit": c["source_commit"],
-                "preflight": {"container_id": main_info["Id"], "image_id": c["image_id"]}}
-        for name, value in [("train-driver-exit.json", driver), ("cudagraph-main-plan.json", plan), ("train-launch.json", {})]:
+                "preflight": {"container_id": main_info["Id"], "image_id": c["image_id"]},
+                "source_sha256": {"lab/launcher.py": O.sha(frozen)}}
+        for name, value in [("train_exit.json", train), ("train-driver-exit.json", driver),
+                            ("cudagraph-main-plan.json", plan), ("train-launch.json", {})]:
             Path(directory, name).write_text(json.dumps(value))
+        log = Path(directory, "logs/qwen3_train.log"); log.parent.mkdir()
+        lines = []
+        for rollout in range(50):
+            for step in range(rollout * 4, rollout * 4 + 4):
+                if not (missing_update and step == 199):
+                    lines.append(f"[2026-09-16 12:00:00] step {step}: {{'train/grad_norm': 1.25}}\n")
+            lines.append(f"[2026-09-16 12:00:00] perf {rollout}: {{'perf/train_time': 2.0, 'perf/step_time': 3.0, 'perf/train_wait_time': 1.0}}\n")
+        log.write_text("".join(lines))
+        node_root = Path(c["node_run_dir"]); (node_root / "logs").mkdir(parents=True)
+        (node_root / "watchdog.json").write_text(json.dumps(state))
+        (node_root / "logs/gpu-telemetry.csv").write_text("timestamp,gpu\n2026-09-16,0\n")
+        cp = node_root / "checkpoints"; (cp / "iter_0000049").mkdir(parents=True); (cp / "rollout").mkdir()
+        (cp / "latest_checkpointed_iteration.txt").write_text("49\n")
+        (cp / "iter_0000049/.metadata").write_bytes(b"metadata fixture")
+        (cp / "iter_0000049/__0_0.distcp").write_bytes(b"shard must never be retained")
+        (cp / "rollout/global_dataset_state_dict_49.pt").write_bytes(b"state fixture")
+        self.assertFalse((node_root / "train_exit.json").exists())
+        self.assertFalse((node_root / "logs/qwen3_train.log").exists())
         events, guard, manifests = [], {}, 0
         manifest = {"partial.json": {"bytes": 2, "sha256": "x"}}
         def fake_node(conf, action, **kwargs):
             nonlocal manifests
             events.append("node:" + action)
-            if action == "read": return {"watchdog": state, "train_exit": train}
+            if action in {"read", "prepare", "snapshot"}:
+                output = io.StringIO()
+                with redirect_stdout(output): O.node_action({"c": conf, "action": action, **kwargs})
+                return json.loads(output.getvalue())
             if action == "identity": return kwargs["identity"]
             if action == "guard":
                 guard.update(state="armed", container_id=diag_info["Id"], deadline=kwargs["deadline"])
@@ -94,8 +123,12 @@ class OperatorTests(unittest.TestCase):
             if argv[0] == "cat": return json.dumps(guard)
             return ""
         def fake_retain(conf, child, files, target, timeout=300):
-            events.append("retain:" + child); target.mkdir()
-            if child == "run": (target / "partial.json").write_text("{}")
+            events.append("retain:" + child)
+            if child == "run":
+                target.mkdir(); (target / "partial.json").write_text("{}")
+            else:
+                shutil.copytree(Path(conf["node_base"], child), target)
+                O.verify_copy(target, files)
         def fake_subprocess(argv, **kwargs):
             if argv[0] == "ssh":
                 events.append("wrapper-timeout"); raise subprocess.TimeoutExpired(argv, 1)
@@ -110,8 +143,7 @@ class OperatorTests(unittest.TestCase):
             for target, name, value in [(O.os, "getuid", lambda: 28644), (O.os, "getgid", lambda: 30),
                 (O, "run", lambda *args, **kwargs: slurm), (O, "node", fake_node), (O, "remote", fake_remote),
                 (O, "retain", fake_retain), (O.subprocess, "run", fake_subprocess), (Path, "stat", owned_stat),
-                (O, "JobsAPI", lambda address: Mock(list_jobs=lambda: jobs)),
-                (O.metrics, "summarize_run", lambda *args, **kwargs: summary)]:
+                (O, "JobsAPI", lambda address: Mock(list_jobs=lambda: jobs))]:
                 stack.enter_context(patch.object(target, name, value))
             with self.assertRaises((ValueError, subprocess.TimeoutExpired)):
                 O.execute(c, "off,on", 31081)
@@ -131,6 +163,25 @@ class OperatorTests(unittest.TestCase):
             self.assertLess(events.index("retain:run"), events.index("stop:" + diag_id))
             self.assertTrue((root / "diagnostic-retention.json").is_file())
             self.assertIsNone(json.loads((root / "wrapper-exit.json").read_text())["exit_code"])
+            self.assertTrue((root / "main-login/logs/qwen3_train.log").is_file())
+            self.assertTrue((root / "main-login/train_exit.json").is_file())
+            self.assertTrue((root / "main-login/source/lab/launcher.py").is_file())
+            self.assertFalse((root / "main-before/logs/qwen3_train.log").exists())
+            self.assertFalse((root / "main-before/train_exit.json").exists())
+            self.assertTrue((root / "main-before/logs/gpu-telemetry.csv").is_file())
+            self.assertTrue((root / "main-before/checkpoints/iter_0000049/.metadata").is_file())
+            self.assertFalse((root / "main-before/checkpoints/iter_0000049/__0_0.distcp").exists())
+            parsed = O.metrics.summarize_run("real-split-layout", root / "main-login/logs/qwen3_train.log", {"status": "SUCCEEDED"})
+            self.assertFalse(parsed["partial"])
+            self.assertEqual(parsed["completed_training_rollouts"], list(range(50)))
+
+    def test_real_log_with_missing_update_cannot_stop_completed_ray_container(self):
+        with tempfile.TemporaryDirectory() as directory:
+            events, root, _, _ = self.exercise_execution(directory, missing_update=True)
+            self.assertFalse(any(event.startswith("stop:") for event in events))
+            self.assertNotIn("node:prepare", events)
+            self.assertTrue((root / "main-login/logs/qwen3_train.log").exists())
+            self.assertFalse((root / "main-retention.json").exists())
 
     def test_changed_output_retains_explicit_partial_failure_and_stops(self):
         with tempfile.TemporaryDirectory() as directory:

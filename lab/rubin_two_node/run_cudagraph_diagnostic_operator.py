@@ -114,6 +114,58 @@ def completion(c, state, jobs, driver, train, summary=None):
     return matches[0]
 
 
+def retain_login_main(c, main_plan, destination):
+    """Freeze closed login-host artifacts; node-local outputs are a separate tree."""
+    login = Path(c["run_dir"])
+    names = ["train_exit.json", "train-driver-exit.json", "train-launch.json", "cudagraph-main-plan.json", "logs/qwen3_train.log"]
+    names += [name for name in ("logs/train-driver.log", "bootstrap.json") if (login / name).is_file()]
+    selected = [(name, login / name, None) for name in names]
+    sources = main_plan.get("source_sha256", {})
+    if not sources:
+        raise ValueError("Original main plan lacks frozen source hashes")
+    for name, expected in sources.items():
+        if Path(name).is_absolute() or ".." in Path(name).parts:
+            raise ValueError("Unsafe original source path")
+        selected.append(("source/" + name, Path(c["repo"]) / name, expected))
+    if c.get("source_manifest"):
+        selected.append(("source-manifest.json", Path(c["source_manifest"]), main_plan["source_manifest_sha256"]))
+    if main_plan.get("driver_path"):
+        selected.append(("driver-source.py", Path(main_plan["driver_path"]), main_plan["driver_sha256"]))
+    destination.mkdir()
+    files, total = {}, 0
+    for name, source, expected in selected:
+        if source.resolve() != source or source.stat().st_uid != 28644 or not source.is_file():
+            raise ValueError("Login artifact/source path or owner mismatch: " + str(source))
+        before = source.stat(); total += before.st_size
+        limit = (512 if name.startswith("logs/") else 128) * 1024**2
+        if before.st_size > limit or total > 1024**3:
+            raise ValueError("Login evidence exceeds the small-artifact bound")
+        target = destination / name; target.parent.mkdir(parents=True, exist_ok=True)
+        with source.open("rb") as src, target.open("xb") as dst:
+            left = before.st_size
+            while left:
+                block = src.read(min(1024**2, left))
+                if not block: raise ValueError("Login artifact shrank: " + str(source))
+                dst.write(block); left -= len(block)
+        digest = sha(target); after = source.stat()
+        if ((before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns)
+                or target.stat().st_size != before.st_size or sha(source) != digest
+                or (expected is not None and digest != expected)):
+            raise ValueError("Closed login artifact or frozen source changed: " + str(source))
+        files[name] = {"source": str(source), "bytes": before.st_size, "sha256": digest,
+                       "verification": "stable_source_and_destination_sha256", "uid": 28644}
+    verify_copy(destination, files)
+    return files
+
+
+def verify_login_sources(files):
+    for item in files.values():
+        source = Path(item["source"])
+        if (source.resolve() != source or source.stat().st_uid != 28644
+                or source.stat().st_size != item["bytes"] or sha(source) != item["sha256"]):
+            raise ValueError("Login artifact/source changed after retention: " + str(source))
+
+
 def node_action(v):
     import hashlib, json, os, pathlib, shutil, subprocess, time
     c, action = v["c"], v["action"]
@@ -135,8 +187,7 @@ def node_action(v):
         shards = {p.name: p.stat().st_size for p in cp.glob("*.distcp")}
         assert shards and all(shards.values()) and (cp / ".metadata").is_file()
         assert (source / "checkpoints/rollout/global_dataset_state_dict_49.pt").stat().st_size > 0
-        print(json.dumps({"watchdog": json.loads((source / "watchdog.json").read_text()),
-              "train_exit": json.loads((source / "train_exit.json").read_text()), "checkpoint49_shard_sizes": shards}))
+        print(json.dumps({"watchdog": json.loads((source / "watchdog.json").read_text()), "checkpoint49_shard_sizes": shards}))
     elif action == "prepare":
         assert not base.exists()
         safe(base.parent)
@@ -159,7 +210,7 @@ def node_action(v):
                 if "checkpoints" in r.parts:
                     if name not in {"latest_checkpointed_iteration.txt", ".metadata", "metadata.json", "common.pt", "global_dataset_state_dict_49.pt"}: continue
                 elif p.suffix not in {".json", ".jsonl", ".log", ".csv", ".txt"}: continue
-                if v["phase"] == "main-final" and not (r.parts[0] == "telemetry" or "telemetry" in name or name in {"watchdog.json", "train_exit.json"}): continue
+                if v["phase"] == "main-final" and not (r.parts[0] == "telemetry" or "telemetry" in name or name == "watchdog.json"): continue
                 safe(p); before = p.stat(); total += before.st_size
                 assert before.st_size <= 128*1024**2 and total <= 512*1024**2, "Small evidence bound exceeded"
                 target = out / r; target.parent.mkdir(parents=True, exist_ok=True)
@@ -275,8 +326,9 @@ def execute(c, order, port):
     def inspected(name): return json.loads(remote(c, ["docker", "inspect", name]))[0]
     api = JobsAPI(c["dashboard"])
     driver = json.loads(Path(c["run_dir"], "train-driver-exit.json").read_text())
+    train = json.loads(Path(c["run_dir"], "train_exit.json").read_text())
     first_allocation = alloc(); actual = node(c, "read"); jobs = api.list_jobs()
-    main_job = completion(c, actual["watchdog"], jobs, driver, actual["train_exit"])
+    main_job = completion(c, actual["watchdog"], jobs, driver, train)
     main_info = inspected(c["container"])
     image_id = json.loads(remote(c, ["docker", "image", "inspect", c["image"]]))[0]["Id"]
     c["image_id"] = image_id
@@ -291,17 +343,28 @@ def execute(c, order, port):
     assert probe.stat().st_uid == 28644 and probe.read_text() == c["diagnostic_run"]; probe.unlink()
     write(root / "operator-plan.json", {"config": c, "order": order, "allocation": first_allocation, "main_container": selected, "ray_job": main_job})
     write(root / "main-driver-evidence.json", {"driver_exit": driver, "original_main_plan": main_plan,
-        "source_sha256": {name: sha(Path(c["run_dir"], name)) for name in ("train-driver-exit.json", "cudagraph-main-plan.json", "train-launch.json")}})
+        "train_exit": train, "source_sha256": {name: sha(Path(c["run_dir"], name)) for name in
+        ("train_exit.json", "train-driver-exit.json", "cudagraph-main-plan.json", "train-launch.json")}})
+    login_files = retain_login_main(c, main_plan, root / "main-login")
+    for name, expected in [("train_exit.json", train), ("train-driver-exit.json", driver), ("cudagraph-main-plan.json", main_plan)]:
+        if json.loads((root / "main-login" / name).read_text()) != expected:
+            raise ValueError("Login identity record changed during initial checks: " + name)
+    summary = metrics.summarize_run(c["platform"], root / "main-login/logs/qwen3_train.log", {"status": "SUCCEEDED"})
+    completion(c, actual["watchdog"], jobs, driver, train, summary)
+    write(root / "main-login-retention.json", {"at": utc(), "files": login_files,
+        "stable_source_and_destination_sha256_verified": True})
     node(c, "prepare")
     manifest = node(c, "snapshot", phase="main-before")
     retain(c, "main-before", manifest, root / "main-before")
-    summary = metrics.summarize_run(c["platform"], root / "main-before/logs/qwen3_train.log", {"status": "SUCCEEDED"})
-    completion(c, actual["watchdog"], jobs, driver, actual["train_exit"], summary)
     write(root / "main-retention.json", {"at": utc(), "files": manifest, "source_prefix_and_destination_sha256_verified": True,
+                                        "login_files": login_files,
                                         "completed_rollouts": summary["completed_training_rollouts"], "optimizer_updates": 200})
     # Recheck exact identities immediately before the only main-container mutation.
     alloc(); repeated = node(c, "read")
-    completion(c, repeated["watchdog"], api.list_jobs(), driver, repeated["train_exit"], summary)
+    verify_login_sources(login_files)
+    completion(c, repeated["watchdog"], api.list_jobs(),
+        json.loads(Path(c["run_dir"], "train-driver-exit.json").read_text()),
+        json.loads(Path(c["run_dir"], "train_exit.json").read_text()), summary)
     fresh = inspected(c["container"]); container_identity(c, fresh, image_id)
     if fresh["Id"] != main_info["Id"]: raise ValueError("Main container replaced")
     remote(c, ["docker", "stop", "--time", "15", fresh["Id"]], 40)

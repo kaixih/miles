@@ -178,9 +178,19 @@ def validate_inputs(inputs, provenance):
     profiles = inputs["profiles"] or {}
     if profiles and profiles.get("schema") != "qwen3-cudagraph-profiles-v1":
         raise ValueError("Profiles must use qwen3-cudagraph-profiles-v1")
+    profile_slots = set()
     for item in profiles.get("profiles", []):
         if (item.get("run_label"), item.get("source_run_id")) not in identities:
             raise ValueError("Profile source_run_id must bind to this experiment's platform run")
+        if item.get("stage") not in ("prefill", "decode"):
+            raise ValueError("Profile stage must explicitly be prefill or decode")
+        for mode in ("decode_graph", "prefill_graph"):
+            if mode in item and type(item[mode]) is not bool:
+                raise ValueError("Profile graph condition must be a boolean when supplied")
+        slot = (item["run_label"], item["stage"])
+        if slot in profile_slots:
+            raise ValueError("Duplicate profile platform/stage: explicitly select one primary capture")
+        profile_slots.add(slot)
     for proof in profiles.get("graph_evidence", []):
         if (proof.get("run_label"), proof.get("source_run_id")) not in identities:
             raise ValueError("Graph proof must bind to this experiment's platform run")

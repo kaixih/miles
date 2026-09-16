@@ -72,6 +72,38 @@ class EvidenceGuards(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "context_sha256"):
             G.build_report(experiment=self.write("experiment.json", self.experiment), diagnostics=self.write("diagnostics.json", diagnostic), output=self.root / "site")
 
+    def profile_fixture(self):
+        self.fixture()
+        records=[]
+        for platform in ["rubin","gb300"]:
+            for stage in ["prefill","decode"]:
+                trace=self.write(f"SYNTHETIC_QA_{platform}_{stage}.json", {"traceEvents":[],"purpose":"CPU fixture only","stage":stage})
+                records.append({"run_label":platform,"source_run_id":f"SYNTHETIC_QA_{platform}_NEW",
+                                "stage":stage,"verified":True,"decode_graph":stage=="decode","prefill_graph":False,"title":f"SYNTHETIC QA {platform} {stage}",
+                                "scope":"Synthetic fixture only; not measured evidence.","trace":str(trace),
+                                "source_trace_sha256":G.sha256(trace)})
+        return {"schema":"qwen3-cudagraph-profiles-v1","experiment_id":self.experiment["experiment_id"],"profiles":records}
+
+    def test_four_stage_records_retain_distinct_trace_hashes(self):
+        profiles=self.profile_fixture()
+        G.build_report(experiment=self.write("experiment.json",self.experiment), profiles=self.write("profiles.json",profiles), output=self.root/"site")
+        records=json.loads((self.root/"site/report-data.json").read_text())["inputs"]["profiles"]["profiles"]
+        self.assertEqual([(r["run_label"],r["stage"]) for r in records],[(p,s) for p in ["rubin","gb300"] for s in ["prefill","decode"]])
+        self.assertEqual(len({r["attachments"]["trace"]["url"] for r in records}),4)
+        for before,after in zip(profiles["profiles"],records):
+            self.assertEqual(before["source_trace_sha256"],after["attachments"]["trace"]["sha256"])
+
+    def test_ambiguous_stage_and_duplicate_primary_captures_rejected(self):
+        original=self.profile_fixture()
+        for mutation in ["missing_stage","unknown_stage","duplicate","ambiguous_graph_mode"]:
+            profiles=copy.deepcopy(original)
+            if mutation=="missing_stage": profiles["profiles"][0].pop("stage")
+            if mutation=="unknown_stage": profiles["profiles"][0]["stage"]="mixed"
+            if mutation=="duplicate": profiles["profiles"].append(copy.deepcopy(profiles["profiles"][0]))
+            if mutation=="ambiguous_graph_mode": profiles["profiles"][0]["decode_graph"]="false"
+            with self.subTest(mutation=mutation), self.assertRaisesRegex(ValueError,"stage|graph"):
+                G.build_report(experiment=self.write("experiment.json",self.experiment), profiles=self.write("profiles.json",profiles), output=self.root/"site")
+
     def diagnostic_fixture(self):
         self.fixture()
         receipt=self.write("SYNTHETIC_QA_receipt.json", {"purpose":"CPU schema fixture only"})

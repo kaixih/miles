@@ -71,16 +71,22 @@ slide("Separate generation-only OFF / ON diagnostic","10 / Attribution",`
   ${verifiedPairs.length?`<table class="table content"><thead><tr><th>Platform</th><th>OFF mean request</th><th>ON mean request</th><th>Scope</th></tr></thead><tbody>${verifiedPairs.map(pair=>`<tr><td>${e(name(pair.platform))}</td><td>${number(pair.off?.generation_seconds_mean,3)} s</td><td>${number(pair.on?.generation_seconds_mean,3)} s</td><td>${e(pair.scope)}</td></tr>`).join("")}</tbody></table>`:`<div class="chart short">${pending("PENDING / UNMEASURED","No verified matched OFF/ON diagnostic has been supplied. The old trace is not a replacement for this pair.")}</div>`}
   <p class="chart-note">Request time includes prefill + decode, queueing and response delivery. One TP1 engine; input/output token counts and cache policy remain in the raw receipts.</p>`,"Full HTTP generation time is separate from trace-only decode spans and the 50-rollout learning run. No end-to-end Miles speedup is inferred.");
 
+let profileSequence=11;
 for(const platform of requested.platforms){
-  const item=(profiles.profiles||[]).find(p=>p.run_label===platform&&p.verified===true);
-  const attachment=item?.attachments?.image;
-  slide(`${name(platform)} graph and kernel trace`,`${platform==="rubin"?"11":"12"} / Actual profile evidence`,`
-    <p class="subtitle">${e(item?.title||"PENDING / no verified new capture")}</p>
-    <div class="profile-layout"><div class="profile-frame">${attachment?.status==="available"?`<img src="${e(attachment.url)}" alt="${e(item.title)}">`:pending("Trace image pending","Only a rendering or screenshot of the new verified trace belongs here.")}</div><div class="profile-copy"><h3>Recorded scope</h3><p>${e(item?.scope||"Decode/prefill counts, batch sizes, context and graph replay are unmeasured.")}</p>${item?.observations?.length?`<ul>${item.observations.slice(0,3).map(value=>`<li>${e(value)}</li>`).join("")}</ul>`:""}${item?.attachments?.trace?.status==="available"?`<a href="${e(item.attachments.trace.url)}" download>Download source trace</a>`:""}</div></div>`,e(item?.caption||"No kernel or causal conclusion is inferred while the capture is pending. Profiler overhead must remain visible."));
+  for(const stage of ["prefill","decode"]){
+    // The builder rejects duplicate platform/stage records before rendering.
+    const item=(profiles.profiles||[]).find(p=>p.run_label===platform&&p.stage===stage&&p.verified===true);
+    const attachment=item?.attachments?.image;
+    const graphMode=value=>value===true?"ON":value===false?"OFF":"unknown";
+    const condition=item?`Diagnostic condition: decode graph ${graphMode(item.decode_graph)}; prefill graph ${graphMode(item.prefill_graph)}.`:"Diagnostic condition pending.";
+    slide(`${name(platform)} ${stage} trace`,`${profileSequence++} / Actual profile evidence`,`
+      <p class="subtitle">${e(item?.title||`PENDING / no verified ${stage} capture`)}</p>
+      <div class="profile-layout" data-profile-platform="${e(platform)}" data-profile-stage="${stage}" data-profile-verified="${!!item}" data-profile-trace-sha="${e(item?.source_trace_sha256||"")}"><div class="profile-frame">${attachment?.status==="available"?`<img src="${e(attachment.url)}" alt="${e(item.title)}">`:pending(`${stage==="prefill"?"Prefill":"Decode"} trace image pending`,"Only a rendering or screenshot of this stage’s new verified trace belongs here.")}</div><div class="profile-copy"><h3>Recorded scope</h3><p class="profile-condition" style="font-size:20px;line-height:1.4;margin-bottom:14px">${e(condition)}</p><p>${e(item?.scope||`${stage==="prefill"?"EXTEND/prefill":"DECODE"} counts, batch sizes, context and graph replay are unmeasured.`)}</p>${item?.observations?.length?`<ul>${item.observations.slice(0,3).map(value=>`<li>${e(value)}</li>`).join("")}</ul>`:""}${item?.attachments?.trace?.status==="available"?`<a href="${e(item.attachments.trace.url)}" download>Download ${stage} source trace</a>`:""}</div></div>`,e(item?.caption||"No kernel or causal conclusion is inferred while this stage’s capture is pending. Profiler overhead must remain visible."));
+  }
 }
 
 const prior=experiment.previous_report,priorHref=prior?.href&&!/[:\\]/.test(prior.href)?prior.href:null;
-slide("Evidence, limits and the preserved baseline","13 / Provenance",`
+slide("Evidence, limits and the preserved baseline","15 / Provenance",`
   <div class="columns content"><div><h3>New experiment inputs</h3>${REPORT.provenance.map(p=>`<div class="input-evidence-row"><span>${e(p.section)}</span><span class="hash">${p.status==="loaded"?e(p.sha256.slice(0,12)):"PENDING"}</span></div>`).join("")}<p class="small" style="margin-top:24px"><a href="report-data.json" download>Complete recipes, raw observations and hashes</a><br><a href="asset-manifest.json" download>Local artifact checksums</a></p></div><div><h3>Conclusions require measurements</h3><p>${allComplete?"Main training is complete. Graph coverage and diagnostic export retain their separate evidence states.":"New run completion and performance remain under review. Pending sections carry no measured conclusion."}</p><p class="small">${e(experiment.runtime_note)}</p>${priorHref?`<p><a href="${e(priorHref)}">${e(prior.label)}</a></p>`:""}<p class="small muted">${e(prior?.scope_note||"")}</p></div></div>`,"The previous report remains separate. Downloadable evidence preserves exact run identity and does not merge attempts.");
 
 const plotJobs=[];
