@@ -20,7 +20,7 @@ Example on the relevant compute host, using **actual** captured values:
 
 ```bash
 python3 /path/to/capture_sglang_replay.py \
-  --plan /tmp/miles-profile-RUN_ID/run/replay/profile-plan.json \
+  --plan RAID_ROOT/miles-profile-RUN_ID/run/replay/profile-plan.json \
   --container miles-profile-RUN_ID \
   --image IMAGE_REFERENCE_AT_SHA256_DIGEST \
   --engine-url http://NODE_IP:ACTUAL_ENGINE_PORT \
@@ -28,6 +28,40 @@ python3 /path/to/capture_sglang_replay.py \
   --engine-start-ticks ACTUAL_PROC_START_TICKS
 # Review the plan; repeat the same command with --execute to capture.
 ```
+
+The same observer supports `--initial-policy` replay plans. It does not read a
+checkpoint iteration or require checkpoint9: it compares the entire supplied
+plan with the actual mounted plan and checks the exact submission, entrypoint,
+run ID, container and engine. `checkpoint:null`, `initial_model_id` and rollout0–1
+therefore require no observer runtime change. The helper owns model-manifest
+validation. Retain `profile-plan.json` with the trace to establish whether this
+was an initial-policy capture or a restored-checkpoint capture.
+
+For the prepared initial-policy runs, set these values on the corresponding
+compute host after its independent profile has actually launched:
+
+| Variable | Rubin | GB300 |
+|---|---|---|
+| `CODE_ROOT` | `/home/scratch.kaixih_ent/repo/miles-rubin-cu134` | `/mnt/cifs/home/scratch.kaixih_ent/repo/miles-rubin-cu134` |
+| `RAID_ROOT` | `/raid/dldata/miles-kaixih-j2198331-profile` | `/raid/tmp/miles-kaixih-j2198810-profile` |
+| `NODE_IP` | `10.102.74.82` | `10.85.212.9` |
+| `IMAGE` | `gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin@sha256:a03106bdd90c5d6067fbff246fff25df979f9da8486eb0dac795a315a2346d6c` | `radixark/miles@sha256:226f63d28e4b1482e0a6948ba3d486c1b1635648d079c82c9501640b24657986` |
+
+Use the actual new `PROFILE_RUN_ID`, `ENGINE_PORT`, `ENGINE_PID` and
+`ENGINE_START_TICKS`; none are inherited from a main run. This command is a
+plan-only template; append `--execute` only after reviewing its identities:
+
+```bash
+python3 "$CODE_ROOT/lab/rubin_two_node/capture_sglang_replay.py" \
+  --plan "$RAID_ROOT/miles-profile-$PROFILE_RUN_ID/run/replay/profile-plan.json" \
+  --container "miles-profile-$PROFILE_RUN_ID" --image "$IMAGE" \
+  --engine-url "http://$NODE_IP:$ENGINE_PORT" \
+  --engine-pid "$ENGINE_PID" --engine-start-ticks "$ENGINE_START_TICKS" \
+  --capture-timeout 180
+```
+
+Initial-policy traces describe the initial workload, not later learned-policy
+timings. The two images differ, so their traces do not isolate GPU hardware.
 
 Default mode makes no Docker or HTTP calls. Execution is single-use: the
 `sglang-capture.claim` file prevents automatically arming again after an ambiguous
@@ -68,5 +102,6 @@ Both audited images contain SGLang source
 `srt/entrypoints/http_server.py:1174`; scheduler profile predicates/export at
 `srt/managers/scheduler_components/profiler_manager.py:87–160,313–446`.
 The observer requires the default legacy mode: V2 manual stop is not implemented
-in this pinned source. No real profiling or cross-image checkpoint resume has
-been validated by the CPU contract tests.
+in this pinned source. CPU contract tests include initial-policy plans with no
+checkpoint and the same single-arm/exact-stop behavior. No actual GPU capture,
+initial-policy replay, or cross-image checkpoint resume is established by them.

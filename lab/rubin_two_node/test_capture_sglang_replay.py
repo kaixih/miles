@@ -98,10 +98,23 @@ class CaptureTests(unittest.TestCase):
         self.assertEqual(C.origin("http://10.102.74.82:20000/"), "http://10.102.74.82:20000")
 
     def test_ambiguous_single_arm_times_out_and_stops_only_exact_job(self):
+        self._single_arm_timeout()
+
+    def test_initial_policy_without_checkpoint_preserves_single_arm_and_exact_stop(self):
+        self._single_arm_timeout({
+            "initial_policy": True, "initialization": "initial_policy_fresh_optimizer_rng",
+            "initial_model_id": "c94e89d6d72c8131394c6196d04fdb5e681a6768d3ea329dd5dc333401348d46",
+            "initial_models": {"manifest_path": "/profile-input-manifest.json"},
+            "checkpoint": None, "profiled_rollouts": [0, 1],
+            "planned_rollouts": 2, "planned_optimizer_steps": 8,
+        })
+
+    def _single_arm_timeout(self, extra_plan=None):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             (output / "replay/traces").mkdir(parents=True)
-            plan = {**self.plan, "output_dir": "/run-output/replay", "ray_address": "http://127.0.0.1:29265"}
+            plan = {**self.plan, "output_dir": "/run-output/replay", "ray_address": "http://127.0.0.1:29265",
+                    **(extra_plan or {})}
             (output / "replay/profile-plan.json").write_text(json.dumps(plan))
             args = SimpleNamespace(**vars(self.args), engine_pid=123, engine_start_ticks=456,
                                    engine_url="http://127.0.0.1:20000", capture_timeout=15)
