@@ -145,9 +145,9 @@ slide("Gradient signal and evaluation", "07 / Learning evidence", `
 const coldStartSteps=runs.map(run=>({name:niceName(run),seconds:(run.rows||[]).find(r=>r.rollout_id===0)?.common?.step_seconds})).filter(r=>finite(r.seconds));
 const coldStartNote=coldStartSteps.length ? `Recorded rollout 0 step: ${coldStartSteps.map(r=>`${r.name} ${number(r.seconds,1)} s`).join("; ")}.` : "Cold-start step totals remain in the evidence JSON.";
 slide("Runtime and generation throughput", "08 / Performance curves", `
-  <p class="subtitle">Both curves use the same completed, eligible unprofiled observations after warmup.</p>
+  <p class="subtitle">Step time and throughput use the same eligible observations for each run.</p>
   <div class="chart-columns"><div><h3 class="chart-title">Miles step timer · after warmup</h3><div id="time-chart" class="chart half"></div></div><div><h3 class="chart-title">Generation throughput · after warmup</h3><div id="throughput-chart" class="chart half"></div></div></div>
-  <p class="chart-note">${trainingBudgetsDiffer?`Training budgets: ${e(budgetComparison)} tokens/GPU. No hardware-only speedup inference.<br>`:""}Excludes rollout 0 (including GB recovery), observed checkpoint-save rollouts and their following rollouts. Step = train wait + train.</p>`, `${coldStartNote} Throughput = retained output tokens / generation seconds / GPUs. All raw timings remain downloadable.`);
+  <p class="chart-note">${trainingBudgetsDiffer?`Training budgets: ${e(budgetComparison)} tokens/GPU. No hardware-only speedup inference.<br>`:""}Excludes warmup, checkpoint saves, background copying and intervals with unknown timing coverage. Step = train wait + train.</p>`, `${coldStartNote} Throughput = retained output tokens / generation seconds / GPUs. Exclusions include a following-rollout guard; raw timings remain downloadable.`);
 
 slide("Time in each measured stage", "09 / Unprofiled timing", `
   <p class="subtitle">Means use only completed, explicitly unprofiled rollouts after the configured warmup exclusion.</p>

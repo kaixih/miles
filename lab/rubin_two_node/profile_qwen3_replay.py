@@ -12,8 +12,10 @@ Args:
   --source-plan: Original resolved-launcher or Ray-job JSON; no shell is evaluated.
   --checkpoint-root / --checkpoint-iteration: Explicit training checkpoint, not
       an automatically selected latest directory. Its tracker must equal the
-      requested iteration and remain unchanged; use only a completed run with no
-      checkpoint writer. Optimizer/RNG loading stays on. No global --ckpt-step is
+      requested iteration and remain unchanged, with no writer to the supplied
+      checkpoint root. A frozen copy of a completed save is valid even if its
+      producer continues training; the operator still requires main-run completion
+      before profiling. Optimizer/RNG loading stays on. No global --ckpt-step is
       injected, so reference loading retains its own release/numeric tracker.
   --expected-checkpoint-id: Fingerprint printed by the planning invocation; needed
       for execution. It hashes metadata and shard sizes, not full tensor contents.
@@ -46,6 +48,11 @@ Limits are polled, so bytes may overshoot; Ray API outages can delay stopping.
 SGLang capture is manual: the printed bounded payload targets one actual TP1
 engine during this independent replay, never the main learning job.
 """
+
+try:
+    from lab.rubin_two_node.checkpoint_metadata import checkpoint_metadata
+except ModuleNotFoundError:
+    from checkpoint_metadata import checkpoint_metadata
 
 import contextlib
 import fcntl
@@ -253,11 +260,7 @@ def _checkpoint_manifest(root, iteration):
     tracker = (root / "latest_checkpointed_iteration.txt").read_text().strip()
     if not tracker.isdecimal() or int(tracker) != iteration:
         raise ValueError("The checkpoint tracker must exactly equal the requested completed iteration")
-    metadata = [directory / "common.pt", root / "rollout" / f"global_dataset_state_dict_{iteration}.pt"]
-    indexes = [p for p in (directory / ".metadata", directory / "metadata.json") if p.is_file()]
-    if not indexes:
-        raise ValueError("The explicit torch_dist checkpoint has no distributed metadata index")
-    metadata.extend(indexes)
+    metadata = checkpoint_metadata(root, iteration)
     records = []
     for path in metadata:
         if not path.is_file() or not 0 < path.stat().st_size <= 32 * 1024**2:
@@ -353,10 +356,12 @@ def _build_plan(args):
         "profiled_rollouts": [args.checkpoint_iteration + 1, args.checkpoint_iteration + 2],
         "profile_scope": "First replay rollout tail through second rollout train end; all four trainer ranks",
         "sglang_manual_payload": {
-            "output_dir": str(output / "traces/sglang-engine0"), "num_steps": 4,
-            "activities": ["CPU", "GPU"], "profile_by_stage": True,
+            "output_dir": str(output / "traces/sglang"), "num_steps": 4,
+            "activities": ["CPU", "GPU"], "profile_by_stage": False,
             "with_stack": False, "record_shapes": False, "merge_profiles": False,
         },
+        "sglang_capture_scope": "Four consecutive scheduler forwards on one verified TP1 replay engine; "
+        "inspect actual trace contents before labeling prefill/decode coverage. HTTP 200 only arms capture.",
         "checkpoint_identity_scope": "Metadata hashes and shard names/sizes; not a full tensor-content hash",
         "checkpoint_selection": "Actor tracker must equal the requested iteration; reference keeps its own selection",
         "limit_scope": "Polling limits can overshoot; Ray API availability is required to stop the exact job",

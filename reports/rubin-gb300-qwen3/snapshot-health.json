@@ -1,19 +1,19 @@
 {
   "schema": "miles-run-health-v1",
-  "observed_at": "2026-09-16T01:42:42.677981+00:00",
-  "comparison_sha256": "21c59340827fb96e3ab7db504c76d5d5b046dfada9eb01f3a63888d18974b1f5",
+  "observed_at": "2026-09-16T02:47:49.876438+00:00",
+  "comparison_sha256": "8700597a96f4fd26c69fe447486fd4f4d3b25b6fbd44007b6afa0092af1ad730",
   "runs": [
     {
       "label": "rubin",
       "run_id": "20260916-j2198331-qwen3-a2-mb4096",
-      "run_health": "restarted_initializing",
+      "run_health": "healthy_training_recovery",
       "issue": null,
       "source_log": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3/rubin-a2/logs/qwen3_train.log",
-      "source_log_sha256": "5f09705da611e1ce585fc9b09e9142ed7701344452d12f60bd3ce9989f213da5",
+      "source_log_sha256": "b158267fc7398953c57880dd3c20bde7d7e70c21470480a41c0a15f830e2a96b",
       "ray_status": "RUNNING",
-      "completed_training_rollouts": 0,
-      "recorded_optimizer_updates": 0,
-      "scope": "Fresh A2 memory-fit restart at4096tokens/GPU. No optimizer results yet. A1 failed after17 complete rollouts and69 updates; preserve it as a separate attempt, never stitch curves. GB A1 continues8192 pending explicit restart approval.",
+      "completed_training_rollouts": 9,
+      "recorded_optimizer_updates": 36,
+      "scope": "Fresh A2 at4096training tokens/GPU: 9 complete rollouts and 36 finite nonzero-gradient updates. Still RUNNING; full memory-fix validation is pending. Earlier A1 OOM remains separate. Main GB remains8192; timings are not a matched hardware-only comparison.",
       "previous_attempt": {
         "label": "rubin",
         "run_id": "20260915-j2198331-qwen3-a1",
@@ -53,10 +53,10 @@
       "run_health": "healthy_recovered",
       "issue": null,
       "source_log": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3/gb300/logs/qwen3_train.log",
-      "source_log_sha256": "47b0f90d4e50f8fd58d68a3d3a95fb3aed89d98108e694db89357a5f988c7db6",
+      "source_log_sha256": "3a14ced51d6106d2399f93b6fe1fa851eba692431b0211815432ee68ec5af526",
       "evidence_line": 592858,
       "evidence": "\u001b[36m(CommandActor pid=9033)\u001b[0m httpx.ConnectError: All connection attempts failed",
-      "scope": "Seven complete training rollouts and28 optimizer updates are recorded. The prior FD-limit incident remains resolved; its historical evidence is retained below. GB A1 continues at8192training tokens/GPU. No stop occurred; restart permission is pending.",
+      "scope": "19 complete rollouts and 76 finite nonzero-gradient updates. FD-limit recovery remains verified; historical incident evidence is retained below. Main GB remains8192 and its upstream image is unchanged.",
       "recovery": {
         "changed_at": "2026-09-16T00:39:18+00:00",
         "source": "Root task verified live router and parent process limits",
@@ -123,8 +123,11 @@
         }
       },
       "evidence_line_sha256_without_lf": "8ae4a40a4039515be252c1777771fa8531ca4b2354e027ab8ed5d4c3a8fc5583",
-      "evidence_scope": "Historical first-rollout incident; resolved according to the later operational verification below."
+      "evidence_scope": "Historical first-rollout incident; resolved according to the later operational verification below.",
+      "ray_status": "RUNNING",
+      "completed_training_rollouts": 19,
+      "recorded_optimizer_updates": 76
     }
   ],
-  "snapshot_at": "2026-09-16T01:42:42.677981+00:00"
+  "snapshot_at": "2026-09-16T02:47:49.876438+00:00"
 }

@@ -28,6 +28,15 @@ python3 reports/rubin-gb300-qwen3/generate.py
 
 ## Inputs
 
+For the recorded allocation pair, the desktop evidence collector is
+`lab/rubin_two_node/collect_qwen3_snapshot.py`. It downloads exact incremental log
+bytes through `dl3`, validates prefix and reconstructed-file hashes, and installs
+a snapshot only after both platforms and the staged summary pass validation.
+Its explicit `outputs/rubin-gb300-qwen3/io-overlap-windows.json` input records
+background-copy windows. Timing exclusions combine warmup, observed checkpoint
+saves, copying and unknown coverage, including the documented following-rollout
+guard. These exclusions do not change reward, gradient or completion counts.
+
 `--runs` uses `miles-qwen3-comparison-v1` from
 `lab/rubin_two_node/summarize_qwen3_runs.py`. The deck uses `rows[].common`,
 `train_steps`, `eval`, and `unprofiled_stage_statistics` directly. It does not smooth

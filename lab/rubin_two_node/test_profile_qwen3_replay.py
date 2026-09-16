@@ -190,6 +190,20 @@ class ReplayTests(unittest.TestCase):
         with self.assertRaises(AssertionError):
             P.U.exec_command_cpu("never execute this")
 
+    def test_frozen_checkpoint9_replays_three_rollouts_starting10(self):
+        root = Path(self.args.checkpoint_root)
+        (root / "iter_0000049").rename(root / "iter_0000009")
+        (root / "rollout/global_dataset_state_dict_49.pt").rename(root / "rollout/global_dataset_state_dict_9.pt")
+        (root / "latest_checkpointed_iteration.txt").write_text("9\n")
+        plan = P._build_plan(replace(self.args, checkpoint_iteration=9, profile_max_tokens_per_gpu=4096))
+        groups = P._flag_groups(shlex.split(plan["entrypoint"])[2:])
+        self.assertEqual(P._one_value(groups, "--start-rollout-id"), "10")
+        self.assertEqual(P._one_value(groups, "--num-rollout"), "13")
+        self.assertEqual(P._one_value(groups, "--debug-exit-after-rollout"), "3")
+        self.assertEqual(plan["planned_optimizer_steps"], 12)
+        self.assertEqual(plan["profiled_rollouts"], [10, 11])
+        self.assertEqual(plan["checkpoint"]["iteration"], 9)
+
     def test_checkpoint_identity_detects_change_and_missing_cursor(self):
         first = P._checkpoint_manifest(self.args.checkpoint_root, 49)
         self.args.expected_checkpoint_id = first["id"]
