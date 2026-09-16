@@ -4,6 +4,13 @@ Both Miles runs completed **50 rollouts and 200 optimizer updates** on one
 four-GPU node per platform. Decode CUDA Graph was enabled; prefill graphs were
 disabled. The previous eager experiment and its HTML slides remain separate.
 
+Slide 11's OFF/ON control refers specifically to rollout decode CUDA Graph.
+Rubin's ON replay is verified, but its wrapper failed during post-ON cleanup
+before collecting OFF. This does not indicate a failure of the main run.
+The two retained actor microbatch traces contain no graph launch or setup
+events; see [the trace scan](actor-evidence/actor-graph-mode.json), bound to their
+SHA256 values. The actor gap therefore needs a separate host/software explanation.
+
 ## Matched main runs
 
 Both used Qwen3-30B-A3B standard, GSM8K, 256 prompts × 8 responses per rollout,

@@ -23,6 +23,7 @@ const pending=(title="PENDING / UNMEASURED",body="No new measurements have been 
 const slides=[];
 function slide(title,kicker,body,footnote="",dark=false){
   const id=slides.length+1;slides.push({id,title});
+  kicker=kicker.replace(/^\d+\s*\/\s*/,"");
   document.getElementById("deck").insertAdjacentHTML("beforeend",`<section id="slide-${id}" class="slide${dark?" dark":""}" aria-label="Slide ${id}: ${e(title)}"><div class="kicker">${e(kicker)}</div>${dark?"":`<h2>${e(title)}</h2>`}${body}<div class="footnote">${footnote}</div><div class="page-number">${String(id).padStart(2,"0")}</div></section>`);
 }
 const allComplete=runs.length===2&&runs.every(complete);
@@ -75,12 +76,14 @@ function diagnosticRow(label){
   const verified=pair?.verified===true;
   const state=verified?"available":pair?.status==="unavailable"?"unavailable":"pending";
   const reason=pair?.status_reason||(verified?"Verified matched OFF/ON pair.":"Awaiting complete matched OFF/ON evidence.");
-  return `<tr data-diagnostic-platform="${e(label)}" data-diagnostic-status="${state}" data-diagnostic-verified="${verified}"><td>${e(name(label))}</td><td data-mode="off">${verified?`${number(pair.off?.generation_seconds_mean,3)} s`:"—"}</td><td data-mode="on">${verified?`${number(pair.on?.generation_seconds_mean,3)} s`:"—"}</td><td><strong>${verified?"Verified pair":state==="unavailable"?"Unavailable":"Pending"}</strong><br><span class="small">${e(reason)}</span></td></tr>`;
+  const replay=pair?.actual_trace_condition_proof?.on_decode_replay_observed===true;
+  return `<tr data-diagnostic-platform="${e(label)}" data-diagnostic-status="${state}" data-diagnostic-verified="${verified}"><td>${e(name(label))}</td>${verified?`<td data-mode="off">${number(pair.off?.generation_seconds_mean,3)} s</td><td data-mode="on">${number(pair.on?.generation_seconds_mean,3)} s</td><td><strong>Matched comparison</strong></td>`:`<td colspan="3"><strong>${replay?"ON replay verified; OFF comparison unavailable.":state==="unavailable"?"Comparison unavailable.":"Comparison pending."}</strong><br><span class="small">${e(replay&&state==="unavailable"?"The wrapper failed during cleanup after ON; OFF never started.":reason)}</span></td>`}</tr>`;
 }
-slide("Separate generation-only OFF / ON diagnostic","10 / Attribution",`
-  <p class="subtitle">Same initial policy and fixed request/context evidence within each platform.</p>
-  <table class="table content"><thead><tr><th>Platform</th><th>OFF mean request</th><th>ON mean request</th><th>Evidence state</th></tr></thead><tbody>${requested.platforms.map(diagnosticRow).join("")}</tbody></table>
-  <p class="chart-note">Request time includes prefill + decode, queueing and response delivery. One TP1 engine; input/output token counts and cache policy remain in the raw receipts.</p>`,"Full HTTP generation time is separate from trace-only decode spans and the 50-rollout learning run. No end-to-end Miles speedup is inferred.");
+slide("Rollout decode: CUDA Graph OFF vs ON","10 / Attribution",`
+  <p class="subtitle">Both main runs already use decode CUDA Graph. This separate control measures its effect on generation.</p>
+  <table class="table content"><thead><tr><th>Platform</th><th>Graph OFF</th><th>Graph ON</th><th>Evidence</th></tr></thead><tbody>${requested.platforms.map(diagnosticRow).join("")}</tbody></table>
+  <p class="chart-note">Mean time for a batch of 128 requests × 64 output tokens; three repeats, one TP1 engine.<br>Includes prefill + decode, queueing and response delivery. Prefill graph is OFF in both modes.</p>
+  <div class="rule content"><h3>Actor training is a separate execution path</h3><p class="small">${REPORT.derived.actor_graph_mode?`Neither captured actor microbatch contains CUDA Graph replay. Rubin’s smaller gaps were observed without actor graph replay; their CPU versus software cause is not yet isolated. <a href="evidence/actor-graph-mode.json" download>Trace check</a>`:"This rollout control does not test CUDA Graph in actor training."}</p></div>`,"GB300’s short generation control does not explain the actor speedup or establish an end-to-end Miles speedup.");
 
 let profileSequence=11;
 for(const platform of requested.platforms){

@@ -399,10 +399,16 @@ def build_report(experiment=None, runs=None, profiles=None, diagnostics=None, ru
     assets.mkdir(exist_ok=True)
     for name in [PLOTLY, "report.css", "report.js", "navigation.js"]:
         shutil.copyfile(ROOT / "assets" / name, assets / name)
+    actor_graph_mode = json.loads((ROOT / "actor-evidence" / "actor-graph-mode.json").read_text())
+    captured_actor_hashes = {r.get("source_trace_sha256") for r in (inputs.get("actor_profile") or {}).get("runs", []) if r.get("verified")}
+    if captured_actor_hashes == {r["trace_sha256"] for r in actor_graph_mode["runs"]}:
+        shutil.copyfile(ROOT / "actor-evidence" / "actor-graph-mode.json", output / "evidence" / "actor-graph-mode.json")
+    else:
+        actor_graph_mode = None
     comparison_sha = next(p for p in provenance if p["section"] == "comparison").get("sha256")
     envelope = {"schema": "qwen3-cudagraph-offline-slides-v1", "generated_at": datetime.now(timezone.utc).isoformat(),
                 "inputs": inputs, "provenance": provenance,
-                "derived": {"paired_timing": paired_timing(inputs["comparison"], comparison_sha), "actor_profile": actor},
+                "derived": {"paired_timing": paired_timing(inputs["comparison"], comparison_sha), "actor_profile": actor, "actor_graph_mode": actor_graph_mode},
                 "plotly": {"version": "3.1.0", "sha256": sha256(assets / PLOTLY)},
                 "notice": "New experiment only. Missing measurements remain pending. No old curves imported."}
     raw = json.dumps(envelope, ensure_ascii=True, allow_nan=False, separators=(",", ":"))

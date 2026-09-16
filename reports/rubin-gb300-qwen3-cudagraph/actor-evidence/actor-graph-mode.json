@@ -1,0 +1,19 @@
+{
+  "scope": "Captured rank-0 actor forward/backward microbatch only; not a claim about all training steps. Runtime event names scanned case-insensitively for GraphLaunch, GraphInstantiate, GraphExec, GraphReplay.",
+  "runs": [
+    {
+      "platform": "Rubin",
+      "trace_sha256": "c604e788d708f0a2d95d1e0d40d7b3a9ee0751cd247a23fd2b24704f1e3f677f",
+      "trace_events": 263956,
+      "graph_execution_or_setup_event_count": 0,
+      "matching_names": []
+    },
+    {
+      "platform": "GB300",
+      "trace_sha256": "db4fa4de886985e968e0311dd2cf828235359e0446bfddb5e910603d9138c7c7",
+      "trace_events": 239122,
+      "graph_execution_or_setup_event_count": 0,
+      "matching_names": []
+    }
+  ]
+}
