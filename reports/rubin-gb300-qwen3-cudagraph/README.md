@@ -1,9 +1,10 @@
 # Qwen3 CUDA Graph: separate offline HTML slides
 
 This directory belongs to the **new** decode-graph experiment. The original
-`../rubin-gb300-qwen3` report stays unchanged. The 16-slide deck contains
-planned scope and explicit **PENDING / UNMEASURED** sections, with no old curves
-or screenshots copied as new measurements.
+`../rubin-gb300-qwen3` report stays unchanged. The 16-slide deck contains the new learning and performance curves plus separate
+prefill and decode evidence. See [RESULTS.md](RESULTS.md) for measured conclusions
+and limitations. Missing optional evidence is explicitly marked; old curves and
+screenshots are never copied as new measurements.
 
 ```bash
 python3 reports/rubin-gb300-qwen3-cudagraph/generate.py
@@ -14,6 +15,24 @@ keys/Space/PageUp/PageDown/Home/End navigate, F toggles fullscreen, O opens the
 overview, and printing uses16:9 landscape pages. The optional original-report
 link expects the two report directories to remain siblings. The new deck still
 works by itself if that separate baseline is unavailable.
+
+## Rebuild the retained final experiment
+
+When the task's local output directory is available:
+
+```bash
+python3 -B reports/rubin-gb300-qwen3-cudagraph/generate.py \
+  --runs outputs/rubin-gb300-qwen3-cudagraph/comparison.final.json \
+  --run-health outputs/rubin-gb300-qwen3-cudagraph/health.final.json \
+  --profiles outputs/rubin-gb300-qwen3-cudagraph/profile-evidence-final-20260916/profiles.json \
+  --diagnostics outputs/rubin-gb300-qwen3-cudagraph/profile-evidence-final-20260916/diagnostics.json
+```
+
+The final package contains both complete 50-rollout main curves and four verified
+ON trace figures. Rubin's missing OFF comparison remains explicitly unavailable;
+GB300 has a verified matched OFF/ON request-time diagnostic. Data and trace files
+are distributed in the offline report package; the Git branch contains source
+and the measured results summary, without model/checkpoint files.
 
 ## Update after evidence arrives
 
@@ -162,7 +181,7 @@ python3 -B reports/rubin-gb300-qwen3-cudagraph/test_generate.py
   reports/rubin-gb300-qwen3-cudagraph/qa
 ```
 
-The8 CPU tests exercise pending mode, exact new identity binding, rejection of
+The CPU tests exercise pending mode, exact new identity binding, rejection of
 old runs, stale health, inconsistent replay counts and mismatched paired context.
 Browser QA checks overflow, pending charts, source values, timing gaps, replay
 status, local-only assets and keyboard/mobile navigation. Synthetic unit inputs

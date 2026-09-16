@@ -1,7 +1,7 @@
 {
   "schema": "qwen3-cudagraph-experiment-v1",
   "experiment_id": "qwen3-cudagraph-nightly-v1",
-  "status": "pending",
+  "status": "completed_with_diagnostic_limitation",
   "title": "Qwen3 with decode CUDA Graph",
   "requested": {
     "platforms": [
@@ -45,5 +45,5 @@
     "scope_note": "Old Rubin A2 used 4,096 training tokens/GPU. GB300 changed both training and log-prob budgets from 8,192 to 4,096 tokens/GPU, alongside decode graph mode and a different save schedule."
   },
   "runtime_note": "Keep the prior Rubin image and unmodified upstream GB300 image. Software versions differ; results describe the recorded systems.",
-  "diagnostic_note": "A separate bounded generation-only OFF/ON pair after the main runs will use identical initial policy and request/context evidence. No full trainer profiler is planned."
+  "diagnostic_note": "Both platforms retained ON prefill and decode traces with actual decode replay. GB300 also completed a matched initial-policy OFF/ON generation diagnostic. Rubin OFF is unavailable after post-ON wrapper teardown failure; no Rubin OFF/ON speedup is claimed."
 }
