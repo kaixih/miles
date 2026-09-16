@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import datetime as dt
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -35,6 +36,13 @@ class OperatorTests(unittest.TestCase):
                 self.assertEqual(command[command.index("--profile-max-tokens-per-gpu") + 1], "4096")
                 self.assertEqual(command[command.index("--checkpoint-iteration") + 1], "9")
                 self.assertIn("--print-only", command)
+                self.assertEqual(plan["replay_workload"]["rollout_ids"], [10, 11])
+                self.assertEqual(plan["replay_workload"]["rollouts"], 2)
+                self.assertEqual(plan["replay_workload"]["optimizer_updates"], 8)
+                self.assertEqual(plan["replay_workload"]["profile_step_start"], 1)
+                self.assertEqual(plan["replay_workload"]["profile_step_end"], 2)
+                self.assertEqual(plan["retention_margin_seconds"], 1200)
+                self.assertIn("50rollouts/200updates", plan["completion_gates"])
                 self.assertEqual(plan["config"]["input"], plan["config"]["runtime_output"] + "/inputs")
                 self.assertEqual(plan["config"]["profile_checkpoint"], plan["config"]["raid_root"] + "/profile-checkpoint-9")
                 mounts = plan["docker_argv"]
@@ -222,6 +230,188 @@ class OperatorTests(unittest.TestCase):
             (final / "latest_checkpointed_iteration.txt").write_text("9")
             with self.assertRaisesRegex(RuntimeError, "tracker does not equal"):
                 operator.check_node_prerequisites(c, {"checkpoint_id": record["source_checkpoint_id"]})
+
+
+class RetentionDeadlineTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name).resolve()
+        self.clock = 1000.0
+        self.c = {**operator.config(SimpleNamespace(platform='rubin', run_id='deadline-test')),
+                  'durable': str(self.root), 'local': str(self.root / 'node'),
+                  'lease': dt.datetime.fromtimestamp(5000, dt.timezone.utc).isoformat()}
+        self.args = SimpleNamespace(retention_margin_seconds=600)
+        self.job = {'submission_id': self.c['submission_id'], 'status': 'SUCCEEDED'}
+        self.payload = b'actual fixture trace'
+        self.files = {'replay/test.trace.gz': {'bytes': len(self.payload),
+                      'sha256': hashlib.sha256(self.payload).hexdigest()}}
+        self.timeouts = []
+
+    @contextlib.contextmanager
+    def clocked(self):
+        with patch.object(operator.time, 'time', side_effect=lambda: self.clock), \
+             patch.object(operator.time, 'monotonic', side_effect=lambda: self.clock), \
+             patch.object(operator.signal, 'getitimer', return_value=(0, 0)), \
+             patch.object(operator.signal, 'setitimer'), patch.object(operator.signal, 'signal'), \
+             contextlib.redirect_stdout(io.StringIO()):
+            yield
+
+    def remote(self, _c, argv, timeout):
+        self.timeouts.append((argv, timeout))
+        if argv[:3] == ['docker', 'exec', self.c['name']]:
+            if '-c' in argv:
+                compile(argv[-1], '<capture script>', 'exec')
+        self.clock += 20
+        return '{}'
+
+    def copy(self, argv, *, check, timeout):
+        self.assertEqual(argv[0], 'rsync')
+        self.timeouts.append(('rsync', timeout))
+        target = self.root / 'node-output/replay/test.trace.gz'
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(self.payload)
+        self.clock += 100
+
+    def test_one_budget_across_capture_both_hashes_copy_and_final_record(self):
+        starts = []
+        def manifest(_c, deadline):
+            starts.append(deadline.remaining())
+            self.clock += 150 if len(starts) == 1 else 100
+            return self.files
+        with self.clocked(), patch.object(operator, 'profile_terminal', return_value=self.job), \
+             patch.object(operator, 'remote', side_effect=self.remote), \
+             patch.object(operator, 'manifest', side_effect=manifest), \
+             patch.object(operator.subprocess, 'run', side_effect=self.copy), \
+             OperatorTests.owned_files(self), patch.object(operator.os, 'getuid', return_value=28644):
+            operator.retain(self.c, self.args)
+        self.assertEqual(starts, [580, 330])
+        self.assertIn(('rsync', 430), self.timeouts)
+        record = json.loads((self.root / 'retention.json').read_text())
+        audit = json.loads((self.root / 'retain-attempt.json').read_text())
+        self.assertEqual(record['bytes'], len(self.payload))
+        self.assertEqual(audit['actual_total_bytes'], len(self.payload))
+        self.assertEqual(audit['deadline_timestamp'], 1600)
+        self.assertEqual(audit['elapsed_seconds'], 370)
+        self.assertEqual(audit['state'], 'verified')
+        self.assertEqual(record['attempt_id'], audit['attempt_id'])
+        self.assertEqual([x['name'] for x in audit['stages']], ['terminal_identity', 'capture_driver_evidence',
+            'source_manifest_before', 'rsync', 'source_manifest_after', 'destination_hashes', 'verified_retention_record'])
+        self.assertTrue(all(x['status'] == 'complete' for x in audit['stages']))
+
+    def test_slow_source_manifest_exhausts_budget_before_copy_and_never_stops(self):
+        target = self.root / 'node-output/previous.partial'
+        target.parent.mkdir(); target.write_bytes(b'preserve')
+        def manifest(_c, deadline):
+            self.assertEqual(deadline.remaining(), 580)
+            self.clock += 581
+            return self.files
+        with self.clocked(), patch.object(operator, 'profile_terminal', return_value=self.job), \
+             patch.object(operator, 'remote', side_effect=self.remote), patch.object(operator, 'manifest', side_effect=manifest), \
+             patch.object(operator.subprocess, 'run') as copy, patch.object(operator, 'stop') as stop:
+            with self.assertRaises(TimeoutError): operator.retain(self.c, self.args)
+        copy.assert_not_called(); stop.assert_not_called()
+        self.assertEqual(target.read_bytes(), b'preserve')
+        self.assertFalse((self.root / 'retention.json').exists())
+        self.assertNotEqual(json.loads((self.root / 'retain-attempt.json').read_text())['state'], 'verified')
+
+    def test_slow_copy_preserves_partial_and_cannot_renew_budget_for_second_hash(self):
+        def copy(argv, *, check, timeout):
+            self.assertEqual(timeout, 580)
+            self.copy(argv, check=check, timeout=timeout)
+            self.clock += 500
+        with self.clocked(), patch.object(operator, 'profile_terminal', return_value=self.job), \
+             patch.object(operator, 'remote', side_effect=self.remote), \
+             patch.object(operator, 'manifest', return_value=self.files) as manifest, \
+             patch.object(operator.subprocess, 'run', side_effect=copy), patch.object(operator, 'stop') as stop:
+            with self.assertRaises(TimeoutError): operator.retain(self.c, self.args)
+        self.assertEqual(manifest.call_count, 1); stop.assert_not_called()
+        self.assertEqual((self.root / 'node-output/replay/test.trace.gz').read_bytes(), self.payload)
+        self.assertFalse((self.root / 'retention.json').exists())
+
+    def test_expired_lease_prevents_reads_or_mutations_for_retain_and_stop(self):
+        self.c['lease'] = dt.datetime.fromtimestamp(1000, dt.timezone.utc).isoformat()
+        for action in (operator.retain, operator.stop):
+            with self.clocked(), patch.object(operator, 'profile_terminal') as check, \
+                 patch.object(operator, 'remote') as remote:
+                with self.assertRaises(TimeoutError): action(self.c, self.args)
+            check.assert_not_called(); remote.assert_not_called()
+        self.assertEqual(list(self.root.iterdir()), [])
+
+    def test_recorded_lease_caps_requested_budget_and_clock_rollback_cannot_extend(self):
+        self.c['lease'] = dt.datetime.fromtimestamp(1420, dt.timezone.utc).isoformat()
+        with self.clocked():
+            deadline = operator.OperationDeadline(self.c, 600, 'retain')
+            self.assertEqual(deadline.deadline, 1300)
+            self.clock += 250
+            self.assertEqual(deadline.remaining(), 50)
+            with patch.object(operator.time, 'time', return_value=1100):
+                self.assertEqual(deadline.remaining(), 50)
+
+    def test_expired_context_does_not_install_alarm_handler(self):
+        with self.clocked():
+            deadline = operator.OperationDeadline(self.c, 600, 'retain')
+            self.clock += 601
+            with patch.object(operator.signal, 'signal') as handler:
+                with self.assertRaises(TimeoutError):
+                    with deadline.enforce(): self.fail('expired context entered')
+                handler.assert_not_called()
+
+    def test_stop_can_use_shutdown_reserve_but_never_extend_lease(self):
+        self.c['lease'] = dt.datetime.fromtimestamp(1100, dt.timezone.utc).isoformat()
+        with self.clocked():
+            with self.assertRaises(TimeoutError): operator.OperationDeadline(self.c, 600, 'retain')
+            deadline = operator.OperationDeadline(self.c, 600, 'stop', lease_reserve_seconds=0)
+            self.assertEqual(deadline.remaining(), 100)
+            self.assertEqual(deadline.deadline, 1100)
+            self.clock += 101
+            with self.assertRaises(TimeoutError): deadline.remaining()
+
+    def verified_records(self):
+        record = {'state': 'verified', 'attempt_id': 'same', 'run_id': self.c['run_id'],
+                  'terminal_ray_job': self.job, 'bytes': len(self.payload), 'files': self.files}
+        (self.root / 'retention.json').write_text(json.dumps(record))
+        (self.root / 'retain-attempt.json').write_text(json.dumps({'state': 'verified', 'attempt_id': 'same'}))
+
+    def test_stop_hash_timeout_prevents_both_scoped_stop_commands(self):
+        self.verified_records()
+        def manifest(_c, deadline):
+            self.clock += 601
+            return self.files
+        with self.clocked(), patch.object(operator, 'profile_terminal', return_value=self.job), \
+             patch.object(operator, 'manifest', side_effect=manifest), patch.object(operator, 'remote') as remote:
+            with self.assertRaises(TimeoutError): operator.stop(self.c, self.args)
+        remote.assert_not_called()
+        self.assertFalse((self.root / 'operator-stopped.json').exists())
+
+    def test_stop_requires_completed_retention_and_only_targets_exact_container(self):
+        self.verified_records()
+        (self.root / 'retain-attempt.json').write_text('{"state":"running","attempt_id":"same"}')
+        with self.clocked(), patch.object(operator, 'profile_terminal', return_value=self.job), \
+             patch.object(operator, 'remote') as remote:
+            with self.assertRaisesRegex(RuntimeError, 'completed verification'):
+                operator.stop(self.c, self.args)
+        remote.assert_not_called()
+        self.verified_records()
+        with self.clocked(), patch.object(operator, 'profile_terminal', return_value=self.job), \
+             patch.object(operator, 'manifest', return_value=self.files), \
+             patch.object(operator, 'remote', side_effect=self.remote):
+            operator.stop(self.c, self.args)
+        self.assertEqual([argv for argv, _ in self.timeouts], [
+            ['docker', 'exec', self.c['name'], 'ray', 'stop', '--force'],
+            ['docker', 'stop', '--time', '30', self.c['name']]])
+        self.assertEqual(json.loads((self.root / 'stop-attempt.json').read_text())['state'], 'verified')
+
+    def test_explicit600_allowed_default1200_preserved_below600_rejected(self):
+        for value in (600, 1200):
+            with patch('sys.argv', ['operator', 'rubin', '--run-id', 'test', '--retention-margin-seconds', str(value)]), \
+                 contextlib.redirect_stdout(io.StringIO()) as output, patch.object(operator, 'run') as run:
+                operator.main()
+            run.assert_not_called()
+            self.assertEqual(json.loads(output.getvalue())['retention_margin_seconds'], value)
+        with patch('sys.argv', ['operator', 'rubin', '--run-id', 'test', '--retention-margin-seconds', '599']), \
+             contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            operator.main()
 
 
 if __name__ == "__main__":

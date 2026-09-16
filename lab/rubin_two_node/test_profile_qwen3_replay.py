@@ -125,8 +125,8 @@ class ReplayTests(unittest.TestCase):
                                    ["--log-probs-max-tokens-per-gpu", "4096"])])
         self.assertEqual(plan["checkpoint"], baseline["checkpoint"])
         self.assertEqual(plan["runtime_env"], baseline["runtime_env"])
-        self.assertEqual(plan["planned_rollouts"], 3)
-        self.assertEqual(plan["planned_optimizer_steps"], 12)
+        self.assertEqual(plan["planned_rollouts"], 2)
+        self.assertEqual(plan["planned_optimizer_steps"], 8)
         self.assertEqual(P._one_value(after, "--global-batch-size"), "512")
         self.assertEqual(P._one_value(after, "--num-steps-per-rollout"), "4")
         self.assertNotEqual(plan["entrypoint_sha256"], baseline["entrypoint_sha256"])
@@ -170,7 +170,7 @@ class ReplayTests(unittest.TestCase):
         groups = P._flag_groups(shlex.split(plan["entrypoint"])[2:])
         for flag, value in {
             "--load": str(Path(self.args.checkpoint_root).resolve()), "--start-rollout-id": "50",
-            "--num-rollout": "53", "--debug-exit-after-rollout": "3", "--ref-load": "/reference with spaces",
+            "--num-rollout": "52", "--debug-exit-after-rollout": "2", "--ref-load": "/reference with spaces",
             "--rollout-top-k": "-1", "--rollout-temperature": "1", "--lr": "1e-6",
             "--custom-rm-path": "original.reward", "--profile-step-start": "1", "--profile-step-end": "2",
         }.items():
@@ -181,7 +181,7 @@ class ReplayTests(unittest.TestCase):
         self.assertIn("--use-checkpoint-opt-param-scheduler", flags)
         self.assertFalse(flags & {"--save", "--eval-interval", "--finetune", "--no-load-optim", "--no-load-rng"})
         self.assertFalse(any(f.startswith(("--save-", "--eval-", "--wandb-")) for f in flags))
-        self.assertEqual(plan["planned_optimizer_steps"], 12)
+        self.assertEqual(plan["planned_optimizer_steps"], 8)
         self.assertEqual(plan["profiled_rollouts"], [50, 51])
         self.assertEqual(plan["runtime_env"]["env_vars"][P.RUN_ID_ENV], "isolated-test")
         self.assertNotIn("private-key", json.dumps(plan))
@@ -190,7 +190,7 @@ class ReplayTests(unittest.TestCase):
         with self.assertRaises(AssertionError):
             P.U.exec_command_cpu("never execute this")
 
-    def test_frozen_checkpoint9_replays_three_rollouts_starting10(self):
+    def test_frozen_checkpoint9_replays_exactly_two_rollouts_starting10(self):
         root = Path(self.args.checkpoint_root)
         (root / "iter_0000049").rename(root / "iter_0000009")
         (root / "rollout/global_dataset_state_dict_49.pt").rename(root / "rollout/global_dataset_state_dict_9.pt")
@@ -198,11 +198,39 @@ class ReplayTests(unittest.TestCase):
         plan = P._build_plan(replace(self.args, checkpoint_iteration=9, profile_max_tokens_per_gpu=4096))
         groups = P._flag_groups(shlex.split(plan["entrypoint"])[2:])
         self.assertEqual(P._one_value(groups, "--start-rollout-id"), "10")
-        self.assertEqual(P._one_value(groups, "--num-rollout"), "13")
-        self.assertEqual(P._one_value(groups, "--debug-exit-after-rollout"), "3")
-        self.assertEqual(plan["planned_optimizer_steps"], 12)
+        self.assertEqual(P._one_value(groups, "--num-rollout"), "12")
+        self.assertEqual(P._one_value(groups, "--debug-exit-after-rollout"), "2")
+        self.assertEqual(plan["planned_optimizer_steps"], 8)
         self.assertEqual(plan["profiled_rollouts"], [10, 11])
         self.assertEqual(plan["checkpoint"]["iteration"], 9)
+
+    def test_two_rollouts_reach_verified_profiler_export_boundary(self):
+        # Source contract from installed Miles profile_utils.py + actor.py:
+        # exactly one prof.step per train call, not per optimizer update.
+        # Installed torch profiler schedule reaches RECORD_AND_SAVE -> NONE
+        # on that second call; its transition synchronously invokes the handler.
+        plan = P._build_plan(self.args)
+        groups = P._flag_groups(shlex.split(plan["entrypoint"])[2:])
+        start, end = [int(P._one_value(groups, "--profile-step-" + name)) for name in ("start", "end")]
+        expected = {"wait": max(start - 1, 0), "warmup": 1 if start > 0 else 0,
+                    "active": end - start, "repeat": 1}
+        schedule = plan["train_profiler_schedule"]
+        self.assertEqual({k: schedule[k] for k in expected}, expected)
+        cycle = expected["wait"] + expected["warmup"] + expected["active"]
+        self.assertEqual(cycle, 2)
+        # Independent state sequence for the verified wait0/warmup1/active1 cycle.
+        states = ["WARMUP", "RECORD_AND_SAVE", "NONE"]
+        count = int(P._one_value(groups, "--debug-exit-after-rollout"))
+        self.assertEqual(states[count - 1:count + 1], ["RECORD_AND_SAVE", "NONE"])
+        self.assertNotEqual(states[:2], ["RECORD_AND_SAVE", "NONE"])
+        first = int(P._one_value(groups, "--start-rollout-id"))
+        stop = int(P._one_value(groups, "--num-rollout"))
+        self.assertEqual(stop - first, count)
+        self.assertEqual(count, plan["planned_rollouts"])
+        self.assertEqual(plan["planned_optimizer_steps"], 4 * count)
+        self.assertEqual(schedule["trace_ready_after_replay_rollout"], count)
+        self.assertIn("before CPU actor backup", schedule["export_boundary"])
+        self.assertEqual((plan["max_runtime_seconds"], plan["max_trace_bytes"]), (4500, 10 * 1024**3))
 
     def test_checkpoint_identity_detects_change_and_missing_cursor(self):
         first = P._checkpoint_manifest(self.args.checkpoint_root, 49)

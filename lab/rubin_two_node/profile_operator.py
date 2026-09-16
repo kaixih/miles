@@ -7,7 +7,7 @@ submit --expected-checkpoint-id ID -> retain -> stop. Each action plans by defau
 Prepare requires completed learning evidence and explicit permission to stop the
 exact completed main container. Never use this to interrupt a main run.
 
-A replay is 3 rollouts/12 updates, not 3 optimizer steps. Both platforms read the
+A replay is 2 rollouts/8 updates, not 2 optimizer steps. Both platforms read the
 same frozen Rubin iteration-9 checkpoint from verified local RAID storage, only
 after their main runs naturally finish all 50 rollouts. Cross-version resume is an
 execution check. SGLang profiling is separately triggered on an actual replay
@@ -19,6 +19,7 @@ except ModuleNotFoundError:
     from checkpoint_metadata import checkpoint_metadata
 
 import argparse
+import contextlib
 import datetime as dt
 import hashlib
 import importlib.util
@@ -28,6 +29,7 @@ import os
 from pathlib import Path
 import re
 import shlex
+import signal
 import shutil
 import subprocess
 import time
@@ -165,9 +167,103 @@ def replay_command(c, seconds, execute=False, checkpoint_id=''):
     return cmd + (['--expected-checkpoint-id', checkpoint_id, '--execute-run'] if execute else ['--print-only'])
 
 
-def jobs(c, dashboard):
+class OperationDeadline:
+    """One nonrenewable wall/monotonic budget, always ending before the lease."""
+    def __init__(self, c, requested_seconds, action, *, lease_reserve_seconds=120):
+        self.started = time.time()
+        self.started_monotonic = time.monotonic()
+        self.deadline = min(self.started + requested_seconds,
+                            dt.datetime.fromisoformat(c['lease']).timestamp() - lease_reserve_seconds)
+        self.lease_reserve_seconds = lease_reserve_seconds
+        self.monotonic_deadline = self.started_monotonic + self.deadline - self.started
+        self.action = action
+        self.stages = []
+        self.remaining()
+
+    def remaining(self, maximum=None):
+        seconds = min(self.deadline - time.time(), self.monotonic_deadline - time.monotonic())
+        if seconds <= 0:
+            raise TimeoutError(self.action + ' overall deadline expired')
+        return min(seconds, maximum) if maximum is not None else seconds
+
+    def describe(self):
+        return {'started_at': dt.datetime.fromtimestamp(self.started, dt.timezone.utc).isoformat(),
+                'deadline_at': dt.datetime.fromtimestamp(self.deadline, dt.timezone.utc).isoformat(),
+                'deadline_timestamp': self.deadline, 'lease_shutdown_reserve_seconds': self.lease_reserve_seconds,
+                'elapsed_seconds': time.monotonic() - self.started_monotonic,
+                'stages': [dict(stage) for stage in self.stages]}
+
+    @contextlib.contextmanager
+    def enforce(self):
+        # The CLI runs on the main thread of a POSIX host. This also bounds local
+        # NFS reads/writes; per-subprocess timeouts alone would not bound hashing.
+        def expired(_signum, _frame):
+            raise TimeoutError(self.action + ' overall deadline expired')
+        if signal.getitimer(signal.ITIMER_REAL)[0]:
+            raise RuntimeError('Refuse to replace an existing process alarm')
+        seconds = self.remaining()
+        previous = signal.signal(signal.SIGALRM, expired)
+        try:
+            signal.setitimer(signal.ITIMER_REAL, seconds)
+            yield
+            self.remaining()
+        finally:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, previous)
+
+    def stage(self, name, function):
+        self.remaining()
+        start = time.monotonic()
+        record = {'name': name, 'started_at': utc(), 'status': 'running'}
+        self.stages.append(record)
+        try:
+            result = function()
+            self.remaining()
+            record['status'] = 'complete'
+            return result
+        except BaseException as exc:
+            record.update(status='failed', error=type(exc).__name__ + ': ' + str(exc))
+            raise
+        finally:
+            record.update(elapsed_seconds=time.monotonic() - start, ended_at=utc())
+
+
+def bounded(deadline, maximum):
+    return deadline.remaining(maximum) if deadline is not None else maximum
+
+
+def _remote_deadline_preamble(deadline):
+    # Embedded in read/capture workers so losing SSH cannot renew remote work.
+    return """import signal,time
+_deadline = DEADLINE
+_seconds = _deadline - time.time()
+if _seconds <= 0: raise TimeoutError('Remote operation deadline expired')
+def _expired(signum, frame): raise TimeoutError('Remote operation deadline expired')
+signal.signal(signal.SIGALRM, _expired)
+signal.setitimer(signal.ITIMER_REAL, _seconds)
+def _check_deadline():
+ if time.time() >= _deadline: raise TimeoutError('Remote operation deadline expired')
+""".replace('DEADLINE', repr(deadline.deadline))
+
+
+def _write_before_deadline(path, obj, deadline):
+    deadline.remaining()
+    path = Path(path)
+    temporary = path.with_name(path.name + '.partial-' + str(os.getpid()))
+    with temporary.open('w') as stream:
+        json.dump(obj, stream, indent=2)
+        stream.write('\n')
+        stream.flush()
+        os.fsync(stream.fileno())
+    deadline.remaining()
+    os.replace(temporary, path)
+    deadline.remaining()
+
+
+def jobs(c, dashboard, deadline=None):
+    timeout = bounded(deadline, 15)
     return node_python(c, "import json,urllib.request; print(json.dumps(json.load(urllib.request.build_opener(urllib.request.ProxyHandler({})).open(" +
-                       repr(dashboard + '/api/jobs/') + ",timeout=15))))", 25)
+                       repr(dashboard + '/api/jobs/') + ",timeout=" + repr(timeout) + "))))", bounded(deadline, 25))
 
 
 def allocation(c):
@@ -382,8 +478,8 @@ def check_main(c):
             'node_prerequisites': node_prerequisites}
 
 
-def inspect_profile(c):
-    data = json.loads(remote(c, ['docker', 'inspect', c['name']]))[0]
+def inspect_profile(c, deadline=None):
+    data = json.loads(remote(c, ['docker', 'inspect', c['name']], bounded(deadline, 60)))[0]
     if data['Config']['Labels'].get('miles.profile_run') != c['run_id'] or data['Config']['Image'] != c['image']:
         raise RuntimeError('Profile container identity/image mismatch')
     if data['Config']['User'] != '28644:30':
@@ -474,9 +570,9 @@ def submit(c, args):
     print(text)
 
 
-def profile_terminal(c):
-    inspect_profile(c)
-    current = jobs(c, c['dashboard'])
+def profile_terminal(c, deadline=None):
+    inspect_profile(c, deadline)
+    current = jobs(c, c['dashboard'], deadline)
     if any(j.get('type') == 'SUBMISSION' and j.get('status') not in TERMINAL for j in current):
         raise RuntimeError('Profile cluster has an active/unknown job; do not retain/stop yet')
     found = [j for j in current if j.get('submission_id') == c['submission_id']]
@@ -485,74 +581,154 @@ def profile_terminal(c):
     return found[0]
 
 
-def manifest(c):
-    code = """import hashlib,json,os,pathlib
+def manifest(c, deadline):
+    code = _remote_deadline_preamble(deadline) + """import hashlib,json,os,pathlib
 root=pathlib.Path(ROOT); result={}
 def fail(e): raise e
 for base,dirs,files in os.walk(root,onerror=fail,followlinks=False):
+ _check_deadline()
  for name in dirs+files:
   p=pathlib.Path(base,name)
   if p.is_symlink(): raise RuntimeError('Refuse symlink: '+str(p))
  for name in files:
+  _check_deadline()
   p=pathlib.Path(base,name); h=hashlib.sha256()
   with p.open('rb') as f:
-   for block in iter(lambda:f.read(4*1024**2),b''): h.update(block)
+   for block in iter(lambda:f.read(4*1024**2),b''):
+    _check_deadline(); h.update(block)
   result[str(p.relative_to(root))]={'bytes':p.stat().st_size,'sha256':h.hexdigest()}
+_check_deadline()
 print(json.dumps(result))
 """.replace('ROOT', repr(c['local'] + '/run'))
-    return node_python(c, code, 600)
+    return node_python(c, code, deadline.remaining(600))
+
+
+def _verify_retained(destination, files, deadline):
+    for name, meta in files.items():
+        deadline.remaining()
+        relative = Path(name)
+        if relative.is_absolute() or '..' in relative.parts:
+            raise RuntimeError('Unsafe retained path: ' + name)
+        p = destination / relative
+        if p.resolve() != p or p.stat().st_uid != 28644 or not p.is_file():
+            raise RuntimeError('Retained file owner/type/path mismatch: ' + name)
+        h = hashlib.sha256()
+        with p.open('rb') as stream:
+            for block in iter(lambda: stream.read(4*1024**2), b''):
+                deadline.remaining()
+                h.update(block)
+        if p.stat().st_size != meta['bytes'] or h.hexdigest() != meta['sha256']:
+            raise RuntimeError('Retained file mismatch: ' + name)
+    deadline.remaining()
+
+
+def _operation(c, args, action, function):
+    deadline = OperationDeadline(c, args.retention_margin_seconds, action,
+        lease_reserve_seconds=120 if action == 'retain' else 0)
+    attempt = {'action': action, 'state': 'running', 'run_id': c['run_id'],
+               'attempt_id': str(os.getpid()) + '-' + str(time.time_ns()),
+               'requested_margin_seconds': args.retention_margin_seconds,
+               'actual_total_bytes': None, 'trace_limit_is_polled_not_hard': True}
+    audit_path = Path(c['durable'], action + '-attempt.json')
+    def audit():
+        attempt.update(deadline.describe())
+        _write_before_deadline(audit_path, attempt, deadline)
+    try:
+        with deadline.enforce():
+            audit()
+            function(deadline, attempt, audit)
+            attempt.update(state='verified', completed_at=utc())
+            audit()
+    except BaseException as exc:
+        attempt.update(deadline.describe(), state='failed', error=type(exc).__name__ + ': ' + str(exc))
+        # Once expired, do not start a new file write. Prior progress/partial files
+        # remain; final failure is also emitted to the operator's retained stdout.
+        try:
+            with deadline.enforce():
+                audit()
+        except (TimeoutError, OSError):
+            pass
+        print(json.dumps(attempt), flush=True)
+        raise
+    print(json.dumps(attempt), flush=True)
 
 
 def retain(c, args):
-    job = profile_terminal(c)
-    # Retain actual driver evidence, not only the profiler files. This executes
-    # only after exact terminal identity was checked; normal container UID writes.
-    capture = """import json,pathlib,urllib.request
+    def retain_work(deadline, attempt, audit):
+        job = deadline.stage('terminal_identity', lambda: profile_terminal(c, deadline))
+        audit()
+        capture = _remote_deadline_preamble(deadline) + """import json,pathlib,urllib.request
 opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
 url=URL
-with opener.open(url+'/logs',timeout=30) as response: logs=json.load(response)
+with opener.open(url+'/logs',timeout=min(30,_deadline-time.time())) as response: logs=json.load(response)
+_check_deadline()
 p=pathlib.Path('/run-output/replay')
 (p/'job-driver.log').write_text(logs['logs'])
+_check_deadline()
 (p/'final-ray-job.json').write_text(json.dumps(JOB,indent=2)+'\\n')
+_check_deadline()
 print(json.dumps({'driver_log_bytes':(p/'job-driver.log').stat().st_size}))
 """.replace('URL', repr(c['dashboard'] + '/api/jobs/' + c['submission_id'])).replace('JOB', repr(job))
-    remote(c, ['docker', 'exec', c['name'], 'python3', '-c', capture], 45)
-    destination = Path(c['durable'], 'node-output')
-    destination.mkdir(exist_ok=True)
-    before = manifest(c)
-    total = sum(v['bytes'] for v in before.values())
-    if shutil.disk_usage(destination).free < total + 2*1024**3:
-        raise RuntimeError('Insufficient durable retention capacity')
-    # Invoked ON dl3 as normal UID; never a GB CIFS destination, no 100MiB filter.
-    subprocess.run(['rsync', '-rt', '--no-perms', '--omit-dir-times', '--partial',
-                    c['node'] + ':' + c['local'] + '/run/', str(destination) + '/'], check=True,
-                   timeout=args.retention_margin_seconds)
-    after = manifest(c)
-    if before != after:
-        raise RuntimeError('Output changed while retaining; repeat retain after guard finishes')
-    for name, meta in after.items():
-        p = destination / name
-        h = hashlib.sha256()
-        with p.open('rb') as f:
-            for block in iter(lambda:f.read(4*1024**2), b''): h.update(block)
-        if p.stat().st_uid != 28644 or p.stat().st_size != meta['bytes'] or h.hexdigest() != meta['sha256']:
-            raise RuntimeError('Retained file mismatch: ' + name)
-    write_json(Path(c['durable'], 'retention.json'), {'retained_at': utc(), 'uid': os.getuid(),
-        'run_id': c['run_id'], 'terminal_ray_job': job, 'bytes': total, 'files': after,
-        'trace_limit_is_polled_not_hard': True})
+        deadline.stage('capture_driver_evidence', lambda: remote(c,
+            ['docker', 'exec', c['name'], 'python3', '-c', capture], deadline.remaining(45)))
+        audit()
+        destination = Path(c['durable'], 'node-output')
+        deadline.remaining()
+        destination.mkdir(exist_ok=True)
+        before = deadline.stage('source_manifest_before', lambda: manifest(c, deadline))
+        total = sum(v['bytes'] for v in before.values())
+        attempt['actual_total_bytes'] = total
+        audit()
+        deadline.remaining()
+        if shutil.disk_usage(destination).free < total + 2*1024**3:
+            raise RuntimeError('Insufficient durable retention capacity')
+        deadline.stage('rsync', lambda: subprocess.run(
+            ['rsync', '-rt', '--no-perms', '--omit-dir-times', '--partial',
+             c['node'] + ':' + c['local'] + '/run/', str(destination) + '/'],
+            check=True, timeout=deadline.remaining()))
+        audit()
+        after = deadline.stage('source_manifest_after', lambda: manifest(c, deadline))
+        if before != after:
+            raise RuntimeError('Output changed while retaining; repeat retain after guard finishes')
+        audit()
+        deadline.stage('destination_hashes', lambda: _verify_retained(destination, after, deadline))
+        audit()
+        record = {'retained_at': utc(), 'uid': os.getuid(), 'state': 'verified',
+            'run_id': c['run_id'], 'attempt_id': attempt['attempt_id'], 'terminal_ray_job': job,
+            'bytes': total, 'actual_total_bytes': total, 'files': after,
+            'operation_budget': deadline.describe(), 'attempt_audit': str(Path(c['durable'], 'retain-attempt.json')),
+            'trace_limit_is_polled_not_hard': True}
+        deadline.stage('verified_retention_record', lambda: _write_before_deadline(
+            Path(c['durable'], 'retention.json'), record, deadline))
+    _operation(c, args, 'retain', retain_work)
 
 
-def stop(c):
-    job = profile_terminal(c)
-    record = json.loads(Path(c['durable'], 'retention.json').read_text())
-    if record['run_id'] != c['run_id'] or record['terminal_ray_job']['submission_id'] != job['submission_id']:
-        raise RuntimeError('Retention record identity mismatch')
-    if manifest(c) != record['files']:
-        raise RuntimeError('Artifacts changed since retention; retain again before stop')
-    # Exact container namespace only. Do not run ray stop/pkill on the host.
-    remote(c, ['docker', 'exec', c['name'], 'ray', 'stop', '--force'], 60)
-    remote(c, ['docker', 'stop', '--time', '30', c['name']], 60)
-    write_json(Path(c['durable'], 'operator-stopped.json'), {'stopped_at': utc(), 'container': c['name']})
+def stop(c, args):
+    def stop_work(deadline, attempt, audit):
+        job = deadline.stage('terminal_identity', lambda: profile_terminal(c, deadline))
+        deadline.remaining()
+        record = json.loads(Path(c['durable'], 'retention.json').read_text())
+        retained = json.loads(Path(c['durable'], 'retain-attempt.json').read_text())
+        if (record.get('state') != 'verified' or retained.get('state') != 'verified'
+                or record.get('attempt_id') != retained.get('attempt_id')
+                or record['run_id'] != c['run_id']
+                or record['terminal_ray_job']['submission_id'] != job['submission_id']):
+            raise RuntimeError('Retention record identity or completed verification mismatch')
+        attempt['actual_total_bytes'] = record['bytes']
+        if deadline.stage('source_manifest_before_stop', lambda: manifest(c, deadline)) != record['files']:
+            raise RuntimeError('Artifacts changed since retention; retain again before stop')
+        audit()
+        # Every mutation retains the exact verified profile container namespace.
+        deadline.stage('ray_stop', lambda: remote(c,
+            ['docker', 'exec', c['name'], 'ray', 'stop', '--force'], deadline.remaining(60)))
+        audit()
+        deadline.stage('container_stop', lambda: remote(c,
+            ['docker', 'stop', '--time', '30', c['name']], deadline.remaining(60)))
+        audit()
+        deadline.stage('stopped_record', lambda: _write_before_deadline(
+            Path(c['durable'], 'operator-stopped.json'), {'stopped_at': utc(), 'container': c['name'],
+                'operation_budget': deadline.describe(), 'attempt_id': attempt['attempt_id']}, deadline))
+    _operation(c, args, 'stop', stop_work)
 
 
 def main():
@@ -568,8 +744,8 @@ def main():
     args = p.parse_args()
     if not re.fullmatch('[A-Za-z0-9][A-Za-z0-9_.-]{0,63}', args.run_id):
         p.error('Use a simple unique run ID of at most64 characters')
-    if args.max_runtime_seconds < 900 or args.retention_margin_seconds < 1200:
-        p.error('Require >=900s requested runtime and >=1200s retention reserve')
+    if args.max_runtime_seconds < 900 or args.retention_margin_seconds < 600:
+        p.error('Require >=900s requested runtime and >=600s retention reserve (default1200s)')
     c = config(args)
     if not args.execute:
         print(json.dumps({'mode': 'PLAN_ONLY_NO_REMOTE_CALLS', 'action': args.action, 'config': c,
@@ -582,6 +758,11 @@ def main():
             'replay_plan_argv': replay_command(c, args.max_runtime_seconds),
             'runtime_budget': 'min(requested, recorded lease remaining - retention margin), recomputed before submit',
             'retention_margin_seconds': args.retention_margin_seconds,
+            'retention_deadline': 'min(retain start + requested margin, recorded lease -120s), shared across all stages',
+            'stop_deadline': 'min(stop start + requested margin, recorded lease), shared across identity, hashing and scoped commands',
+            'replay_workload': {'rollout_ids': [10, 11], 'rollouts': 2, 'optimizer_updates': 8,
+                'profile_step_start': 1, 'profile_step_end': 2,
+                'trace_export': 'At second train end, before CPU backup; no third rollout required'},
             'caveats': ['Both runtimes replay frozen checkpoint9 after natural main completion; cross-version resume untested.',
                         'Both replays explicitly use4096 tokens/GPU; GB main used8192 and Rubin A2 main4096.',
                         'Snapshot capture/retention/local staging are external prerequisites; no automatic copy/overwrite.',
@@ -596,7 +777,7 @@ def main():
     if args.action == 'prepare': prepare(c, args)
     elif args.action == 'submit': submit(c, args)
     elif args.action == 'retain': retain(c, args)
-    else: stop(c)
+    else: stop(c, args)
 
 
 if __name__ == '__main__':

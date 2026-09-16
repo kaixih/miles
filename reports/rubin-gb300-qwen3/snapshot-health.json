@@ -1,7 +1,7 @@
 {
   "schema": "miles-run-health-v1",
-  "observed_at": "2026-09-16T02:47:49.876438+00:00",
-  "comparison_sha256": "8700597a96f4fd26c69fe447486fd4f4d3b25b6fbd44007b6afa0092af1ad730",
+  "observed_at": "2026-09-16T03:25:30.105280+00:00",
+  "comparison_sha256": "0b4b3958a99cf425f4fec9b7963b3942c16e7ea43cc27b4dcc0b05ce24493c96",
   "runs": [
     {
       "label": "rubin",
@@ -9,11 +9,11 @@
       "run_health": "healthy_training_recovery",
       "issue": null,
       "source_log": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3/rubin-a2/logs/qwen3_train.log",
-      "source_log_sha256": "b158267fc7398953c57880dd3c20bde7d7e70c21470480a41c0a15f830e2a96b",
+      "source_log_sha256": "3778e346bd055b92354970c0da7c5494e909c95ba7b15f7e81d10dcf189bb2a9",
       "ray_status": "RUNNING",
-      "completed_training_rollouts": 9,
-      "recorded_optimizer_updates": 36,
-      "scope": "Fresh A2 at4096training tokens/GPU: 9 complete rollouts and 36 finite nonzero-gradient updates. Still RUNNING; full memory-fix validation is pending. Earlier A1 OOM remains separate. Main GB remains8192; timings are not a matched hardware-only comparison.",
+      "completed_training_rollouts": 18,
+      "recorded_optimizer_updates": 72,
+      "scope": "Fresh A2 at4096 training tokens/GPU: 18 complete rollouts and 72 finite nonzero-gradient updates. Passed the prior A1 rollout17 failure point; still RUNNING and full memory-fix validation remains pending. Earlier A1 OOM is a separate run. Main GB remains8192; timing is not a matched hardware-only comparison.",
       "previous_attempt": {
         "label": "rubin",
         "run_id": "20260915-j2198331-qwen3-a1",
@@ -45,6 +45,13 @@
           }
         ],
         "scope": "Partial result only: rollout 17 has one logged optimizer update and is incomplete. Do not join a later rerun onto this curve. Fragmentation has not been established as the cause; preserve the actual TMS margin failure evidence. Profiling remains pending."
+      },
+      "gradient_verification": {
+        "count": 72,
+        "all_finite": true,
+        "all_nonzero": true,
+        "minimum": 0.09719561785459518,
+        "maximum": 0.25029805302619934
       }
     },
     {
@@ -53,10 +60,10 @@
       "run_health": "healthy_recovered",
       "issue": null,
       "source_log": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3/gb300/logs/qwen3_train.log",
-      "source_log_sha256": "3a14ced51d6106d2399f93b6fe1fa851eba692431b0211815432ee68ec5af526",
+      "source_log_sha256": "4cc13686d3e44c6fe9aa0a679333831328a9988e873954494edd0352fe0f2fd4",
       "evidence_line": 592858,
       "evidence": "\u001b[36m(CommandActor pid=9033)\u001b[0m httpx.ConnectError: All connection attempts failed",
-      "scope": "19 complete rollouts and 76 finite nonzero-gradient updates. FD-limit recovery remains verified; historical incident evidence is retained below. Main GB remains8192 and its upstream image is unchanged.",
+      "scope": "26 complete rollouts and 104 finite nonzero-gradient updates. FD-limit recovery remains verified; historical incident evidence is retained below. Main GB remains8192 and its upstream image is unchanged.",
       "recovery": {
         "changed_at": "2026-09-16T00:39:18+00:00",
         "source": "Root task verified live router and parent process limits",
@@ -125,9 +132,16 @@
       "evidence_line_sha256_without_lf": "8ae4a40a4039515be252c1777771fa8531ca4b2354e027ab8ed5d4c3a8fc5583",
       "evidence_scope": "Historical first-rollout incident; resolved according to the later operational verification below.",
       "ray_status": "RUNNING",
-      "completed_training_rollouts": 19,
-      "recorded_optimizer_updates": 76
+      "completed_training_rollouts": 26,
+      "recorded_optimizer_updates": 104,
+      "gradient_verification": {
+        "count": 104,
+        "all_finite": true,
+        "all_nonzero": true,
+        "minimum": 0.049422405660152435,
+        "maximum": 0.5748487114906311
+      }
     }
   ],
-  "snapshot_at": "2026-09-16T02:47:49.876438+00:00"
+  "snapshot_at": "2026-09-16T03:25:30.105280+00:00"
 }

@@ -4,9 +4,11 @@ Requires the original launcher's print-only JSON (argv plus extra_runtime_env),
 or a Ray job JSON containing entrypoint and runtime_env. Use the same explicit
 full checkpoint and metadata fingerprint on both hardware platforms. Checkpoint
 files are read only; mount their directory read-only as an additional safeguard.
-Three rollouts retain four optimizer updates each. Training profiler counters are
+Two rollouts retain four optimizer updates each (eight updates total). Training profiler counters are
 relative to this new actor: the first rollout warms up, the second is recorded.
 The recording also includes the first rollout's tail/offload/weight sync.
+The second train call exports the trace before its CPU weight backup; no third
+rollout is needed for this schedule to export.
 
 Args:
   --source-plan: Original resolved-launcher or Ray-job JSON; no shell is evaluated.
@@ -75,6 +77,9 @@ from lab.rubin_two_node.watch_qwen3_run import JobsAPI, TERMINAL, persist, utc
 
 
 MODEL_TYPE = "qwen3-30B-A3B"
+REPLAY_ROLLOUTS = 2
+PROFILE_STEP_START = 1
+PROFILE_STEP_END = 2
 RUN_ID_ENV = "MILES_PROFILE_RUN_ID"
 _REMOVED_FLAGS = {
     "--load", "--ckpt-step", "--start-rollout-id", "--num-rollout", "--debug-exit-after-rollout",
@@ -246,9 +251,10 @@ def _replay_arguments(argv, args):
     kept.extend([
         "--load", str(Path(args.checkpoint_root).resolve()),
         "--start-rollout-id", str(args.checkpoint_iteration + 1),
-        "--num-rollout", str(args.checkpoint_iteration + 4), "--debug-exit-after-rollout", "3",
+        "--num-rollout", str(args.checkpoint_iteration + 1 + REPLAY_ROLLOUTS),
+        "--debug-exit-after-rollout", str(REPLAY_ROLLOUTS),
         "--use-checkpoint-opt-param-scheduler", "--use-pytorch-profiler", "--profile-target", "train_overall",
-        "--profile-step-start", "1", "--profile-step-end", "2", "--tensorboard-dir",
+        "--profile-step-start", str(PROFILE_STEP_START), "--profile-step-end", str(PROFILE_STEP_END), "--tensorboard-dir",
         str(Path(args.output_dir).resolve() / "traces/train"),
     ])
     return kept, sorted(set(removed))
@@ -350,9 +356,13 @@ def _build_plan(args):
         "output_dir": str(output), "trace_dir": str(output / "traces"),
         "max_trace_bytes": int(args.max_trace_gib * 1024**3), "max_runtime_seconds": args.max_runtime_seconds,
         "poll_seconds": args.poll_seconds, "submission_grace_seconds": args.submission_grace_seconds,
-        "removed_flags": removed, "planned_rollouts": 3, "optimizer_steps_per_rollout": 4,
+        "removed_flags": removed, "planned_rollouts": REPLAY_ROLLOUTS, "optimizer_steps_per_rollout": 4,
         "profile_token_budget_override": token_budget_override,
-        "planned_optimizer_steps": 12, "profiling_coverage_known": True,
+        "planned_optimizer_steps": REPLAY_ROLLOUTS * 4, "profiling_coverage_known": True,
+        "train_profiler_schedule": {"wait": 0, "warmup": 1, "active": 1, "repeat": 1,
+            "step_unit": "completed actor.train call (one rollout, four optimizer updates)",
+            "trace_ready_after_replay_rollout": PROFILE_STEP_END,
+            "export_boundary": "Second train call: prof.step before CPU actor backup; gzip export is synchronous for the configured default backend"},
         "profiled_rollouts": [args.checkpoint_iteration + 1, args.checkpoint_iteration + 2],
         "profile_scope": "First replay rollout tail through second rollout train end; all four trainer ranks",
         "sglang_manual_payload": {

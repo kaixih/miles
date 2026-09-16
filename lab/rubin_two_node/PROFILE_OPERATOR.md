@@ -187,18 +187,38 @@ ownership, source/destination identity and absence of symlinks before mounting.
 It does not reread model shard contents or copy from NFS during preparation.
 
 Only after all these prerequisites **and full natural main completion** pass does
-profiling start from frozen iteration9: rollouts10–12, 12 optimizer updates. Each
+profiling start from frozen iteration9: rollouts10–11, 8 optimizer updates. Each
 main's native final checkpoint49 remains a separate completion requirement.
 
 ## Time, size and interpretation limits
 
 Recorded leases end Rubin06:09:18UTC and GB07:09:02UTC on2026-09-16. The budget is
-recomputed before submission: `min(4500s, lease remaining − 1200s retention)`.
+recomputed before submission: `min(4500s, lease remaining − requested retention reserve)`.
+The default reserve remains1200s; an explicit `--retention-margin-seconds600` is
+allowed for this new profile workflow. Values below600s are refused. Use the
+chosen option explicitly on prepare, submit, retain and stop.
 Fewer than15 minutes available causes refusal. Loading counts against the budget;
 a slow cold load may prevent useful profiling. There is no lease extension.
 The existing detached guard limits traces to10GiB and stops only the exact profile
 submission. Its checks are polled: bytes can overshoot and Ray API failures can
-delay stopping. Twenty minutes is a reserve, not a guaranteed transfer duration.
+delay stopping. A reserve is not a guaranteed transfer duration.
+
+Retention has one overall deadline: the earlier of retain-start plus the requested
+reserve and the recorded lease minus120s. Driver-log capture, both complete source
+hash passes, rsync, destination hashing and verified-record publication share this
+same budget; no stage renews it. Subprocess timeouts, local/remote deadline checks
+and a POSIX alarm bound work. Source manifests retain their absolute deadline even
+if SSH disconnects. Partial copies and audit files remain after failure; retention
+never stops a container automatically. `retention.json` is accepted only together
+with a matching completed `retain-attempt.json`. The audit records actual bytes,
+absolute deadline, stage durations and total elapsed time; failed expired actions
+emit their final status to stdout without starting a new filesystem write.
+
+The separate explicit stop action uses one deadline ending no later than the
+recorded lease. It checks terminal identity, completed retention and a fresh source
+hash before either scoped stop command. This lets shutdown use the120s left by
+retention without extending the allocation. A failed verification or exhausted
+budget does not trigger an automatic container stop.
 Main watchdog cutoffs remain Rubin 05:20/05:50 UTC and GB300 06:20/06:50 UTC;
 this operator never changes them.
 
@@ -209,9 +229,27 @@ profile replays explicitly use4096. The helper records old/new token budgets in
 explicit; it never increases a budget or changes sampling, global batch, model,
 parallelism, image, or packages. Review this field in both saved replay plans.
 
-Replay keeps optimizer/RNG resume from checkpoint9, runs rollouts10–12 /12updates, disables save/eval and
+Replay keeps optimizer/RNG resume from checkpoint9, runs rollouts10–11 /8updates, disables save/eval and
 profiles `train_overall` start1/end2. Counter selection is relative to the new actor;
 it covers first-rollout tail through the second training stage on all4ranks.
+Miles calls `prof.step()` once per actor training call, after its four optimizer
+updates and before CPU weight backup. The schedule is warmup at counter0,
+record-and-save at1, and none at2; the second training call synchronously exports
+the gzip traces. A third rollout adds no export boundary. The second rollout's
+post-train CPU backup, offload and final weight sync are outside this trace,
+although the replay still completes them before normal disposal.
+The installed Rubin PyTorch2.15 and GB300 PyTorch2.13 source paths, SHA256 values
+and numbered excerpts were retained locally in
+`outputs/rubin-gb300-qwen3/profile-two-rollout-source-evidence.json` (with a short
+Markdown explanation alongside it); these are source evidence, not a completed capture.
+
+The installed Miles profiler enables shapes, stacks, memory and FLOP recording
+on every trainer rank. These add CPU/memory/export overhead, so replay durations
+are not unprofiled performance evidence. The gzip exporter first writes an
+uncompressed temporary JSON under `/cache/tmp`; the10GiB trace-directory guard
+does not bound this temporary file or in-memory profiler buffers. Retention
+hashes all output files before and after rsync and hashes the durable copies;
+the reserve covers this work as well as transfer and shutdown.
 Cross-version optimizer-checkpoint loading is not yet validated. If it fails,
 preserve the failure rather than changing the images or declaring comparable traces.
 
