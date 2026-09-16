@@ -1,0 +1,16 @@
+import {createRequire} from 'node:module';
+import {pathToFileURL} from 'node:url';
+import path from 'node:path';
+const require=createRequire('/Users/kaixih/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/package.json');
+const {chromium}=require('playwright');
+if(process.argv.length!==4)throw new Error('Usage: node capture_trace.mjs input.html output.png');
+const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+const page=await browser.newPage({viewport:{width:1600,height:1200},deviceScaleFactor:1.5});
+const errors=[],external=[];
+page.on('pageerror',e=>errors.push(e.message));
+await page.route(/^https?:/,route=>{external.push(route.request().url());route.abort();});
+await page.goto(pathToFileURL(path.resolve(process.argv[2])).href);
+await page.waitForFunction(()=>window.TRACE_READY===true);
+if(errors.length||external.length)throw new Error(JSON.stringify({errors,external}));
+await page.locator('#capture').screenshot({path:path.resolve(process.argv[3])});
+await browser.close();

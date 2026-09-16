@@ -320,5 +320,16 @@
       "url": "https://github.com/fzyzcjy/torch_memory_saver/tree/f05a8754daf68238d54e4cf31cb3ba866684bbaf"
     }
   ],
-  "comparison_caveat_short": "GB300 uses an upstream container; Rubin uses this custom cu134 stack. Runtime differences remain part of the measured gap."
+  "comparison_caveat_short": "GB300 uses an upstream container; Rubin uses this custom cu134 stack. Runtime differences remain part of the measured gap.",
+  "reproduction": {
+    "repository": "kaixih/miles",
+    "repository_url": "https://github.com/kaixih/miles",
+    "branch": "kaixi/rubin-cu134",
+    "dockerfile": "docker/Dockerfile.rubin",
+    "build_helper": "docker/rubin_build.py",
+    "local_recipe": "lab/rubin_container/docker/Dockerfile.rubin",
+    "local_helper": "lab/rubin_container/docker/rubin_build.py",
+    "incremental_dockerfile": "lab/rubin_two_node/Dockerfile.qwen35",
+    "evidence": "lab/rubin_container/RESULTS.md:8; root verified remote git ls-files"
+  }
 }
