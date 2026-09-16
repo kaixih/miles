@@ -3,8 +3,10 @@
 import datetime as dt
 import importlib.util
 import json
+import os
 from pathlib import Path
 import signal
+import select
 import subprocess
 import sys
 import tempfile
@@ -29,7 +31,8 @@ def identity():
 
 
 def member(pid=90, start=100, run="run"):
-    return {"pid": pid, "pgid": 90, "start_ticks": start, "run_id": run, "uid": 123,
+    return {"pid": pid, "ppid": 89, "sid": 90, "pgid": 90, "start_ticks": start,
+            "run_id": run, "run_env_present": True, "uid": 123,
             "rss_bytes": 12, "state": "S"}
 
 
@@ -100,9 +103,46 @@ class DiagnosticTests(unittest.TestCase):
         leader = member()
         D.verify_owned_group([leader, member(pid=91, start=101)], leader, "run", 123)
         for bad in [member(start=101), member(run="main"), {**member(), "uid": 0},
-                    {**member(), "pgid": 80}, member(pid=91, start=90)]:
+                    {**member(), "pgid": 80}, {**member(), "sid": 80}, member(pid=91, start=90)]:
             with self.subTest(bad=bad), self.assertRaises(RuntimeError):
                 D.verify_owned_group([bad], leader, "run", 123)
+
+    def test_title_rewritten_environment_requires_verified_exact_session(self):
+        leader = member()
+        absent = {**member(pid=91, start=101), "run_id": "", "run_env_present": False}
+        D.verify_owned_group([absent], leader, "run", 123)
+        for changed in [{**absent, "sid": 91}, {**absent, "run_env_present": True},
+                        {**absent, "run_id": "different"}, {**absent, "start_ticks": 99}]:
+            with self.assertRaises(D.OwnershipError) as raised:
+                D.verify_owned_group([changed], leader, "run", 123)
+            self.assertEqual(raised.exception.detail["member"]["pid"], 91)
+        with self.assertRaises(D.OwnershipError):
+            D.verify_owned_group([absent], {**leader, "run_env_present": False}, "run", 123)
+
+    @unittest.skipUnless(sys.platform == "linux" and importlib.util.find_spec("setproctitle"),
+                         "Native Linux /proc + setproctitle CPU integration test")
+    def test_native_linux_title_rewrite_keeps_owned_session(self):
+        code = "import sys,setproctitle;print('ready',flush=True);sys.stdin.readline();setproctitle.setproctitle('sglang::scheduler');print('renamed',flush=True);sys.stdin.readline()"
+        env = {**os.environ, D.RUN_ENV: "native-title-check"}; env.pop("SPT_NOENV", None)
+        proc = subprocess.Popen([sys.executable, "-u", "-c", code], stdin=subprocess.PIPE,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                env=env, start_new_session=True)
+        try:
+            self.assertTrue(select.select([proc.stdout], [], [], 5)[0], "child startup deadline")
+            self.assertEqual(proc.stdout.readline().strip(), "ready")
+            leader = D.process_info(proc.pid)
+            D.verify_owned_group([leader], leader, "native-title-check", os.getuid())
+            proc.stdin.write("rename\n"); proc.stdin.flush()
+            self.assertTrue(select.select([proc.stdout], [], [], 5)[0], "title rewrite deadline")
+            self.assertEqual(proc.stdout.readline().strip(), "renamed")
+            renamed = D.process_info(proc.pid)
+            self.assertFalse(renamed["run_env_present"])
+            self.assertEqual(renamed["sid"], leader["pid"])
+            self.assertEqual(renamed["pgid"], leader["pid"])
+            D.verify_owned_group([renamed], leader, "native-title-check", os.getuid())
+        finally:
+            proc.terminate(); proc.wait(timeout=5)
+            proc.stdin.close(); proc.stdout.close(); proc.stderr.close()
 
     def test_stop_only_own_group_and_refuses_changed_identity(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -131,6 +171,22 @@ class DiagnosticTests(unittest.TestCase):
                     runtime.guard()
                 stop.assert_called_once()
             self.assertEqual(json.loads((Path(directory) / "terminal.json").read_text())["status"], "BOUNDED_STOP")
+
+    def test_guard_records_terminal_and_offending_member_when_cleanup_refuses(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = D.Runtime(Path(directory), "run", 1, 1024)
+            failure = D.OwnershipError("explicit_run_environment_mismatch", member(run="other"), member())
+            with patch.object(runtime.done, "wait", return_value=False), \
+                    patch.object(runtime, "inspect_limits", side_effect=failure), \
+                    patch.object(runtime, "stop", side_effect=failure), \
+                    patch.object(D.os, "_exit", side_effect=SystemExit(124)):
+                with self.assertRaises(SystemExit): runtime.guard()
+            result = json.loads((Path(directory) / "terminal.json").read_text())
+            self.assertEqual(result["engine_cleanup"], "FAILED")
+            self.assertEqual(result["cleanup_ownership_error"]["member"]["run_id"], "other")
+            self.assertEqual(result["ownership_error"]["original_leader"]["sid"], 90)
+            event = json.loads((Path(directory) / "events.json").read_text())[0]
+            self.assertEqual(event["ownership_error"]["member"]["pid"], 90)
 
     def test_default_plan_does_not_create_output_or_import_transformers(self):
         with tempfile.TemporaryDirectory() as directory:

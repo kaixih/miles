@@ -177,9 +177,11 @@ def process_info(pid):
         stat = p.joinpath("stat").read_text().rpartition(") ")[2].split()
         status = dict(line.split(":", 1) for line in p.joinpath("status").read_text().splitlines() if ":" in line)
         env = dict(x.split(b"=", 1) for x in p.joinpath("environ").read_bytes().split(b"\0") if b"=" in x)
-        return {"pid": pid, "state": stat[0], "pgid": int(stat[2]), "start_ticks": int(stat[19]),
+        return {"pid": pid, "ppid": int(stat[1]), "state": stat[0], "pgid": int(stat[2]),
+                "sid": int(stat[3]), "start_ticks": int(stat[19]),
                 "uid": int(status["Uid"].split()[0]), "rss_bytes": int(status.get("VmRSS", "0").split()[0]) * 1024,
                 "run_id": env.get(RUN_ENV.encode(), b"").decode(),
+                "run_env_present": RUN_ENV.encode() in env,
                 "argv_sha256": hashlib.sha256(p.joinpath("cmdline").read_bytes()).hexdigest()}
     except (FileNotFoundError, ProcessLookupError):
         return None
@@ -202,12 +204,32 @@ def group_members(pgid):
     return members
 
 
+class OwnershipError(RuntimeError):
+    def __init__(self, reason, member, leader):
+        fields = ("pid", "ppid", "sid", "pgid", "uid", "start_ticks", "run_env_present", "run_id")
+        self.detail = {"reason": reason, "member": {k: member.get(k) for k in fields} if member else None,
+                       "original_leader": {k: leader.get(k) for k in fields} if leader else None}
+        super().__init__("Engine ownership rejected; refusing to signal: " + json.dumps(self.detail))
+
+
 def verify_owned_group(members, leader, run_id, uid):
+    # Popen(start_new_session=True) must establish an authenticated session anchor.
+    # setproctitle can overwrite the original /proc environ memory after launch;
+    # an existing verified session cannot be joined from an unrelated session.
+    if (not leader or leader.get("pid") != leader.get("pgid") or leader.get("pid") != leader.get("sid")
+            or leader.get("uid") != uid or type(leader.get("start_ticks")) is not int
+            or leader["start_ticks"] <= 0 or leader.get("run_env_present") is not True
+            or leader.get("run_id") != run_id):
+        raise OwnershipError("unverified_original_session_anchor", leader, leader)
     for member in members:
-        if (member["pgid"] != leader["pid"] or member["run_id"] != run_id
+        if (member.get("sid") != leader["sid"] or member["pgid"] != leader["pgid"]
                 or member["uid"] != uid or member["start_ticks"] < leader["start_ticks"]
                 or (member["pid"] == leader["pid"] and member["start_ticks"] != leader["start_ticks"])):
-            raise RuntimeError("Engine group identity changed; refusing to signal")
+            raise OwnershipError("session_group_uid_or_start_ticks_changed", member, leader)
+        if (member.get("run_env_present") not in (True, False)
+                or (member["run_env_present"] and member.get("run_id") != run_id)
+                or (not member["run_env_present"] and member.get("run_id") not in (None, ""))):
+            raise OwnershipError("explicit_run_environment_mismatch", member, leader)
 
 
 class Runtime:
@@ -231,6 +253,7 @@ class Runtime:
             self.leader = process_info(self.child.pid)
             if not self.leader:
                 raise RuntimeError("Engine exited before identity capture")
+            verify_owned_group([self.leader], self.leader, self.run_id, os.getuid())
             self.record("engine_started", identity=self.leader, argv=argv)
 
     def stop(self):
@@ -280,18 +303,34 @@ class Runtime:
 
     def guard(self):
         while not self.done.wait(1):
+            identity_error = None
             try:
                 reason = self.inspect_limits()
                 if not reason:
                     continue
             except Exception as error:
                 reason = "guard_error: " + repr(error)
+                identity_error = error.detail if isinstance(error, OwnershipError) else None
+            terminal = {"at": utc(), "status": "BOUNDED_STOP", "reason": reason,
+                        "ownership_error": identity_error, "engine_cleanup": "not_attempted"}
             try:
-                self.record("guard_stopping", reason=reason)
-                self.stop()
-                save(self.output / "terminal.json", {"at": utc(), "status": "BOUNDED_STOP", "reason": reason})
+                try:
+                    self.record("guard_stopping", reason=reason, ownership_error=identity_error)
+                except Exception as error:
+                    terminal["event_write_error"] = repr(error)
+                try:
+                    self.stop()
+                    terminal["engine_cleanup"] = "verified_stopped"
+                except Exception as error:
+                    terminal.update(engine_cleanup="FAILED", cleanup_error=repr(error),
+                        cleanup_ownership_error=error.detail if isinstance(error, OwnershipError) else None)
             finally:
-                os._exit(124)  # Enforces the bound even while the main thread is in HTTP/tokenizer code.
+                try:
+                    save(self.output / "terminal.json", terminal)
+                except Exception as error:
+                    print(json.dumps({**terminal, "terminal_write_error": repr(error)}), file=sys.stderr, flush=True)
+                finally:
+                    os._exit(124)  # Bound remains unchanged even when cleanup or receipt writing fails.
 
 
 def wait_ready(runtime, origin, host, port):
