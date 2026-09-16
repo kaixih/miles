@@ -1,0 +1,49 @@
+{
+  "schema": "qwen3-cudagraph-experiment-v1",
+  "experiment_id": "qwen3-cudagraph-nightly-v1",
+  "status": "pending",
+  "title": "Qwen3 with decode CUDA Graph",
+  "requested": {
+    "platforms": [
+      "rubin",
+      "gb300"
+    ],
+    "gpus_per_node": 4,
+    "nodes_per_platform": 1,
+    "decode_cuda_graph": true,
+    "prefill_cuda_graph": false,
+    "max_training_tokens_per_gpu": 4096,
+    "max_logprob_tokens_per_gpu": 4096,
+    "expected_rollouts": 50,
+    "optimizer_updates_per_rollout": 4,
+    "model": "Qwen3-30B-A3B",
+    "dataset_reward": "GSM8K / strict #### scorer",
+    "sampling": "T=1, top-p=1, top-k=-1",
+    "response_prompt_caps": "1024 response / 512 prompt tokens",
+    "batch": "256 prompts \u00d7 8 responses; global batch 512",
+    "inference": "Four TP1 engines; Triton attention/MoE; Torch BF16 GEMM"
+  },
+  "run_bindings": [
+    {
+      "label": "rubin",
+      "run_id": "20260916-rubin-j2203648-cg"
+    },
+    {
+      "label": "gb300",
+      "run_id": "20260916-gb300-j2203647-cg"
+    }
+  ],
+  "previous_run_ids": [
+    "20260915-j2198331-qwen3-a1",
+    "20260916-j2198331-qwen3-a2-mb4096",
+    "20260915-j2198810-qwen3-a1"
+  ],
+  "previous_report": {
+    "label": "Original eager experiment: separate preserved report",
+    "href": "../../rubin-gb300-qwen3/site/index.html",
+    "comparison_sha256": "89f46cb823c7702cc87604ad6ca83aaa28b75aba2def693af5a81cf6356594e6",
+    "scope_note": "Old Rubin A2 used 4096 training tokens/GPU; old GB300 used 8192. New GB300 changes both graph mode and training budget. The old runs had different save schedules."
+  },
+  "runtime_note": "Keep the prior Rubin image and unmodified upstream GB300 image. Software versions differ; results describe the recorded systems.",
+  "diagnostic_note": "A separate bounded generation-only OFF/ON pair after the main runs will use identical initial policy and request/context evidence. No full trainer profiler is planned."
+}
