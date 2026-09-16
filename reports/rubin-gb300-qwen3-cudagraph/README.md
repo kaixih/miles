@@ -34,6 +34,19 @@ GB300 has a verified matched OFF/ON request-time diagnostic. Data and trace file
 are distributed in the offline report package; the Git branch contains source
 and the measured results summary, without model/checkpoint files.
 
+## Actor supplement in the existing slides
+
+The current supplement has a verified GB300 forward/backward microbatch;
+Rubin's paired window remains pending. See [actual evidence and limits](actor-evidence/gb300-v2/README.md).
+To include it when rebuilding the complete main experiment above, append:
+
+```bash
+--actor-profile outputs/rubin-gb300-qwen3-cudagraph/actor-update/actor-profile.gb300-verified-rubin-pending.json
+```
+
+This changes only the actor evidence in slides 10 and 16. The deck still has
+16 slides and preserves all main curves, timing values and rollout captures.
+
 ## Update after evidence arrives
 
 1. Fill `experiment.json.run_bindings` with the new exact platform/run identities:

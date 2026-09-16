@@ -1,0 +1,148 @@
+{
+  "schema": "actor-gb300-capture-audit-v1",
+  "status": "VERIFIED",
+  "created_at": "2026-09-16T17:14:42.090956+00:00",
+  "capture_run_id": "actor-profile-gb300-j2208879-v2",
+  "source_trace_sha256": "db4fa4de886985e968e0311dd2cf828235359e0446bfddb5e910603d9138c7c7",
+  "analysis_sha256": "02111cbac712eff07ef803c556b083b924d763879ae842c2aa2b2ec91c77764c",
+  "receipt_sha256": "fa188687d3a64276a2786dcbeacf78845e05aa469a8de03cf21846fa1bf597f7",
+  "retention_sha256": "2784247b972a620feec15ca46f248a09e0485132425933ada579ef37eeca3cf3",
+  "selected_microbatch": {
+    "index": 1,
+    "local_indices": [
+      140,
+      141,
+      142,
+      143
+    ],
+    "response_tokens": 3644,
+    "samples": [
+      {
+        "global_sample_index": 512,
+        "length": 1147,
+        "local_index": 140,
+        "response_length": 1024,
+        "tokens_sha256": "4727827eb139d8672ca4a744a6785ba3edded68b2fb93726f95415b6eac5f628"
+      },
+      {
+        "global_sample_index": 513,
+        "length": 1147,
+        "local_index": 141,
+        "response_length": 1024,
+        "tokens_sha256": "b7cbb464d34c11bd216c52e5fc1f1ea3d43058cc1ac943349c6e17b76809fde1"
+      },
+      {
+        "global_sample_index": 514,
+        "length": 1147,
+        "local_index": 142,
+        "response_length": 1024,
+        "tokens_sha256": "4e8927734563030e57adc13903e1435f3d53dd2ab43d5e44375897b610012524"
+      },
+      {
+        "global_sample_index": 605,
+        "length": 655,
+        "local_index": 143,
+        "response_length": 572,
+        "tokens_sha256": "0922431022e2dce469a907183628c8f2af9e0a201843befa96375e351b09901d"
+      }
+    ],
+    "total_tokens": 4096
+  },
+  "selected_microbatch_sha256": "dbe70215116080930d3499ce33345d16359e3b032baa8adbea17bc0b2743c5de",
+  "steps": [
+    {
+      "update_id": 0,
+      "rank_max_seconds": 81.19585453998297,
+      "rank_seconds": [
+        81.19584471499547,
+        81.19585453998297,
+        81.19584151497111,
+        81.19584948313423
+      ],
+      "global_sample_count": 512,
+      "global_sequence_tokens": 451755,
+      "rank_packing_fingerprints": [
+        "0e3358d3f146944b21bc0a89124bc667289c354cb36a4449284c03f545714f71",
+        "690d0c9d00cf66ea004964b28712e8a2d76aab3b7c009830a8407c350f00486d",
+        "2a972ccc9e3ee91005c4b933718dc4a308ebf3371cc58756e4451ff624f3937f",
+        "68d311b1496ce83d1c2fe3fd94f91c377354193a8a2c3c90f62d45ce5de14d6c"
+      ],
+      "eligible_unprofiled_comparison": false
+    },
+    {
+      "update_id": 1,
+      "rank_max_seconds": 47.43088781111874,
+      "rank_seconds": [
+        47.43088781111874,
+        47.430874530924484,
+        47.430870787007734,
+        47.43088310700841
+      ],
+      "global_sample_count": 512,
+      "global_sequence_tokens": 444213,
+      "rank_packing_fingerprints": [
+        "b93f369c8db0f889c4fd957c3883607453aeccc4fdf19cd0bf147eafab3ee7a5",
+        "7e6e68075aa3cadd17a8e1883e444156177c6f08b17f589ff80c171395cb4fb2",
+        "698d2f9381d48f8ceb8adc845d38c063f47d537282a0f232938f2224938be2c2",
+        "3409cf3994d4441050d0c74ba0445b0ec6eff7ed9cc0463dc235125411fb8de1"
+      ],
+      "eligible_unprofiled_comparison": false
+    },
+    {
+      "update_id": 2,
+      "rank_max_seconds": 46.747663538903,
+      "rank_seconds": [
+        46.74754859483801,
+        46.747556146932766,
+        46.7476624189876,
+        46.747663538903
+      ],
+      "global_sample_count": 512,
+      "global_sequence_tokens": 450193,
+      "rank_packing_fingerprints": [
+        "e0cc4f88d7a62b3798754f71fc9fc6e04b3474b2f6bddee8868f735be1ffd7d2",
+        "6e7c1c536e51fdf7beed818794c6d8962c86d1dbb25126faa8911d3537bfc15d",
+        "ed1ab37e94607bf47035c94017364c2360568ccf908b622325b9116fbcbb95dd",
+        "3282d589cf9775da77ea45a89f622ccb72e26e9c1ba4764cf803bd4f7b0d671d"
+      ],
+      "eligible_unprofiled_comparison": true
+    },
+    {
+      "update_id": 3,
+      "rank_max_seconds": 44.9525497648865,
+      "rank_seconds": [
+        44.9525362290442,
+        44.9525497648865,
+        44.952537124976516,
+        44.95253805303946
+      ],
+      "global_sample_count": 512,
+      "global_sequence_tokens": 429121,
+      "rank_packing_fingerprints": [
+        "b6b284f6d56f9eb0528bcb1ed5cb250b9944ab59c302e5c9aa15a436343230ab",
+        "1b25af50feb0c3b275ad8bc3a2a67409d4402bd8956ea254d3dd2d190f0e1a6e",
+        "76afca315f6a74484a7329eb374b367638e85de4340d8053d5f94ccfa2f3c240",
+        "c35525045b591c863ceb98b194dbe10eefaa322e65574d199c5e5222e72b70b6"
+      ],
+      "eligible_unprofiled_comparison": true
+    }
+  ],
+  "measurement_basis": "CPU annotation inclusive elapsed milliseconds; forward/backward are host ranges spanning work, waits and profiler overhead.",
+  "category_mapping": {
+    "forward": "semantic_ranges_non_additive.forward.cpu_inclusive.union_ms",
+    "backward": "semantic_ranges_non_additive.backward.cpu_inclusive.union_ms",
+    "moe": "semantic_ranges_non_additive.moe_forward.cpu_inclusive.union_ms (original + recompute forwards; not all MoE backward)",
+    "communication": "semantic_ranges_non_additive.communication_enqueue.cpu_inclusive.union_ms (enqueue, not collective completion)",
+    "recompute": null,
+    "optimizer": null
+  },
+  "limitations": [
+    "Only rank0 update1 microbatch1, four sequences/4096 total tokens.",
+    "Frozen newly generated initial-policy batch, not original mainrun actor dump.",
+    "Optimizer/final gradient synchronization not captured; pure recompute not separately annotated.",
+    "CPU ranges overlap; MoE forwards include recomputation and are not an additive stage.",
+    "Do not use the tiny same-thread backward GPU attribution as total backward work: most autograd work runs on another thread.",
+    "Profiling and synchronization perturb timings; compare unprofiled whole updates 2/3 separately.",
+    "Rubin capture pending; no paired actor diagnostic ratio yet."
+  ]
+}

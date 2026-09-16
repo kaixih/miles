@@ -135,3 +135,37 @@ See [README.md](README.md) for the slide builder and evidence contracts,
 and [the diagnostic runbook](../../lab/rubin_two_node/SGLANG_GRAPH_DIAGNOSTIC.md)
 for the bounded runtime procedure. The offline HTML deck includes its input
 hashes, raw observations and downloadable trace evidence.
+
+## Actor window supplement — GB300 verified, Rubin queued
+
+The original 1.7733× actor-stage ratio remains unchanged. On the exact main
+cohort (rollout IDs 1–48), GB300 processed only 0.309% more reported prompt and
+response tokens and 0.474% more scheduled microbatches. Normalizing the native
+actor timer by its reported token numerator gives 1.7678×. This is descriptive
+normalization; padding, recomputation and expert routing are not measured by
+that numerator.
+
+A new real initial-policy batch (256 prompts × 8, or 2,048 samples) is frozen
+for both systems. GB300 completed four real updates, global batch 512, TP1/EP4,
+and 4,096 training tokens/GPU, using the original upstream image and frozen
+Miles source. All 16 rank-update receipts are NORMAL with positive finite
+gradients. Unprofiled updates 2/3 took 46.74766/44.95255 seconds using each
+update's slowest rank. They belong to this initial-policy diagnostic, not the
+main timing cohort.
+
+The retained stackless trace captures rank 0, update 1, microbatch 1 (0-based),
+including four sequences and 4,096 tokens. CPU forward/backward elapsed times
+are 629.904/1,417.741 ms; checkpoint recomputation is included in backward.
+Kernel union coverage is 294.188 ms within the 2,048.494 ms CPU window. This is
+trace coverage, not physical GPU utilization, and uncovered time is not a
+measurement of host-launch overhead. Many short kernels and gaps motivate a
+paired dispatch/synchronization investigation; profiler overhead remains.
+The GPU attribution directly attached to the outer backward scope is incomplete
+because most autograd work runs on another thread; it is not used as total
+backward GPU cost. Pure recompute is not separately resolved. Optimizer and
+final gradient synchronization are outside the selected window.
+
+Slides 10 and 16 now contain the actual GB300 window, source trace and audits.
+Rubin's paired capture is pending allocation 2208878; no forward/backward
+platform ratio or explanation of the entire 1.77× gap is claimed yet. The
+original rollout figures and the 16-slide count are preserved.

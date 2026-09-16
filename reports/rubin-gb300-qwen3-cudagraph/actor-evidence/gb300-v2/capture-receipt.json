@@ -1,0 +1,104 @@
+{
+  "annotations": [
+    "actor.comm_enqueue.all_to_all_single",
+    "actor.comm_enqueue.all_reduce",
+    "actor.comm_enqueue.all_gather_into_tensor",
+    "actor.comm_enqueue.reduce_scatter_tensor",
+    "actor.forward_step",
+    "actor.backward_step",
+    "actor.checkpoint_recompute_and_backward",
+    "actor.moe_forward",
+    "actor.checkpointed_forward"
+  ],
+  "capture_window": "single_forward_backward_microbatch",
+  "end_epoch": 1789578183.1774776,
+  "event_counts": {
+    "cpu_op": 76209,
+    "kernel": 19136,
+    "python_function": 0
+  },
+  "final_gradient_sync": null,
+  "microbatch_index": 1,
+  "optimizer": null,
+  "packing_fingerprint": "b93f369c8db0f889c4fd957c3883607453aeccc4fdf19cd0bf147eafab3ee7a5",
+  "profiler_options": {
+    "profile_memory": false,
+    "record_shapes": false,
+    "with_stack": false
+  },
+  "rank": 0,
+  "raw": {
+    "bytes": 69479468,
+    "sha256": "3b6f27436ed3e0e74f0d778bd893474a35ffd8428a5a8eb700ff3c0cf0446422"
+  },
+  "schedule_observation": {
+    "backward_calls": 28,
+    "capture_complete": true,
+    "captured_backward_calls": 1,
+    "captured_forward_calls": 1,
+    "cleanup_error": null,
+    "expected_calls_each": 28,
+    "forward_calls": 28,
+    "selected_local_indices": [
+      140,
+      141,
+      142,
+      143
+    ]
+  },
+  "schedule_source_sha256": "968b3c2ab8e80b5d30992bb572bae8aa7cbc6b2fba7137d851bb71ee51bf489f",
+  "scope": "one sequential forward/backward microbatch including recompute/MoE enqueue; optimizer and final gradient synchronization excluded",
+  "selected_microbatch": {
+    "index": 1,
+    "local_indices": [
+      140,
+      141,
+      142,
+      143
+    ],
+    "response_tokens": 3644,
+    "samples": [
+      {
+        "global_sample_index": 512,
+        "length": 1147,
+        "local_index": 140,
+        "response_length": 1024,
+        "tokens_sha256": "4727827eb139d8672ca4a744a6785ba3edded68b2fb93726f95415b6eac5f628"
+      },
+      {
+        "global_sample_index": 513,
+        "length": 1147,
+        "local_index": 141,
+        "response_length": 1024,
+        "tokens_sha256": "b7cbb464d34c11bd216c52e5fc1f1ea3d43058cc1ac943349c6e17b76809fde1"
+      },
+      {
+        "global_sample_index": 514,
+        "length": 1147,
+        "local_index": 142,
+        "response_length": 1024,
+        "tokens_sha256": "4e8927734563030e57adc13903e1435f3d53dd2ab43d5e44375897b610012524"
+      },
+      {
+        "global_sample_index": 605,
+        "length": 655,
+        "local_index": 143,
+        "response_length": 572,
+        "tokens_sha256": "0922431022e2dce469a907183628c8f2af9e0a201843befa96375e351b09901d"
+      }
+    ],
+    "total_tokens": 4096
+  },
+  "start_epoch": 1789578134.8265038,
+  "status": "COMPLETE",
+  "target": [
+    0,
+    1,
+    0
+  ],
+  "trace": {
+    "bytes": 6258737,
+    "path": "/run-output/actor-profile/rank0/actor-update.json.gz",
+    "sha256": "db4fa4de886985e968e0311dd2cf828235359e0446bfddb5e910603d9138c7c7"
+  }
+}

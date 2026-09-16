@@ -1,0 +1,133 @@
+{
+  "schema": "actor-microbatch-independent-trace-qc-v1",
+  "status": "QC_PASS_WITH_SCOPE_LIMITATIONS",
+  "audit_completed_utc": "2026-09-16T17:12:44Z",
+  "platform": "GB300",
+  "run": "20260916-gb300-j2208879/replay-v2",
+  "method": {
+    "access": "Read-only retained files on dl3; no access to the released compute node, no GPU work, no capture rerun, no analyzer changes.",
+    "raw_trace_read": "Decoded the entire retained gzip and parsed its Chrome trace JSON in a login-node Python process bounded by timeout 60s, CPU limit 45s and address-space limit 2GiB; command completed in 5.9s.",
+    "checks": [
+      "SHA-256 of the retained gzip matches the COMPLETE capture receipt and source analysis.",
+      "Independently counted invalid complete events, positive kernels, selected CPU ranges and annotation thread identities.",
+      "Independently recomputed clipped GPU/kernel interval unions and gaps inside the selected CPU range.",
+      "Reviewed source analyzer correlation and same-thread containment rules; attribution totals are from the SHA-bound source analysis, not a second independent correlation implementation."
+    ]
+  },
+  "sources": {
+    "durable_node_output": "/home/scratch.kaixih_ent/repro/miles-actor-update/20260916-gb300-j2208879/phases/replay-v2/node-output",
+    "trace_relative_path": "actor-profile/rank0/actor-update.json.gz",
+    "trace_sha256": "db4fa4de886985e968e0311dd2cf828235359e0446bfddb5e910603d9138c7c7",
+    "trace_bytes": 6258737,
+    "decoded_trace_bytes_from_receipt": 69479468,
+    "decoded_trace_sha256_from_receipt": "3b6f27436ed3e0e74f0d778bd893474a35ffd8428a5a8eb700ff3c0cf0446422",
+    "source_analysis_relative_path": "actor-analysis.json",
+    "source_analysis_sha256": "02111cbac712eff07ef803c556b083b924d763879ae842c2aa2b2ec91c77764c",
+    "capture_receipt_relative_path": "actor-profile/rank0/receipt.json",
+    "capture_receipt_sha256_from_analysis": "fa188687d3a64276a2786dcbeacf78845e05aa469a8de03cf21846fa1bf597f7",
+    "analyzer_relative_path": "lab/rubin_two_node/actor_trace_analysis.py",
+    "analyzer_sha256": "5c8e3157bff64e917b8c46706172d6808de4bf70b41c34abb2aa26f31b830715",
+    "schedule_source_sha256_from_receipt": "968b3c2ab8e80b5d30992bb572bae8aa7cbc6b2fba7137d851bb71ee51bf489f"
+  },
+  "capture_scope": {
+    "receipt_status": "COMPLETE",
+    "rank": 0,
+    "target": [0, 1, 0],
+    "capture_window": "single_forward_backward_microbatch",
+    "microbatch_index": 1,
+    "cpu_annotation": "actor.selected_microbatch",
+    "selected_cpu_range_count": 1,
+    "cpu_pid": 4148,
+    "cpu_tid": 4148,
+    "start_timestamp_us": 6610348367471.345,
+    "duration_ms": 2048.493546875,
+    "device": 0,
+    "packing_fingerprint": "b93f369c8db0f889c4fd957c3883607453aeccc4fdf19cd0bf147eafab3ee7a5",
+    "selected_local_indices": [140, 141, 142, 143],
+    "selected_global_sample_indices": [512, 513, 514, 605],
+    "total_tokens": 4096,
+    "response_tokens": 3644,
+    "schedule_forward_calls_from_receipt": 28,
+    "schedule_backward_calls_from_receipt": 28,
+    "captured_forward_calls": 1,
+    "captured_backward_calls": 1,
+    "optimizer": null,
+    "final_gradient_sync": null,
+    "pure_recompute": null
+  },
+  "event_integrity": {
+    "raw_events": 239122,
+    "positive_finite_complete_events": 156494,
+    "excluded_complete_events": 393,
+    "excluded_all_zero_duration": true,
+    "excluded_categories": {"cpu_op": 393},
+    "excluded_names": {"aten::_has_compatible_shallow_copy_type": 393},
+    "negative_duration_complete_events": 0,
+    "zero_duration_kernels": 0,
+    "positive_kernels_outside_selected_cpu_window": 0,
+    "finding": "The 393 exclusions do not indicate a truncated trace or missing positive-duration GPU work."
+  },
+  "cpu_elapsed_basis": {
+    "forward": {"count": 1, "thread": 4148, "inclusive_ms": 629.9038974609375},
+    "backward": {"count": 1, "thread": 4148, "inclusive_ms": 1417.74148828125},
+    "forward_plus_backward_ms": 2047.6453857421875,
+    "selected_window_remainder_ms": 0.8481611328124927,
+    "checkpoint_recompute_and_backward": {"count": 48, "thread": 7318, "inclusive_union_ms": 1405.722220703125},
+    "moe_forward_thread_counts": {"4148": 48, "7318": 48},
+    "rationale": "Use the two complete schedule CPU annotations for elapsed forward/backward reporting. They include dispatch and waits. Autograd executes the checkpoint-backward scopes on another thread, so same-thread GPU attribution to the outer backward annotation is incomplete by design. Nested categories are not additive."
+  },
+  "gpu_activity": {
+    "kernel_count": 19136,
+    "kernel_cumulative_ms": 295.16091796875,
+    "kernel_union_ms": 294.187826171875,
+    "kernel_overlap_ms": 0.973091796875,
+    "kernel_union_percent_of_profiled_window": 14.361179053781342,
+    "all_gpu_events_including_memcpy_memset": 19853,
+    "all_gpu_activity_union_ms": 295.735197265625,
+    "all_gpu_union_percent_of_profiled_window": 14.43671607932436,
+    "all_gpu_activity_uncovered_ms": 1752.758349609375,
+    "kernel_duration_p50_us": 7.072,
+    "kernel_duration_p95_us": 45.312,
+    "kernel_duration_max_us": 1335.076,
+    "all_gpu_activity_gap_count": 19549,
+    "all_gpu_activity_gaps_at_least_100us": 6355,
+    "all_gpu_activity_gaps_at_least_1ms": 98,
+    "largest_all_gpu_activity_gap_ms": 2.3832392578125,
+    "coverage_interpretation": "This is time covered by recorded positive-duration activity intervals on rank0/device0. It is not physical GPU utilization, occupancy, idle time, or a measurement of all devices."
+  },
+  "correlation_attribution": {
+    "linked_kernel_count": 16248,
+    "linked_kernel_count_fraction": 0.8490802675585284,
+    "linked_kernel_cumulative_fraction": 0.9234366032723541,
+    "ambiguous_kernel_count": 2888,
+    "ambiguous_kernel_cumulative_ms": 22.5985224609375,
+    "forward_correlated_gpu_union_ms": 63.1617744140625,
+    "outer_backward_same_thread_kernel_count": 2,
+    "outer_backward_same_thread_gpu_union_ms": 0.0031357421875,
+    "checkpoint_recompute_and_backward_gpu_union_ms": 198.270923828125,
+    "checkpoint_recompute_and_backward_kernel_count": 13560,
+    "limits": "The outer backward's two kernels are not total backward GPU cost. Autograd thread7318 has the 48 checkpoint recompute-plus-backward scopes; unique External ID/runtime correlations associate 13560 kernels with those scopes. Pure recomputation is not separately timed. Conflicting links remain ambiguous."
+  },
+  "host_dispatch_observations": {
+    "cuda_runtime_driver_api_events": 58207,
+    "cuda_api_interval_union_ms": 242.2454384765625,
+    "cuLaunchKernelEx_count": 13651,
+    "cuLaunchKernelEx_cumulative_ms": 113.29223099999979,
+    "cudaLaunchKernel_count": 4592,
+    "cudaLaunchKernel_cumulative_ms": 61.09321199999992,
+    "interpretation": "Many short kernels, numerous CUDA API calls and distributed gaps support host dispatch/software scheduling/profiler perturbation as candidates to investigate. The 1752.758ms uncovered activity interval cannot be assigned wholesale to host launch overhead, GPU idle, communication wait, or a hardware cause. CUDA API time alone does not account for that interval."
+  },
+  "gpu_annotation_caveat": {
+    "matching_gpu_user_annotation_count": 1,
+    "gpu_annotation_duration_us": 2.498,
+    "interpretation": "The matching gpu_user_annotation is only 2.498us and does not bound this F+B sample. Analysis correctly selects the complete 2048.4935ms CPU annotation and its boundary-synchronized activity. Do not report the GPU annotation duration as microbatch elapsed time."
+  },
+  "report_limits": [
+    "One profiled rank0 microbatch is not a complete optimizer update or the entire actor-update timer.",
+    "Optimizer and final gradient synchronization are outside the trace; pure recompute is inseparable from backward here.",
+    "Inclusive CPU scopes and correlated GPU category unions overlap and must not be summed.",
+    "Profiler instrumentation and capture-boundary synchronization perturb elapsed time; use separate unprofiled updates for throughput comparisons.",
+    "No paired Rubin trace was assessed here. This GB-only trace does not explain or prove the prior 1.77x system-level actor-update difference or a GPU-only hardware effect."
+  ],
+  "blocking_analysis_bug_found": false
+}

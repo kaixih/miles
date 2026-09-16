@@ -1,0 +1,2947 @@
+{
+  "schema": "actor-main-workload-audit-v1",
+  "analyzed_at_utc": "2026-09-16T17:07:13.266094+00:00",
+  "status": "PASS",
+  "scope": "Offline audit of exact main timing cohort; no runtime action or causal hardware inference.",
+  "sources": {
+    "comparison": {
+      "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/comparison.final.json",
+      "sha256": "eb44d048e25c68e95fc32c2d8dbfb8ca973f3e23eaf061c09051205e1a44baaf"
+    },
+    "final_main_analysis": {
+      "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/final-main-analysis.json",
+      "sha256": "af7833fe6466feb7157436e9a913180f8d53b2bed97afb8eb9cd220db8dbc61b"
+    },
+    "rubin_log": {
+      "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/rubin/logs/qwen3_train.log",
+      "sha256": "856fa11b5bb65c53cf357dd7fe54588ed8ecaa2aaba61f68c71222f6bf628991",
+      "matches_comparison_source_log_sha256": true
+    },
+    "gb300_log": {
+      "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3-cudagraph/gb300/logs/qwen3_train.log",
+      "sha256": "e81766d54212d6f57471613ee8dde1369566895771abe127a4b41ed3ef466fd8",
+      "matches_comparison_source_log_sha256": true
+    }
+  },
+  "selected_rollout_ids": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48
+  ],
+  "selection": "Exact intersection of completed, explicitly unprofiled, timing-eligible IDs1\u201348; warmup0/final-save49 excluded.",
+  "field_mapping": {
+    "retained_samples": "row.metrics[rollout/num_training_samples]",
+    "retained_generated_response_tokens": "row.metrics[rollout/episode_response_length/mean] * retained_samples; checked equal training-side rollout/response_lengths",
+    "training_input_sequence_token_proxy": "row.metrics[rollout/total_lengths] * retained_samples; checked equal common.retained_input_output_tokens_from_mean",
+    "native_actor_rate_numerator": "row.metrics[perf/actor_train_tok_per_s] * row.metrics[perf/actor_train_time]",
+    "derived_prompt_token_count": "training_input_sequence_token_proxy - retained_generated_response_tokens",
+    "microbatch_count": "Native log Rollout-side DP schedule num_microbatches four-entry list. One schedule per training rollout, paired to the next rank0 training-side length log; all50 sequences verified in order."
+  },
+  "platforms": {
+    "rubin": {
+      "run_id": "20260916-rubin-j2203648-cg",
+      "selected_rollouts": 48,
+      "optimizer_updates": 192,
+      "retained_samples": 98304,
+      "retained_response_tokens_from_mean": 51779861.0,
+      "retained_prompt_plus_response_tokens_from_mean": 59899589.0,
+      "derived_prompt_tokens": 8119728.0,
+      "mean_response_tokens": 526.7319844563802,
+      "mean_prompt_plus_response_tokens": 609.3301289876302,
+      "mean_prompt_tokens": 82.59814453125,
+      "actor_total_seconds": 3196.6194627285004,
+      "actor_mean_seconds": 66.59623880684376,
+      "native_reported_tokens_per_actor_second_weighted": 18738.41716175757,
+      "native_reported_tokens_per_actor_second_per_gpu_weighted": 4684.604290439393,
+      "native_seconds_per_reported_token": 5.3366300438697504e-05,
+      "logged_schedule_microbatch_count_sum": 3796,
+      "logged_schedule_microbatch_count_mean_per_update": 19.770833333333332,
+      "logged_schedule_microbatch_count_mean_per_rollout": 79.08333333333333,
+      "logged_schedule_microbatch_count_min": 13,
+      "logged_schedule_microbatch_count_max": 29,
+      "native_rate_numerator_max_absolute_error_tokens": 2.3283064365386963e-10,
+      "observations": [
+        {
+          "rollout_id": 1,
+          "retained_samples": 2048,
+          "response_length_mean": 790.47314453125,
+          "prompt_plus_response_length_mean": 873.02392578125,
+          "retained_response_tokens_from_mean": 1618889.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1787953.0,
+          "derived_prompt_tokens": 169064.0,
+          "actor_train_seconds": 83.62060832977295,
+          "native_actor_tokens_per_second": 21381.72677420481,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 30445,
+          "rollout_side_schedule": {
+            "line": 29568,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              27,
+              29,
+              27,
+              29
+            ]
+          }
+        },
+        {
+          "rollout_id": 2,
+          "retained_samples": 2048,
+          "response_length_mean": 790.47802734375,
+          "prompt_plus_response_length_mean": 873.97021484375,
+          "retained_response_tokens_from_mean": 1618899.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1789891.0,
+          "derived_prompt_tokens": 170992.0,
+          "actor_train_seconds": 84.56477427482605,
+          "native_actor_tokens_per_second": 21165.91707775456,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 43006,
+          "rollout_side_schedule": {
+            "line": 42127,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              27,
+              29,
+              28,
+              28
+            ]
+          }
+        },
+        {
+          "rollout_id": 3,
+          "retained_samples": 2048,
+          "response_length_mean": 764.16455078125,
+          "prompt_plus_response_length_mean": 848.34814453125,
+          "retained_response_tokens_from_mean": 1565009.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1737417.0,
+          "derived_prompt_tokens": 172408.0,
+          "actor_train_seconds": 83.19183492660522,
+          "native_actor_tokens_per_second": 20884.46542299266,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 55478,
+          "rollout_side_schedule": {
+            "line": 54601,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              27,
+              27,
+              27,
+              28
+            ]
+          }
+        },
+        {
+          "rollout_id": 4,
+          "retained_samples": 2048,
+          "response_length_mean": 735.6796875,
+          "prompt_plus_response_length_mean": 819.97265625,
+          "retained_response_tokens_from_mean": 1506672.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1679304.0,
+          "derived_prompt_tokens": 172632.0,
+          "actor_train_seconds": 87.98317360877991,
+          "native_actor_tokens_per_second": 19086.649539002545,
+          "native_rate_numerator_difference_tokens": -2.3283064365386963e-10,
+          "training_side_length_log_line": 67978,
+          "rollout_side_schedule": {
+            "line": 67101,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              27,
+              26,
+              26,
+              27
+            ]
+          }
+        },
+        {
+          "rollout_id": 5,
+          "retained_samples": 2048,
+          "response_length_mean": 706.1845703125,
+          "prompt_plus_response_length_mean": 787.2978515625,
+          "retained_response_tokens_from_mean": 1446266.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1612386.0,
+          "derived_prompt_tokens": 166120.0,
+          "actor_train_seconds": 78.1004228591919,
+          "native_actor_tokens_per_second": 20645.035468079197,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 80474,
+          "rollout_side_schedule": {
+            "line": 79597,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              26,
+              26,
+              23,
+              26
+            ]
+          }
+        },
+        {
+          "rollout_id": 6,
+          "retained_samples": 2048,
+          "response_length_mean": 692.85107421875,
+          "prompt_plus_response_length_mean": 774.15185546875,
+          "retained_response_tokens_from_mean": 1418959.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1585463.0,
+          "derived_prompt_tokens": 166504.0,
+          "actor_train_seconds": 86.40860915184021,
+          "native_actor_tokens_per_second": 18348.43791101844,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 93003,
+          "rollout_side_schedule": {
+            "line": 92125,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              25,
+              25,
+              25,
+              25
+            ]
+          }
+        },
+        {
+          "rollout_id": 7,
+          "retained_samples": 2048,
+          "response_length_mean": 687.984375,
+          "prompt_plus_response_length_mean": 769.41796875,
+          "retained_response_tokens_from_mean": 1408992.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1575768.0,
+          "derived_prompt_tokens": 166776.0,
+          "actor_train_seconds": 77.42180848121643,
+          "native_actor_tokens_per_second": 20353.02495397408,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 105479,
+          "rollout_side_schedule": {
+            "line": 104602,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              24,
+              25,
+              25,
+              25
+            ]
+          }
+        },
+        {
+          "rollout_id": 8,
+          "retained_samples": 2048,
+          "response_length_mean": 676.21533203125,
+          "prompt_plus_response_length_mean": 757.95751953125,
+          "retained_response_tokens_from_mean": 1384889.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1552297.0,
+          "derived_prompt_tokens": 167408.0,
+          "actor_train_seconds": 76.31028413772583,
+          "native_actor_tokens_per_second": 20341.91089104574,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 118026,
+          "rollout_side_schedule": {
+            "line": 117157,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              24,
+              25,
+              24,
+              25
+            ]
+          }
+        },
+        {
+          "rollout_id": 9,
+          "retained_samples": 2048,
+          "response_length_mean": 683.1201171875,
+          "prompt_plus_response_length_mean": 767.9677734375,
+          "retained_response_tokens_from_mean": 1399030.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1572798.0,
+          "derived_prompt_tokens": 173768.0,
+          "actor_train_seconds": 77.59736943244934,
+          "native_actor_tokens_per_second": 20268.702554010728,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 130584,
+          "rollout_side_schedule": {
+            "line": 129707,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              26,
+              24,
+              24,
+              25
+            ]
+          }
+        },
+        {
+          "rollout_id": 10,
+          "retained_samples": 2048,
+          "response_length_mean": 643.60498046875,
+          "prompt_plus_response_length_mean": 726.93701171875,
+          "retained_response_tokens_from_mean": 1318103.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1488767.0,
+          "derived_prompt_tokens": 170664.0,
+          "actor_train_seconds": 84.62532258033752,
+          "native_actor_tokens_per_second": 17592.452880598074,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 144410,
+          "rollout_side_schedule": {
+            "line": 143533,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              22,
+              24,
+              25,
+              23
+            ]
+          }
+        },
+        {
+          "rollout_id": 11,
+          "retained_samples": 2048,
+          "response_length_mean": 640.35107421875,
+          "prompt_plus_response_length_mean": 723.12451171875,
+          "retained_response_tokens_from_mean": 1311439.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1480959.0,
+          "derived_prompt_tokens": 169520.0,
+          "actor_train_seconds": 72.0010895729065,
+          "native_actor_tokens_per_second": 20568.56373680871,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 156913,
+          "rollout_side_schedule": {
+            "line": 156044,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              24,
+              23,
+              24,
+              23
+            ]
+          }
+        },
+        {
+          "rollout_id": 12,
+          "retained_samples": 2048,
+          "response_length_mean": 623.9296875,
+          "prompt_plus_response_length_mean": 707.71484375,
+          "retained_response_tokens_from_mean": 1277808.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1449400.0,
+          "derived_prompt_tokens": 171592.0,
+          "actor_train_seconds": 70.56449508666992,
+          "native_actor_tokens_per_second": 20540.074696485724,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 169405,
+          "rollout_side_schedule": {
+            "line": 168526,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              23,
+              22,
+              23,
+              23
+            ]
+          }
+        },
+        {
+          "rollout_id": 13,
+          "retained_samples": 2048,
+          "response_length_mean": 598.54541015625,
+          "prompt_plus_response_length_mean": 680.00634765625,
+          "retained_response_tokens_from_mean": 1225821.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1392653.0,
+          "derived_prompt_tokens": 166832.0,
+          "actor_train_seconds": 86.62567949295044,
+          "native_actor_tokens_per_second": 16076.676202157047,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 181951,
+          "rollout_side_schedule": {
+            "line": 181072,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              22,
+              22,
+              21,
+              23
+            ]
+          }
+        },
+        {
+          "rollout_id": 14,
+          "retained_samples": 2048,
+          "response_length_mean": 575.064453125,
+          "prompt_plus_response_length_mean": 657.240234375,
+          "retained_response_tokens_from_mean": 1177732.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1346028.0,
+          "derived_prompt_tokens": 168296.0,
+          "actor_train_seconds": 67.50011372566223,
+          "native_actor_tokens_per_second": 19941.121958262218,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 194404,
+          "rollout_side_schedule": {
+            "line": 193525,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              22,
+              22,
+              21,
+              20
+            ]
+          }
+        },
+        {
+          "rollout_id": 15,
+          "retained_samples": 2048,
+          "response_length_mean": 578.27392578125,
+          "prompt_plus_response_length_mean": 659.90673828125,
+          "retained_response_tokens_from_mean": 1184305.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1351489.0,
+          "derived_prompt_tokens": 167184.0,
+          "actor_train_seconds": 73.29720854759216,
+          "native_actor_tokens_per_second": 18438.478446590132,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 206805,
+          "rollout_side_schedule": {
+            "line": 205936,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              22,
+              21,
+              21,
+              21
+            ]
+          }
+        },
+        {
+          "rollout_id": 16,
+          "retained_samples": 2048,
+          "response_length_mean": 577.07568359375,
+          "prompt_plus_response_length_mean": 659.24755859375,
+          "retained_response_tokens_from_mean": 1181851.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1350139.0,
+          "derived_prompt_tokens": 168288.0,
+          "actor_train_seconds": 73.69828176498413,
+          "native_actor_tokens_per_second": 18319.816523069665,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 219253,
+          "rollout_side_schedule": {
+            "line": 218382,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              21,
+              21,
+              22,
+              21
+            ]
+          }
+        },
+        {
+          "rollout_id": 17,
+          "retained_samples": 2048,
+          "response_length_mean": 562.92919921875,
+          "prompt_plus_response_length_mean": 647.33154296875,
+          "retained_response_tokens_from_mean": 1152879.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1325735.0,
+          "derived_prompt_tokens": 172856.0,
+          "actor_train_seconds": 66.07350134849548,
+          "native_actor_tokens_per_second": 20064.54891814489,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 231629,
+          "rollout_side_schedule": {
+            "line": 230758,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              21,
+              21,
+              20,
+              22
+            ]
+          }
+        },
+        {
+          "rollout_id": 18,
+          "retained_samples": 2048,
+          "response_length_mean": 544.439453125,
+          "prompt_plus_response_length_mean": 626.177734375,
+          "retained_response_tokens_from_mean": 1115012.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1282412.0,
+          "derived_prompt_tokens": 167400.0,
+          "actor_train_seconds": 67.05922198295593,
+          "native_actor_tokens_per_second": 19123.574089868558,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 244030,
+          "rollout_side_schedule": {
+            "line": 243161,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              21,
+              20,
+              21,
+              20
+            ]
+          }
+        },
+        {
+          "rollout_id": 19,
+          "retained_samples": 2048,
+          "response_length_mean": 543.041015625,
+          "prompt_plus_response_length_mean": 625.232421875,
+          "retained_response_tokens_from_mean": 1112148.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1280476.0,
+          "derived_prompt_tokens": 168328.0,
+          "actor_train_seconds": 64.73936462402344,
+          "native_actor_tokens_per_second": 19778.93986813769,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 256402,
+          "rollout_side_schedule": {
+            "line": 255531,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              21,
+              20,
+              20,
+              20
+            ]
+          }
+        },
+        {
+          "rollout_id": 20,
+          "retained_samples": 2048,
+          "response_length_mean": 546.3837890625,
+          "prompt_plus_response_length_mean": 629.5791015625,
+          "retained_response_tokens_from_mean": 1118994.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1289378.0,
+          "derived_prompt_tokens": 170384.0,
+          "actor_train_seconds": 73.65040850639343,
+          "native_actor_tokens_per_second": 17506.732496779998,
+          "native_rate_numerator_difference_tokens": -2.3283064365386963e-10,
+          "training_side_length_log_line": 270051,
+          "rollout_side_schedule": {
+            "line": 269182,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              21,
+              21,
+              19,
+              20
+            ]
+          }
+        },
+        {
+          "rollout_id": 21,
+          "retained_samples": 2048,
+          "response_length_mean": 530.61328125,
+          "prompt_plus_response_length_mean": 612.609375,
+          "retained_response_tokens_from_mean": 1086696.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1254624.0,
+          "derived_prompt_tokens": 167928.0,
+          "actor_train_seconds": 78.78385734558105,
+          "native_actor_tokens_per_second": 15924.88667439398,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 282399,
+          "rollout_side_schedule": {
+            "line": 281530,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              20,
+              20,
+              20,
+              20
+            ]
+          }
+        },
+        {
+          "rollout_id": 22,
+          "retained_samples": 2048,
+          "response_length_mean": 543.81982421875,
+          "prompt_plus_response_length_mean": 623.56201171875,
+          "retained_response_tokens_from_mean": 1113743.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1277055.0,
+          "derived_prompt_tokens": 163312.0,
+          "actor_train_seconds": 64.12738227844238,
+          "native_actor_tokens_per_second": 19914.347890500216,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 294824,
+          "rollout_side_schedule": {
+            "line": 293955,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              20,
+              20,
+              21,
+              20
+            ]
+          }
+        },
+        {
+          "rollout_id": 23,
+          "retained_samples": 2048,
+          "response_length_mean": 548.23388671875,
+          "prompt_plus_response_length_mean": 631.75341796875,
+          "retained_response_tokens_from_mean": 1122783.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1293831.0,
+          "derived_prompt_tokens": 171048.0,
+          "actor_train_seconds": 67.67967700958252,
+          "native_actor_tokens_per_second": 19116.979530159566,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 307178,
+          "rollout_side_schedule": {
+            "line": 306309,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              20,
+              21,
+              21,
+              21
+            ]
+          }
+        },
+        {
+          "rollout_id": 24,
+          "retained_samples": 2048,
+          "response_length_mean": 529.2744140625,
+          "prompt_plus_response_length_mean": 613.9658203125,
+          "retained_response_tokens_from_mean": 1083954.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1257402.0,
+          "derived_prompt_tokens": 173448.0,
+          "actor_train_seconds": 75.84387636184692,
+          "native_actor_tokens_per_second": 16578.82033878391,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 319576,
+          "rollout_side_schedule": {
+            "line": 318707,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              19,
+              21,
+              21,
+              19
+            ]
+          }
+        },
+        {
+          "rollout_id": 25,
+          "retained_samples": 2048,
+          "response_length_mean": 519.11083984375,
+          "prompt_plus_response_length_mean": 601.25537109375,
+          "retained_response_tokens_from_mean": 1063139.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1231371.0,
+          "derived_prompt_tokens": 168232.0,
+          "actor_train_seconds": 61.35633182525635,
+          "native_actor_tokens_per_second": 20069.175639556826,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 331944,
+          "rollout_side_schedule": {
+            "line": 331073,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              20,
+              20,
+              18,
+              20
+            ]
+          }
+        },
+        {
+          "rollout_id": 26,
+          "retained_samples": 2048,
+          "response_length_mean": 505.61865234375,
+          "prompt_plus_response_length_mean": 588.35693359375,
+          "retained_response_tokens_from_mean": 1035507.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1204955.0,
+          "derived_prompt_tokens": 169448.0,
+          "actor_train_seconds": 71.9087643623352,
+          "native_actor_tokens_per_second": 16756.71958328265,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 344366,
+          "rollout_side_schedule": {
+            "line": 343489,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              19,
+              19,
+              19,
+              19
+            ]
+          }
+        },
+        {
+          "rollout_id": 27,
+          "retained_samples": 2048,
+          "response_length_mean": 494.5546875,
+          "prompt_plus_response_length_mean": 577.0234375,
+          "retained_response_tokens_from_mean": 1012848.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1181744.0,
+          "derived_prompt_tokens": 168896.0,
+          "actor_train_seconds": 60.96204972267151,
+          "native_actor_tokens_per_second": 19384.912505009077,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 356751,
+          "rollout_side_schedule": {
+            "line": 355882,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              19,
+              19,
+              19,
+              19
+            ]
+          }
+        },
+        {
+          "rollout_id": 28,
+          "retained_samples": 2048,
+          "response_length_mean": 503.90087890625,
+          "prompt_plus_response_length_mean": 588.50244140625,
+          "retained_response_tokens_from_mean": 1031989.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1205253.0,
+          "derived_prompt_tokens": 173264.0,
+          "actor_train_seconds": 60.56537580490112,
+          "native_actor_tokens_per_second": 19900.03337686658,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 369071,
+          "rollout_side_schedule": {
+            "line": 368202,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              19,
+              18,
+              20,
+              19
+            ]
+          }
+        },
+        {
+          "rollout_id": 29,
+          "retained_samples": 2048,
+          "response_length_mean": 479.11083984375,
+          "prompt_plus_response_length_mean": 563.38037109375,
+          "retained_response_tokens_from_mean": 981219.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1153803.0,
+          "derived_prompt_tokens": 172584.0,
+          "actor_train_seconds": 61.16825485229492,
+          "native_actor_tokens_per_second": 18862.77453535543,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 381638,
+          "rollout_side_schedule": {
+            "line": 380769,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              19,
+              18,
+              19,
+              19
+            ]
+          }
+        },
+        {
+          "rollout_id": 30,
+          "retained_samples": 2048,
+          "response_length_mean": 463.91552734375,
+          "prompt_plus_response_length_mean": 544.61865234375,
+          "retained_response_tokens_from_mean": 950099.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1115379.0,
+          "derived_prompt_tokens": 165280.0,
+          "actor_train_seconds": 60.313119411468506,
+          "native_actor_tokens_per_second": 18493.14064475185,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 395239,
+          "rollout_side_schedule": {
+            "line": 394368,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              18,
+              17,
+              18,
+              18
+            ]
+          }
+        },
+        {
+          "rollout_id": 31,
+          "retained_samples": 2048,
+          "response_length_mean": 475.51171875,
+          "prompt_plus_response_length_mean": 559.46875,
+          "retained_response_tokens_from_mean": 973848.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1145792.0,
+          "derived_prompt_tokens": 171944.0,
+          "actor_train_seconds": 71.77143478393555,
+          "native_actor_tokens_per_second": 15964.4572168489,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 407593,
+          "rollout_side_schedule": {
+            "line": 406720,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              18,
+              17,
+              19,
+              18
+            ]
+          }
+        },
+        {
+          "rollout_id": 32,
+          "retained_samples": 2048,
+          "response_length_mean": 462.98193359375,
+          "prompt_plus_response_length_mean": 546.80224609375,
+          "retained_response_tokens_from_mean": 948187.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1119851.0,
+          "derived_prompt_tokens": 171664.0,
+          "actor_train_seconds": 59.80604648590088,
+          "native_actor_tokens_per_second": 18724.712061747836,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 419909,
+          "rollout_side_schedule": {
+            "line": 419040,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              18,
+              17,
+              18,
+              18
+            ]
+          }
+        },
+        {
+          "rollout_id": 33,
+          "retained_samples": 2048,
+          "response_length_mean": 467.400390625,
+          "prompt_plus_response_length_mean": 551.009765625,
+          "retained_response_tokens_from_mean": 957236.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1128468.0,
+          "derived_prompt_tokens": 171232.0,
+          "actor_train_seconds": 60.67863869667053,
+          "native_actor_tokens_per_second": 18597.45083671298,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 432232,
+          "rollout_side_schedule": {
+            "line": 431363,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              18,
+              18,
+              18,
+              17
+            ]
+          }
+        },
+        {
+          "rollout_id": 34,
+          "retained_samples": 2048,
+          "response_length_mean": 449.623046875,
+          "prompt_plus_response_length_mean": 533.064453125,
+          "retained_response_tokens_from_mean": 920828.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1091716.0,
+          "derived_prompt_tokens": 170888.0,
+          "actor_train_seconds": 56.175966024398804,
+          "native_actor_tokens_per_second": 19433.86250849406,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 444517,
+          "rollout_side_schedule": {
+            "line": 443648,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              17,
+              17,
+              18,
+              17
+            ]
+          }
+        },
+        {
+          "rollout_id": 35,
+          "retained_samples": 2048,
+          "response_length_mean": 467.61669921875,
+          "prompt_plus_response_length_mean": 549.59326171875,
+          "retained_response_tokens_from_mean": 957679.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1125567.0,
+          "derived_prompt_tokens": 167888.0,
+          "actor_train_seconds": 61.7503547668457,
+          "native_actor_tokens_per_second": 18227.700946008597,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 456859,
+          "rollout_side_schedule": {
+            "line": 455990,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              18,
+              18,
+              18,
+              18
+            ]
+          }
+        },
+        {
+          "rollout_id": 36,
+          "retained_samples": 2048,
+          "response_length_mean": 452.8173828125,
+          "prompt_plus_response_length_mean": 535.2587890625,
+          "retained_response_tokens_from_mean": 927370.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1096210.0,
+          "derived_prompt_tokens": 168840.0,
+          "actor_train_seconds": 63.27217411994934,
+          "native_actor_tokens_per_second": 17325.309510020004,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 469171,
+          "rollout_side_schedule": {
+            "line": 468301,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              18,
+              17,
+              18,
+              17
+            ]
+          }
+        },
+        {
+          "rollout_id": 37,
+          "retained_samples": 2048,
+          "response_length_mean": 438.744140625,
+          "prompt_plus_response_length_mean": 521.169921875,
+          "retained_response_tokens_from_mean": 898548.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1067356.0,
+          "derived_prompt_tokens": 168808.0,
+          "actor_train_seconds": 54.765289068222046,
+          "native_actor_tokens_per_second": 19489.6442283063,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 481495,
+          "rollout_side_schedule": {
+            "line": 480624,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              16,
+              17,
+              17,
+              17
+            ]
+          }
+        },
+        {
+          "rollout_id": 38,
+          "retained_samples": 2048,
+          "response_length_mean": 410.45703125,
+          "prompt_plus_response_length_mean": 492.41015625,
+          "retained_response_tokens_from_mean": 840616.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1008456.0,
+          "derived_prompt_tokens": 167840.0,
+          "actor_train_seconds": 53.69125199317932,
+          "native_actor_tokens_per_second": 18782.501107035267,
+          "native_rate_numerator_difference_tokens": 1.1641532182693481e-10,
+          "training_side_length_log_line": 493748,
+          "rollout_side_schedule": {
+            "line": 492877,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              17,
+              16,
+              16,
+              16
+            ]
+          }
+        },
+        {
+          "rollout_id": 39,
+          "retained_samples": 2048,
+          "response_length_mean": 378.921875,
+          "prompt_plus_response_length_mean": 460.8046875,
+          "retained_response_tokens_from_mean": 776032.0,
+          "retained_prompt_plus_response_tokens_from_mean": 943728.0,
+          "derived_prompt_tokens": 167696.0,
+          "actor_train_seconds": 50.83275532722473,
+          "native_actor_tokens_per_second": 18565.352083021226,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 505920,
+          "rollout_side_schedule": {
+            "line": 505049,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              16,
+              15,
+              14,
+              16
+            ]
+          }
+        },
+        {
+          "rollout_id": 40,
+          "retained_samples": 2048,
+          "response_length_mean": 352.81591796875,
+          "prompt_plus_response_length_mean": 433.24560546875,
+          "retained_response_tokens_from_mean": 722567.0,
+          "retained_prompt_plus_response_tokens_from_mean": 887287.0,
+          "derived_prompt_tokens": 164720.0,
+          "actor_train_seconds": 47.66776371002197,
+          "native_actor_tokens_per_second": 18613.984188510425,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 519336,
+          "rollout_side_schedule": {
+            "line": 518465,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              14,
+              14,
+              14,
+              15
+            ]
+          }
+        },
+        {
+          "rollout_id": 41,
+          "retained_samples": 2048,
+          "response_length_mean": 344.92138671875,
+          "prompt_plus_response_length_mean": 423.86279296875,
+          "retained_response_tokens_from_mean": 706399.0,
+          "retained_prompt_plus_response_tokens_from_mean": 868071.0,
+          "derived_prompt_tokens": 161672.0,
+          "actor_train_seconds": 56.181638956069946,
+          "native_actor_tokens_per_second": 15451.151232500886,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 531478,
+          "rollout_side_schedule": {
+            "line": 530609,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              14,
+              14,
+              14,
+              13
+            ]
+          }
+        },
+        {
+          "rollout_id": 42,
+          "retained_samples": 2048,
+          "response_length_mean": 359.10595703125,
+          "prompt_plus_response_length_mean": 441.56689453125,
+          "retained_response_tokens_from_mean": 735449.0,
+          "retained_prompt_plus_response_tokens_from_mean": 904329.0,
+          "derived_prompt_tokens": 168880.0,
+          "actor_train_seconds": 48.557921409606934,
+          "native_actor_tokens_per_second": 18623.717279238463,
+          "native_rate_numerator_difference_tokens": -1.1641532182693481e-10,
+          "training_side_length_log_line": 543675,
+          "rollout_side_schedule": {
+            "line": 542804,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              15,
+              14,
+              14,
+              15
+            ]
+          }
+        },
+        {
+          "rollout_id": 43,
+          "retained_samples": 2048,
+          "response_length_mean": 356.3125,
+          "prompt_plus_response_length_mean": 438.73046875,
+          "retained_response_tokens_from_mean": 729728.0,
+          "retained_prompt_plus_response_tokens_from_mean": 898520.0,
+          "derived_prompt_tokens": 168792.0,
+          "actor_train_seconds": 47.776639223098755,
+          "native_actor_tokens_per_second": 18806.68072536984,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 555872,
+          "rollout_side_schedule": {
+            "line": 555001,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              14,
+              15,
+              14,
+              14
+            ]
+          }
+        },
+        {
+          "rollout_id": 44,
+          "retained_samples": 2048,
+          "response_length_mean": 341.48193359375,
+          "prompt_plus_response_length_mean": 425.07177734375,
+          "retained_response_tokens_from_mean": 699355.0,
+          "retained_prompt_plus_response_tokens_from_mean": 870547.0,
+          "derived_prompt_tokens": 171192.0,
+          "actor_train_seconds": 51.566126585006714,
+          "native_actor_tokens_per_second": 16882.148372437943,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 568063,
+          "rollout_side_schedule": {
+            "line": 567194,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              14,
+              14,
+              13,
+              14
+            ]
+          }
+        },
+        {
+          "rollout_id": 45,
+          "retained_samples": 2048,
+          "response_length_mean": 350.6708984375,
+          "prompt_plus_response_length_mean": 432.2646484375,
+          "retained_response_tokens_from_mean": 718174.0,
+          "retained_prompt_plus_response_tokens_from_mean": 885278.0,
+          "derived_prompt_tokens": 167104.0,
+          "actor_train_seconds": 48.0713324546814,
+          "native_actor_tokens_per_second": 18415.92389465351,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 580257,
+          "rollout_side_schedule": {
+            "line": 579386,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              14,
+              14,
+              15,
+              14
+            ]
+          }
+        },
+        {
+          "rollout_id": 46,
+          "retained_samples": 2048,
+          "response_length_mean": 376.53466796875,
+          "prompt_plus_response_length_mean": 462.95654296875,
+          "retained_response_tokens_from_mean": 771143.0,
+          "retained_prompt_plus_response_tokens_from_mean": 948135.0,
+          "derived_prompt_tokens": 176992.0,
+          "actor_train_seconds": 67.93580865859985,
+          "native_actor_tokens_per_second": 13956.336411106775,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 592511,
+          "rollout_side_schedule": {
+            "line": 591642,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              15,
+              15,
+              15,
+              15
+            ]
+          }
+        },
+        {
+          "rollout_id": 47,
+          "retained_samples": 2048,
+          "response_length_mean": 357.0966796875,
+          "prompt_plus_response_length_mean": 438.4716796875,
+          "retained_response_tokens_from_mean": 731334.0,
+          "retained_prompt_plus_response_tokens_from_mean": 897990.0,
+          "derived_prompt_tokens": 166656.0,
+          "actor_train_seconds": 49.10555672645569,
+          "native_actor_tokens_per_second": 18286.932474919005,
+          "native_rate_numerator_difference_tokens": -1.1641532182693481e-10,
+          "training_side_length_log_line": 604711,
+          "rollout_side_schedule": {
+            "line": 603842,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              15,
+              14,
+              14,
+              15
+            ]
+          }
+        },
+        {
+          "rollout_id": 48,
+          "retained_samples": 2048,
+          "response_length_mean": 361.1787109375,
+          "prompt_plus_response_length_mean": 442.4599609375,
+          "retained_response_tokens_from_mean": 739694.0,
+          "retained_prompt_plus_response_tokens_from_mean": 906158.0,
+          "derived_prompt_tokens": 166464.0,
+          "actor_train_seconds": 49.27050232887268,
+          "native_actor_tokens_per_second": 18391.49099701767,
+          "native_rate_numerator_difference_tokens": 1.1641532182693481e-10,
+          "training_side_length_log_line": 616893,
+          "rollout_side_schedule": {
+            "line": 616024,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              16,
+              14,
+              15,
+              14
+            ]
+          }
+        }
+      ]
+    },
+    "gb300": {
+      "run_id": "20260916-gb300-j2203647-cg",
+      "selected_rollouts": 48,
+      "optimizer_updates": 192,
+      "retained_samples": 98304,
+      "retained_response_tokens_from_mean": 51965058.0,
+      "retained_prompt_plus_response_tokens_from_mean": 60084786.0,
+      "derived_prompt_tokens": 8119728.0,
+      "mean_response_tokens": 528.6159057617188,
+      "mean_prompt_plus_response_tokens": 611.2140502929688,
+      "mean_prompt_tokens": 82.59814453125,
+      "actor_total_seconds": 5668.576555490494,
+      "actor_mean_seconds": 118.09534490605195,
+      "native_reported_tokens_per_actor_second_weighted": 10599.625040223338,
+      "native_reported_tokens_per_actor_second_per_gpu_weighted": 2649.9062600558345,
+      "native_seconds_per_reported_token": 9.434295988822351e-05,
+      "logged_schedule_microbatch_count_sum": 3814,
+      "logged_schedule_microbatch_count_mean_per_update": 19.864583333333332,
+      "logged_schedule_microbatch_count_mean_per_rollout": 79.45833333333333,
+      "logged_schedule_microbatch_count_min": 15,
+      "logged_schedule_microbatch_count_max": 29,
+      "native_rate_numerator_max_absolute_error_tokens": 2.3283064365386963e-10,
+      "observations": [
+        {
+          "rollout_id": 1,
+          "retained_samples": 2048,
+          "response_length_mean": 791.70166015625,
+          "prompt_plus_response_length_mean": 874.25244140625,
+          "retained_response_tokens_from_mean": 1621405.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1790469.0,
+          "derived_prompt_tokens": 169064.0,
+          "actor_train_seconds": 164.70257830619812,
+          "native_actor_tokens_per_second": 10870.922716651976,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 30229,
+          "rollout_side_schedule": {
+            "line": 29366,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              27,
+              29,
+              27,
+              29
+            ]
+          }
+        },
+        {
+          "rollout_id": 2,
+          "retained_samples": 2048,
+          "response_length_mean": 796.54248046875,
+          "prompt_plus_response_length_mean": 880.03466796875,
+          "retained_response_tokens_from_mean": 1631319.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1802311.0,
+          "derived_prompt_tokens": 170992.0,
+          "actor_train_seconds": 165.48862147331238,
+          "native_actor_tokens_per_second": 10890.845448795106,
+          "native_rate_numerator_difference_tokens": 2.3283064365386963e-10,
+          "training_side_length_log_line": 42708,
+          "rollout_side_schedule": {
+            "line": 41853,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              28,
+              29,
+              28,
+              28
+            ]
+          }
+        },
+        {
+          "rollout_id": 3,
+          "retained_samples": 2048,
+          "response_length_mean": 766.39990234375,
+          "prompt_plus_response_length_mean": 850.58349609375,
+          "retained_response_tokens_from_mean": 1569587.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1741995.0,
+          "derived_prompt_tokens": 172408.0,
+          "actor_train_seconds": 161.6878788471222,
+          "native_actor_tokens_per_second": 10773.813178952498,
+          "native_rate_numerator_difference_tokens": -2.3283064365386963e-10,
+          "training_side_length_log_line": 55193,
+          "rollout_side_schedule": {
+            "line": 54330,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              27,
+              27,
+              27,
+              29
+            ]
+          }
+        },
+        {
+          "rollout_id": 4,
+          "retained_samples": 2048,
+          "response_length_mean": 744.5927734375,
+          "prompt_plus_response_length_mean": 828.8857421875,
+          "retained_response_tokens_from_mean": 1524926.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1697558.0,
+          "derived_prompt_tokens": 172632.0,
+          "actor_train_seconds": 156.6869513988495,
+          "native_actor_tokens_per_second": 10834.073832216158,
+          "native_rate_numerator_difference_tokens": 2.3283064365386963e-10,
+          "training_side_length_log_line": 67731,
+          "rollout_side_schedule": {
+            "line": 66868,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              27,
+              27,
+              26,
+              27
+            ]
+          }
+        },
+        {
+          "rollout_id": 5,
+          "retained_samples": 2048,
+          "response_length_mean": 709.625,
+          "prompt_plus_response_length_mean": 790.73828125,
+          "retained_response_tokens_from_mean": 1453312.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1619432.0,
+          "derived_prompt_tokens": 166120.0,
+          "actor_train_seconds": 150.47787523269653,
+          "native_actor_tokens_per_second": 10761.927608930793,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 80279,
+          "rollout_side_schedule": {
+            "line": 79424,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              26,
+              26,
+              24,
+              26
+            ]
+          }
+        },
+        {
+          "rollout_id": 6,
+          "retained_samples": 2048,
+          "response_length_mean": 691.33642578125,
+          "prompt_plus_response_length_mean": 772.63720703125,
+          "retained_response_tokens_from_mean": 1415857.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1582361.0,
+          "derived_prompt_tokens": 166504.0,
+          "actor_train_seconds": 147.40253734588623,
+          "native_actor_tokens_per_second": 10734.964461886593,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 92855,
+          "rollout_side_schedule": {
+            "line": 92000,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              25,
+              25,
+              25,
+              25
+            ]
+          }
+        },
+        {
+          "rollout_id": 7,
+          "retained_samples": 2048,
+          "response_length_mean": 687.33349609375,
+          "prompt_plus_response_length_mean": 768.76708984375,
+          "retained_response_tokens_from_mean": 1407659.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1574435.0,
+          "derived_prompt_tokens": 166776.0,
+          "actor_train_seconds": 146.43424677848816,
+          "native_actor_tokens_per_second": 10751.822300022863,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 105357,
+          "rollout_side_schedule": {
+            "line": 104494,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              24,
+              25,
+              25,
+              25
+            ]
+          }
+        },
+        {
+          "rollout_id": 8,
+          "retained_samples": 2048,
+          "response_length_mean": 668.75146484375,
+          "prompt_plus_response_length_mean": 750.49365234375,
+          "retained_response_tokens_from_mean": 1369603.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1537011.0,
+          "derived_prompt_tokens": 167408.0,
+          "actor_train_seconds": 142.8327512741089,
+          "native_actor_tokens_per_second": 10760.914330147836,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 117925,
+          "rollout_side_schedule": {
+            "line": 117059,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              24,
+              25,
+              23,
+              24
+            ]
+          }
+        },
+        {
+          "rollout_id": 9,
+          "retained_samples": 2048,
+          "response_length_mean": 669.92236328125,
+          "prompt_plus_response_length_mean": 754.77001953125,
+          "retained_response_tokens_from_mean": 1372001.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1545769.0,
+          "derived_prompt_tokens": 173768.0,
+          "actor_train_seconds": 143.92475008964539,
+          "native_actor_tokens_per_second": 10740.119395984346,
+          "native_rate_numerator_difference_tokens": 2.3283064365386963e-10,
+          "training_side_length_log_line": 130428,
+          "rollout_side_schedule": {
+            "line": 129571,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              25,
+              24,
+              23,
+              25
+            ]
+          }
+        },
+        {
+          "rollout_id": 10,
+          "retained_samples": 2048,
+          "response_length_mean": 638.2666015625,
+          "prompt_plus_response_length_mean": 721.5986328125,
+          "retained_response_tokens_from_mean": 1307170.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1477834.0,
+          "derived_prompt_tokens": 170664.0,
+          "actor_train_seconds": 137.80275321006775,
+          "native_actor_tokens_per_second": 10724.270492238835,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 144265,
+          "rollout_side_schedule": {
+            "line": 143410,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              22,
+              24,
+              24,
+              23
+            ]
+          }
+        },
+        {
+          "rollout_id": 11,
+          "retained_samples": 2048,
+          "response_length_mean": 629.26025390625,
+          "prompt_plus_response_length_mean": 712.03369140625,
+          "retained_response_tokens_from_mean": 1288725.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1458245.0,
+          "derived_prompt_tokens": 169520.0,
+          "actor_train_seconds": 136.24406385421753,
+          "native_actor_tokens_per_second": 10703.181913014107,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 156795,
+          "rollout_side_schedule": {
+            "line": 155940,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              23,
+              23,
+              23,
+              23
+            ]
+          }
+        },
+        {
+          "rollout_id": 12,
+          "retained_samples": 2048,
+          "response_length_mean": 610.21044921875,
+          "prompt_plus_response_length_mean": 693.99560546875,
+          "retained_response_tokens_from_mean": 1249711.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1421303.0,
+          "derived_prompt_tokens": 171592.0,
+          "actor_train_seconds": 133.61515307426453,
+          "native_actor_tokens_per_second": 10637.289014742413,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 169344,
+          "rollout_side_schedule": {
+            "line": 168481,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              23,
+              22,
+              22,
+              23
+            ]
+          }
+        },
+        {
+          "rollout_id": 13,
+          "retained_samples": 2048,
+          "response_length_mean": 584.22998046875,
+          "prompt_plus_response_length_mean": 665.69091796875,
+          "retained_response_tokens_from_mean": 1196503.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1363335.0,
+          "derived_prompt_tokens": 166832.0,
+          "actor_train_seconds": 127.67220616340637,
+          "native_actor_tokens_per_second": 10678.400890598548,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 181863,
+          "rollout_side_schedule": {
+            "line": 181007,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              21,
+              22,
+              20,
+              23
+            ]
+          }
+        },
+        {
+          "rollout_id": 14,
+          "retained_samples": 2048,
+          "response_length_mean": 560.50732421875,
+          "prompt_plus_response_length_mean": 642.68310546875,
+          "retained_response_tokens_from_mean": 1147919.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1316215.0,
+          "derived_prompt_tokens": 168296.0,
+          "actor_train_seconds": 124.36045718193054,
+          "native_actor_tokens_per_second": 10583.870707989363,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 194345,
+          "rollout_side_schedule": {
+            "line": 193489,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              21,
+              22,
+              21,
+              19
+            ]
+          }
+        },
+        {
+          "rollout_id": 15,
+          "retained_samples": 2048,
+          "response_length_mean": 564.064453125,
+          "prompt_plus_response_length_mean": 645.697265625,
+          "retained_response_tokens_from_mean": 1155204.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1322388.0,
+          "derived_prompt_tokens": 167184.0,
+          "actor_train_seconds": 126.01596879959106,
+          "native_actor_tokens_per_second": 10493.81290797402,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 206824,
+          "rollout_side_schedule": {
+            "line": 205955,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              21,
+              21,
+              21,
+              21
+            ]
+          }
+        },
+        {
+          "rollout_id": 16,
+          "retained_samples": 2048,
+          "response_length_mean": 561.31103515625,
+          "prompt_plus_response_length_mean": 643.48291015625,
+          "retained_response_tokens_from_mean": 1149565.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1317853.0,
+          "derived_prompt_tokens": 168288.0,
+          "actor_train_seconds": 124.25366187095642,
+          "native_actor_tokens_per_second": 10606.150194339187,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 219302,
+          "rollout_side_schedule": {
+            "line": 218447,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              21,
+              20,
+              22,
+              21
+            ]
+          }
+        },
+        {
+          "rollout_id": 17,
+          "retained_samples": 2048,
+          "response_length_mean": 554.26708984375,
+          "prompt_plus_response_length_mean": 638.66943359375,
+          "retained_response_tokens_from_mean": 1135139.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1307995.0,
+          "derived_prompt_tokens": 172856.0,
+          "actor_train_seconds": 122.9049904346466,
+          "native_actor_tokens_per_second": 10642.326201518335,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 231771,
+          "rollout_side_schedule": {
+            "line": 230916,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              21,
+              21,
+              19,
+              22
+            ]
+          }
+        },
+        {
+          "rollout_id": 18,
+          "retained_samples": 2048,
+          "response_length_mean": 534.93505859375,
+          "prompt_plus_response_length_mean": 616.67333984375,
+          "retained_response_tokens_from_mean": 1095547.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1262947.0,
+          "derived_prompt_tokens": 167400.0,
+          "actor_train_seconds": 119.67055940628052,
+          "native_actor_tokens_per_second": 10553.531346939775,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 244201,
+          "rollout_side_schedule": {
+            "line": 243346,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              21,
+              20,
+              20,
+              20
+            ]
+          }
+        },
+        {
+          "rollout_id": 19,
+          "retained_samples": 2048,
+          "response_length_mean": 532.28369140625,
+          "prompt_plus_response_length_mean": 614.47509765625,
+          "retained_response_tokens_from_mean": 1090117.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1258445.0,
+          "derived_prompt_tokens": 168328.0,
+          "actor_train_seconds": 118.79887056350708,
+          "native_actor_tokens_per_second": 10593.07208924402,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 256653,
+          "rollout_side_schedule": {
+            "line": 255798,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              21,
+              19,
+              20,
+              20
+            ]
+          }
+        },
+        {
+          "rollout_id": 20,
+          "retained_samples": 2048,
+          "response_length_mean": 531.923828125,
+          "prompt_plus_response_length_mean": 615.119140625,
+          "retained_response_tokens_from_mean": 1089380.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1259764.0,
+          "derived_prompt_tokens": 170384.0,
+          "actor_train_seconds": 119.52117204666138,
+          "native_actor_tokens_per_second": 10540.090750684614,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 270331,
+          "rollout_side_schedule": {
+            "line": 269476,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              21,
+              21,
+              19,
+              20
+            ]
+          }
+        },
+        {
+          "rollout_id": 21,
+          "retained_samples": 2048,
+          "response_length_mean": 510.341796875,
+          "prompt_plus_response_length_mean": 592.337890625,
+          "retained_response_tokens_from_mean": 1045180.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1213108.0,
+          "derived_prompt_tokens": 167928.0,
+          "actor_train_seconds": 114.00683999061584,
+          "native_actor_tokens_per_second": 10640.659806901529,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 282752,
+          "rollout_side_schedule": {
+            "line": 281897,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              19,
+              19,
+              20,
+              19
+            ]
+          }
+        },
+        {
+          "rollout_id": 22,
+          "retained_samples": 2048,
+          "response_length_mean": 515.84765625,
+          "prompt_plus_response_length_mean": 595.58984375,
+          "retained_response_tokens_from_mean": 1056456.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1219768.0,
+          "derived_prompt_tokens": 163312.0,
+          "actor_train_seconds": 115.00742506980896,
+          "native_actor_tokens_per_second": 10605.993476156924,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 295139,
+          "rollout_side_schedule": {
+            "line": 294284,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              19,
+              19,
+              21,
+              19
+            ]
+          }
+        },
+        {
+          "rollout_id": 23,
+          "retained_samples": 2048,
+          "response_length_mean": 515.93212890625,
+          "prompt_plus_response_length_mean": 599.45166015625,
+          "retained_response_tokens_from_mean": 1056629.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1227677.0,
+          "derived_prompt_tokens": 171048.0,
+          "actor_train_seconds": 116.05148386955261,
+          "native_actor_tokens_per_second": 10578.727294689032,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 307580,
+          "rollout_side_schedule": {
+            "line": 306725,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              19,
+              20,
+              19,
+              20
+            ]
+          }
+        },
+        {
+          "rollout_id": 24,
+          "retained_samples": 2048,
+          "response_length_mean": 501.1904296875,
+          "prompt_plus_response_length_mean": 585.8818359375,
+          "retained_response_tokens_from_mean": 1026438.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1199886.0,
+          "derived_prompt_tokens": 173448.0,
+          "actor_train_seconds": 112.74147891998291,
+          "native_actor_tokens_per_second": 10642.808764745818,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 319985,
+          "rollout_side_schedule": {
+            "line": 319130,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              18,
+              20,
+              20,
+              18
+            ]
+          }
+        },
+        {
+          "rollout_id": 25,
+          "retained_samples": 2048,
+          "response_length_mean": 485.32861328125,
+          "prompt_plus_response_length_mean": 567.47314453125,
+          "retained_response_tokens_from_mean": 993953.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1162185.0,
+          "derived_prompt_tokens": 168232.0,
+          "actor_train_seconds": 108.5051920413971,
+          "native_actor_tokens_per_second": 10710.869942118541,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 332347,
+          "rollout_side_schedule": {
+            "line": 331491,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              18,
+              19,
+              17,
+              19
+            ]
+          }
+        },
+        {
+          "rollout_id": 26,
+          "retained_samples": 2048,
+          "response_length_mean": 465.66259765625,
+          "prompt_plus_response_length_mean": 548.40087890625,
+          "retained_response_tokens_from_mean": 953677.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1123125.0,
+          "derived_prompt_tokens": 169448.0,
+          "actor_train_seconds": 107.24450969696045,
+          "native_actor_tokens_per_second": 10472.564079723998,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 344697,
+          "rollout_side_schedule": {
+            "line": 343840,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              18,
+              18,
+              18,
+              18
+            ]
+          }
+        },
+        {
+          "rollout_id": 27,
+          "retained_samples": 2048,
+          "response_length_mean": 454.2216796875,
+          "prompt_plus_response_length_mean": 536.6904296875,
+          "retained_response_tokens_from_mean": 930246.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1099142.0,
+          "derived_prompt_tokens": 168896.0,
+          "actor_train_seconds": 104.78878808021545,
+          "native_actor_tokens_per_second": 10489.118350701896,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 357019,
+          "rollout_side_schedule": {
+            "line": 356164,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              18,
+              17,
+              17,
+              18
+            ]
+          }
+        },
+        {
+          "rollout_id": 28,
+          "retained_samples": 2048,
+          "response_length_mean": 465.43115234375,
+          "prompt_plus_response_length_mean": 550.03271484375,
+          "retained_response_tokens_from_mean": 953203.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1126467.0,
+          "derived_prompt_tokens": 173264.0,
+          "actor_train_seconds": 107.9110324382782,
+          "native_actor_tokens_per_second": 10438.849249675231,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 369344,
+          "rollout_side_schedule": {
+            "line": 368489,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              18,
+              17,
+              19,
+              18
+            ]
+          }
+        },
+        {
+          "rollout_id": 29,
+          "retained_samples": 2048,
+          "response_length_mean": 449.794921875,
+          "prompt_plus_response_length_mean": 534.064453125,
+          "retained_response_tokens_from_mean": 921180.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1093764.0,
+          "derived_prompt_tokens": 172584.0,
+          "actor_train_seconds": 104.63572072982788,
+          "native_actor_tokens_per_second": 10453.065094511336,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 381672,
+          "rollout_side_schedule": {
+            "line": 380815,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              18,
+              17,
+              17,
+              18
+            ]
+          }
+        },
+        {
+          "rollout_id": 30,
+          "retained_samples": 2048,
+          "response_length_mean": 435.99560546875,
+          "prompt_plus_response_length_mean": 516.69873046875,
+          "retained_response_tokens_from_mean": 892919.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1058199.0,
+          "derived_prompt_tokens": 165280.0,
+          "actor_train_seconds": 101.80117726325989,
+          "native_actor_tokens_per_second": 10394.761911873338,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 395206,
+          "rollout_side_schedule": {
+            "line": 394351,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              17,
+              16,
+              18,
+              17
+            ]
+          }
+        },
+        {
+          "rollout_id": 31,
+          "retained_samples": 2048,
+          "response_length_mean": 453.77001953125,
+          "prompt_plus_response_length_mean": 537.72705078125,
+          "retained_response_tokens_from_mean": 929321.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1101265.0,
+          "derived_prompt_tokens": 171944.0,
+          "actor_train_seconds": 104.74427318572998,
+          "native_actor_tokens_per_second": 10513.84449484187,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 407545,
+          "rollout_side_schedule": {
+            "line": 406690,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              18,
+              17,
+              18,
+              17
+            ]
+          }
+        },
+        {
+          "rollout_id": 32,
+          "retained_samples": 2048,
+          "response_length_mean": 443.57763671875,
+          "prompt_plus_response_length_mean": 527.39794921875,
+          "retained_response_tokens_from_mean": 908447.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1080111.0,
+          "derived_prompt_tokens": 171664.0,
+          "actor_train_seconds": 103.32603454589844,
+          "native_actor_tokens_per_second": 10453.425458035981,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 419890,
+          "rollout_side_schedule": {
+            "line": 419032,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              17,
+              17,
+              17,
+              18
+            ]
+          }
+        },
+        {
+          "rollout_id": 33,
+          "retained_samples": 2048,
+          "response_length_mean": 440.52294921875,
+          "prompt_plus_response_length_mean": 524.13232421875,
+          "retained_response_tokens_from_mean": 902191.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1073423.0,
+          "derived_prompt_tokens": 171232.0,
+          "actor_train_seconds": 101.61954379081726,
+          "native_actor_tokens_per_second": 10563.155077822725,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 432195,
+          "rollout_side_schedule": {
+            "line": 431340,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              17,
+              17,
+              17,
+              17
+            ]
+          }
+        },
+        {
+          "rollout_id": 34,
+          "retained_samples": 2048,
+          "response_length_mean": 425.947265625,
+          "prompt_plus_response_length_mean": 509.388671875,
+          "retained_response_tokens_from_mean": 872340.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1043228.0,
+          "derived_prompt_tokens": 170888.0,
+          "actor_train_seconds": 98.97909307479858,
+          "native_actor_tokens_per_second": 10539.882389219627,
+          "native_rate_numerator_difference_tokens": -1.1641532182693481e-10,
+          "training_side_length_log_line": 444510,
+          "rollout_side_schedule": {
+            "line": 443653,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              16,
+              16,
+              18,
+              16
+            ]
+          }
+        },
+        {
+          "rollout_id": 35,
+          "retained_samples": 2048,
+          "response_length_mean": 443.54931640625,
+          "prompt_plus_response_length_mean": 525.52587890625,
+          "retained_response_tokens_from_mean": 908389.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1076277.0,
+          "derived_prompt_tokens": 167888.0,
+          "actor_train_seconds": 103.57527160644531,
+          "native_actor_tokens_per_second": 10391.254430782734,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 456841,
+          "rollout_side_schedule": {
+            "line": 455983,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              17,
+              17,
+              18,
+              17
+            ]
+          }
+        },
+        {
+          "rollout_id": 36,
+          "retained_samples": 2048,
+          "response_length_mean": 425.78466796875,
+          "prompt_plus_response_length_mean": 508.22607421875,
+          "retained_response_tokens_from_mean": 872007.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1040847.0,
+          "derived_prompt_tokens": 168840.0,
+          "actor_train_seconds": 99.4502809047699,
+          "native_actor_tokens_per_second": 10466.003620408861,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 469156,
+          "rollout_side_schedule": {
+            "line": 468301,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              17,
+              17,
+              17,
+              16
+            ]
+          }
+        },
+        {
+          "rollout_id": 37,
+          "retained_samples": 2048,
+          "response_length_mean": 431.9658203125,
+          "prompt_plus_response_length_mean": 514.3916015625,
+          "retained_response_tokens_from_mean": 884666.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1053474.0,
+          "derived_prompt_tokens": 168808.0,
+          "actor_train_seconds": 100.33864140510559,
+          "native_actor_tokens_per_second": 10499.18541099955,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 481470,
+          "rollout_side_schedule": {
+            "line": 480615,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              16,
+              17,
+              17,
+              17
+            ]
+          }
+        },
+        {
+          "rollout_id": 38,
+          "retained_samples": 2048,
+          "response_length_mean": 443.52587890625,
+          "prompt_plus_response_length_mean": 525.47900390625,
+          "retained_response_tokens_from_mean": 908341.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1076181.0,
+          "derived_prompt_tokens": 167840.0,
+          "actor_train_seconds": 103.46075057983398,
+          "native_actor_tokens_per_second": 10401.828654525183,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 493861,
+          "rollout_side_schedule": {
+            "line": 493006,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              18,
+              17,
+              17,
+              17
+            ]
+          }
+        },
+        {
+          "rollout_id": 39,
+          "retained_samples": 2048,
+          "response_length_mean": 436.54833984375,
+          "prompt_plus_response_length_mean": 518.43115234375,
+          "retained_response_tokens_from_mean": 894051.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1061747.0,
+          "derived_prompt_tokens": 167696.0,
+          "actor_train_seconds": 100.73222303390503,
+          "native_actor_tokens_per_second": 10540.291557376144,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 506193,
+          "rollout_side_schedule": {
+            "line": 505337,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              17,
+              16,
+              17,
+              17
+            ]
+          }
+        },
+        {
+          "rollout_id": 40,
+          "retained_samples": 2048,
+          "response_length_mean": 430.34814453125,
+          "prompt_plus_response_length_mean": 510.77783203125,
+          "retained_response_tokens_from_mean": 881353.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1046073.0,
+          "derived_prompt_tokens": 164720.0,
+          "actor_train_seconds": 100.00453543663025,
+          "native_actor_tokens_per_second": 10460.255581736728,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 519743,
+          "rollout_side_schedule": {
+            "line": 518887,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              17,
+              17,
+              16,
+              17
+            ]
+          }
+        },
+        {
+          "rollout_id": 41,
+          "retained_samples": 2048,
+          "response_length_mean": 419.4365234375,
+          "prompt_plus_response_length_mean": 498.3779296875,
+          "retained_response_tokens_from_mean": 859006.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1020678.0,
+          "derived_prompt_tokens": 161672.0,
+          "actor_train_seconds": 98.61372399330139,
+          "native_actor_tokens_per_second": 10350.263215587845,
+          "native_rate_numerator_difference_tokens": -1.1641532182693481e-10,
+          "training_side_length_log_line": 532052,
+          "rollout_side_schedule": {
+            "line": 531196,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              17,
+              17,
+              17,
+              15
+            ]
+          }
+        },
+        {
+          "rollout_id": 42,
+          "retained_samples": 2048,
+          "response_length_mean": 434.8427734375,
+          "prompt_plus_response_length_mean": 517.3037109375,
+          "retained_response_tokens_from_mean": 890558.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1059438.0,
+          "derived_prompt_tokens": 168880.0,
+          "actor_train_seconds": 100.11076426506042,
+          "native_actor_tokens_per_second": 10582.658196424873,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 544339,
+          "rollout_side_schedule": {
+            "line": 543478,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              17,
+              16,
+              17,
+              17
+            ]
+          }
+        },
+        {
+          "rollout_id": 43,
+          "retained_samples": 2048,
+          "response_length_mean": 430.50634765625,
+          "prompt_plus_response_length_mean": 512.92431640625,
+          "retained_response_tokens_from_mean": 881677.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1050469.0,
+          "derived_prompt_tokens": 168792.0,
+          "actor_train_seconds": 100.25804495811462,
+          "native_actor_tokens_per_second": 10477.652944847074,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 556618,
+          "rollout_side_schedule": {
+            "line": 555763,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              16,
+              17,
+              17,
+              17
+            ]
+          }
+        },
+        {
+          "rollout_id": 44,
+          "retained_samples": 2048,
+          "response_length_mean": 409.00537109375,
+          "prompt_plus_response_length_mean": 492.59521484375,
+          "retained_response_tokens_from_mean": 837643.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1008835.0,
+          "derived_prompt_tokens": 171192.0,
+          "actor_train_seconds": 96.27036428451538,
+          "native_actor_tokens_per_second": 10479.185442972985,
+          "native_rate_numerator_difference_tokens": -1.1641532182693481e-10,
+          "training_side_length_log_line": 568882,
+          "rollout_side_schedule": {
+            "line": 568035,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              17,
+              16,
+              15,
+              16
+            ]
+          }
+        },
+        {
+          "rollout_id": 45,
+          "retained_samples": 2048,
+          "response_length_mean": 404.97802734375,
+          "prompt_plus_response_length_mean": 486.57177734375,
+          "retained_response_tokens_from_mean": 829395.0,
+          "retained_prompt_plus_response_tokens_from_mean": 996499.0,
+          "derived_prompt_tokens": 167104.0,
+          "actor_train_seconds": 97.26308417320251,
+          "native_actor_tokens_per_second": 10245.397917111814,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 581142,
+          "rollout_side_schedule": {
+            "line": 580295,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              16,
+              16,
+              17,
+              16
+            ]
+          }
+        },
+        {
+          "rollout_id": 46,
+          "retained_samples": 2048,
+          "response_length_mean": 438.4140625,
+          "prompt_plus_response_length_mean": 524.8359375,
+          "retained_response_tokens_from_mean": 897872.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1074864.0,
+          "derived_prompt_tokens": 176992.0,
+          "actor_train_seconds": 101.69096302986145,
+          "native_actor_tokens_per_second": 10569.90678399188,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 593465,
+          "rollout_side_schedule": {
+            "line": 592610,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              17,
+              17,
+              17,
+              17
+            ]
+          }
+        },
+        {
+          "rollout_id": 47,
+          "retained_samples": 2048,
+          "response_length_mean": 415.6376953125,
+          "prompt_plus_response_length_mean": 497.0126953125,
+          "retained_response_tokens_from_mean": 851226.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1017882.0,
+          "derived_prompt_tokens": 166656.0,
+          "actor_train_seconds": 96.78114533424377,
+          "native_actor_tokens_per_second": 10517.35848428574,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 605737,
+          "rollout_side_schedule": {
+            "line": 604882,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              17,
+              16,
+              16,
+              16
+            ]
+          }
+        },
+        {
+          "rollout_id": 48,
+          "retained_samples": 2048,
+          "response_length_mean": 417.99072265625,
+          "prompt_plus_response_length_mean": 499.27197265625,
+          "retained_response_tokens_from_mean": 856045.0,
+          "retained_prompt_plus_response_tokens_from_mean": 1022509.0,
+          "derived_prompt_tokens": 166464.0,
+          "actor_train_seconds": 98.16612243652344,
+          "native_actor_tokens_per_second": 10416.10868007116,
+          "native_rate_numerator_difference_tokens": 0.0,
+          "training_side_length_log_line": 618031,
+          "rollout_side_schedule": {
+            "line": 617176,
+            "num_samples": 2048,
+            "num_rollouts": [
+              512,
+              512,
+              512,
+              512
+            ],
+            "num_microbatches": [
+              17,
+              16,
+              17,
+              16
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "gb300_over_rubin_ratios": {
+    "actor_seconds": 1.7733035231700787,
+    "response_tokens": 1.003576622192941,
+    "prompt_plus_response_tokens": 1.0030917908301509,
+    "logged_schedule_microbatch_counts": 1.0047418335089568,
+    "seconds_per_reported_token": 1.7678377386604938
+  },
+  "cross_checks": {
+    "prompt_token_count_identical_at_each_selected_id": true,
+    "native_schedule_count_per_platform": 50,
+    "schedule_association": "Each schedule lies after the prior rank0 rollout-length event and before the current one, with IDs0\u201349 complete.",
+    "per_id_total_length_ratio_min": 0.9301016125319866,
+    "per_id_total_length_ratio_max": 1.1789567524374864
+  },
+  "interpretation": [
+    "GB300 has 0.309% more reported prompt+response tokens and 0.474% more scheduled microbatches across this cohort. Those aggregate differences are small relative to the 77.33% actor-time difference.",
+    "Descriptive seconds per reported token changes the ratio from1.77330 to1.76784. This does not isolate hardware or prove a linear causal token/time model."
+  ],
+  "limitations": [
+    "Response tokens alone are generation length, not full actor sequence workload. The input-sequence proxy additionally includes prompts and agrees with the native actor throughput numerator.",
+    "The logged numerator is not directly measured padded kernel tokens, loss-mask effective tokens, FLOPs, recomputation work, expert routing, per-rank shape distribution or sum of squared sequence lengths. These quantities are not retained for the main cohort.",
+    "Microbatch counts are the logged rollout-side schedule, not an independent trace of every executed CUDA operation or per-rank packing.",
+    "Aggregate length differences are small, but per-ID total length ratios vary from0.9301 to1.1790. Shape, padding and routing differences may still affect cost.",
+    "Equal prompt token counts do not prove bitwise equality of prompt contents. New shared frozen-batch diagnostics provide a different, stronger input-control scope.",
+    "Actor stage covers four updates per rollout. This audit must not be presented as a single-microbatch trace measurement or explain the entire main ratio from one profiled rank."
+  ]
+}
