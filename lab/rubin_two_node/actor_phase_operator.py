@@ -401,6 +401,14 @@ def retain_guard_evidence(c, root, label, deadline):
           'source_root': c['node_phase'], 'encoding': 'base64', 'files': files})
 
 
+def verify_retention_destination(target):
+    if (os.getuid(), os.getgid()) != (28644, 30):
+        raise ValueError('Retention requires normal dl3 UID28644:GID30')
+    item = target.lstat()
+    if not stat.S_ISDIR(item.st_mode) or (item.st_uid, item.st_gid) != (28644, 30):
+        raise ValueError('Retention destination must be a normal-UID owned directory')
+
+
 def stop_retain(c):
     alloc = allocation(c, minimum=90)
     root = Path(c['durable_phase'])
@@ -438,9 +446,14 @@ def stop_retain(c):
             raise ValueError('Retention exceeds phase output bound')
         target = root / 'node-output'
         target.mkdir()
-        subprocess.run(['scp', '-q', '-r', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
-                        c['node'] + ':' + c['node_output'] + '/.', str(target)],
-                       check=True, timeout=remaining(deadline, 600))
+        verify_retention_destination(target)
+        transfer_seconds = remaining(deadline, 600)
+        remote_seconds = max(1, int(transfer_seconds) - 5)
+        subprocess.run(['rsync', '-rt', '--no-perms', '--no-owner', '--no-group', '--partial',
+                        '--timeout=30', '-e', 'ssh -o BatchMode=yes -o ConnectTimeout=10',
+                        '--rsync-path=timeout --signal=TERM --kill-after=5s ' + str(remote_seconds) + 's rsync',
+                        c['node'] + ':' + c['node_output'].rstrip('/') + '/', str(target) + '/'],
+                       check=True, timeout=transfer_seconds)
         after = node_python(c, manifest_code(c['node_output']), timeout=remaining(deadline, 180))
         if before != after:
             raise ValueError('Stopped phase output changed during retention')

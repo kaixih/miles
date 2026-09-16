@@ -7,6 +7,8 @@ from pathlib import Path
 import shlex
 import subprocess
 import tempfile
+import stat
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -159,14 +161,33 @@ class ActorPhaseTests(unittest.TestCase):
              patch.object(op,'remote',return_value=json.dumps([info])) as remote, \
              patch.object(op,'retain_guard_evidence',side_effect=evidence), \
              patch.object(op,'node_python',return_value={'part':{'bytes':1,'sha256':'a'*64}}), \
-             patch.object(op.subprocess,'run',side_effect=subprocess.TimeoutExpired('scp',1)), \
+             patch.object(op,'verify_retention_destination'), \
+             patch.object(op.subprocess,'run',side_effect=subprocess.TimeoutExpired('rsync',1)) as transfer, \
              patch.object(op,'api') as api:
             with self.assertRaises(subprocess.TimeoutExpired):op.stop_retain(self.c)
         self.assertEqual(events,[('before',1140),('after',1140)])
+        argv=transfer.call_args.args[0]
+        self.assertEqual(argv[:5],['rsync','-rt','--no-perms','--no-owner','--no-group'])
+        self.assertEqual(argv[-2:],[self.c['node']+':'+self.c['node_output']+'/',str(self.root/'node-output')+'/'])
+        self.assertIn('ssh -o BatchMode=yes -o ConnectTimeout=10',argv)
+        self.assertIn('--rsync-path=timeout --signal=TERM --kill-after=5s 135s rsync',argv)
+        self.assertEqual(transfer.call_args.kwargs['timeout'],140)
+        self.assertNotIn('--delete',argv)
+
         api.assert_not_called()
         self.assertTrue((self.root/'node-output').exists())
         self.assertFalse((self.root/'retention.json').exists())
         self.assertFalse(any('stop' in call.args[1] for call in remote.call_args_list))
+
+    def test_retention_destination_requires_normal_uid_owned_non_symlink_directory(self):
+        target=SimpleNamespace(lstat=lambda:SimpleNamespace(st_mode=stat.S_IFDIR|0o700,st_uid=28644,st_gid=30))
+        with patch.object(op.os,'getuid',return_value=28644),patch.object(op.os,'getgid',return_value=30):
+            op.verify_retention_destination(target)
+            for mode,owner in [(stat.S_IFLNK,28644),(stat.S_IFDIR,0),(stat.S_IFDIR,28686)]:
+                wrong=SimpleNamespace(lstat=lambda:SimpleNamespace(st_mode=mode,st_uid=owner,st_gid=30))
+                with self.assertRaisesRegex(ValueError,'owned directory'):op.verify_retention_destination(wrong)
+        with patch.object(op.os,'getuid',return_value=0),patch.object(op.os,'getgid',return_value=0):
+            with self.assertRaisesRegex(ValueError,'normal dl3'):op.verify_retention_destination(target)
 
     def test_retention_rejects_new_active_job_before_stop(self):
         self.records()
