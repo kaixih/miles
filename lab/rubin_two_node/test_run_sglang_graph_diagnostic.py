@@ -196,6 +196,58 @@ class DiagnosticTests(unittest.TestCase):
             proc.terminate(); proc.wait(timeout=5)
             proc.stdin.close(); proc.stdout.close(); proc.stderr.close()
 
+    @unittest.skipUnless(sys.platform == "linux", "Native Linux nondumpable TERM grace integration")
+    def test_native_linux_nondumpable_term_grace_exits_cleanly(self):
+        code = """
+import ctypes, os, pathlib, signal, sys, time
+root = pathlib.Path(sys.argv[1])
+libc = ctypes.CDLL(None, use_errno=True)
+def stop(signum, frame):
+    result = libc.prctl(4, 0, 0, 0, 0)  # PR_SET_DUMPABLE=0
+    (root / 'nondumpable.json').write_text(str(result))
+    if result != 0:
+        os._exit(71)
+    time.sleep(0.6)
+    sys.exit(0)
+signal.signal(signal.SIGTERM, stop)
+(root / 'ready').write_text('ready')
+while True:
+    signal.pause()
+"""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime = D.Runtime(root, "native-nondumpable-check", 9999999999, 1024**3)
+            with (root / "child.log").open("w") as log:
+                runtime.start([sys.executable, "-u", "-c", code, directory], log,
+                              {**os.environ, D.RUN_ENV: runtime.run_id})
+                child, leader = runtime.child, dict(runtime.leader)
+                try:
+                    deadline = D.time.monotonic() + 5
+                    while not (root / "ready").exists() and D.time.monotonic() < deadline:
+                        self.assertIsNone(child.poll(), "child failed before readiness")
+                        D.time.sleep(.02)
+                    self.assertTrue((root / "ready").exists(), "bounded child readiness")
+                    runtime.stop()
+                    self.assertIsNone(runtime.child)
+                    self.assertEqual(child.returncode, 0)
+                    self.assertEqual((root / "nondumpable.json").read_text(), "0")
+                    events = json.loads((root / "events.json").read_text())
+                    self.assertEqual(events[-1]["event"], "engine_stopped")
+                    self.assertEqual(events[-1]["returncode"], 0)
+                finally:
+                    # Failure cleanup targets only our unreaped child after
+                    # immutable /proc identity checks, never a broad group.
+                    if child.poll() is None:
+                        proc = Path("/proc") / str(child.pid)
+                        stat = proc.joinpath("stat").read_text().rpartition(") ")[2].split()
+                        status = dict(line.split(":", 1) for line in proc.joinpath("status").read_text().splitlines()
+                                      if ":" in line)
+                        self.assertEqual((int(stat[2]), int(stat[3]), int(stat[19]),
+                                          int(status["Uid"].split()[0])),
+                                         (leader["pgid"], leader["sid"], leader["start_ticks"], leader["uid"]))
+                        child.kill()
+                        child.wait(timeout=5)
+
     def test_stop_only_own_group_and_refuses_changed_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             runtime = D.Runtime(Path(directory), "run", 9999999999, 1024)
@@ -206,11 +258,45 @@ class DiagnosticTests(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     runtime.stop()
                 kill.assert_not_called()
-            with patch.object(D, "group_members", side_effect=[[member()], [], [], []]), \
+            with patch.object(D, "group_members", side_effect=[[member()], []]), \
+                    patch.object(D, "group_alive", return_value=False), \
                     patch.object(D.os, "getuid", return_value=123), patch.object(D.os, "killpg") as kill:
                 runtime.stop()
                 kill.assert_called_once_with(90, signal.SIGTERM)
             self.assertIsNone(runtime.child)
+
+    def test_term_wait_reads_only_stat_for_nondumpable_exiting_member(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = D.Runtime(Path(directory), "run", 9999999999, 1024)
+            runtime.child, runtime.leader = Mock(pid=90, returncode=0), member()
+            statuses = iter(["S", "Z", "Z"])
+            def read_stat(path, *args, **kwargs):
+                self.assertEqual(path.name, "stat")
+                return "91 (scheduler) " + " ".join([next(statuses), "90", "90", "90"] + ["0"] * 16)
+            # Only the pre-TERM and pre-KILL checks use full identities. The
+            # intervening real group_alive scans must survive unreadable env.
+            with patch.object(D, "group_members", side_effect=[[member()], []]) as full_identity, \
+                    patch.object(Path, "iterdir", return_value=[Path("/proc/91")]), \
+                    patch.object(Path, "read_text", read_stat), \
+                    patch.object(Path, "read_bytes", side_effect=PermissionError(13, "nondumpable")) as env_read, \
+                    patch.object(D.os, "getuid", return_value=123), patch.object(D.os, "killpg") as kill, \
+                    patch.object(D.time, "sleep"):
+                runtime.stop()
+            self.assertEqual(full_identity.call_count, 2)
+            env_read.assert_not_called()
+            kill.assert_called_once_with(90, signal.SIGTERM)
+            self.assertIsNone(runtime.child)
+
+    def test_after_term_grace_kill_still_requires_fresh_full_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = D.Runtime(Path(directory), "run", 9999999999, 1024)
+            runtime.child, runtime.leader = Mock(pid=90, returncode=0), member()
+            with patch.object(D, "group_members", side_effect=[[member()], [member(run="other")]]), \
+                    patch.object(D.os, "getuid", return_value=123), patch.object(D.os, "killpg") as kill, \
+                    patch.object(D.time, "monotonic", side_effect=[0, 6]):
+                with self.assertRaises(D.OwnershipError): runtime.stop()
+            kill.assert_called_once_with(90, signal.SIGTERM)
+            runtime.child.wait.assert_not_called()
 
     def test_guard_stops_on_original_deadline_even_without_http_return(self):
         with tempfile.TemporaryDirectory() as directory:

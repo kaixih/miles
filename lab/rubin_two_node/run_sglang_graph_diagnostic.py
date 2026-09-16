@@ -215,6 +215,20 @@ def group_members(pgid):
     return members
 
 
+def group_alive(pgid):
+    """Read-only wait predicate; never authorizes a signal or reads environ."""
+    for p in Path("/proc").iterdir():
+        if not p.name.isdigit():
+            continue
+        try:
+            stat = p.joinpath("stat").read_text().rpartition(") ")[2].split()
+            if int(stat[2]) == pgid and stat[0] != "Z":
+                return True
+        except (FileNotFoundError, ProcessLookupError):
+            continue
+    return False
+
+
 class OwnershipError(RuntimeError):
     def __init__(self, reason, member, leader):
         fields = ("pid", "ppid", "sid", "pgid", "uid", "start_ticks", "run_env_present", "run_id")
@@ -276,14 +290,17 @@ class Runtime:
             if members:
                 os.killpg(self.child.pid, signal.SIGTERM)
             until = time.monotonic() + 5
-            while group_members(self.child.pid) and time.monotonic() < until:
+            # TERM can make environ unreadable before the process reaches Z.
+            # Waiting needs only liveness; any further signal still requires
+            # the full fresh ownership verification below.
+            while time.monotonic() < until and group_alive(self.child.pid):
                 time.sleep(.2)
             remaining = group_members(self.child.pid)
             verify_owned_group(remaining, self.leader, self.run_id, os.getuid())
             if remaining:
                 os.killpg(self.child.pid, signal.SIGKILL)
             self.child.wait(timeout=5)
-            if group_members(self.child.pid):
+            if group_alive(self.child.pid):
                 raise RuntimeError("Owned engine group did not exit; do not start another mode")
             self.record("engine_stopped", pid=self.child.pid, returncode=self.child.returncode)
             self.child, self.leader = None, None
