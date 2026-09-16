@@ -15,6 +15,10 @@ Args:
   --global-batch-size: Responses per optimizer step, default 512 (four steps/rollout).
   --save-interval: Default 50; retain optimizer state in the final checkpoint.
       Positive intervals also save the final rollout; 0 disables checkpoints.
+  --save-retain-interval: Default 0 leaves native retention disabled. A positive
+      value retains checkpoints at multiples of that interval plus the latest;
+      1000000 keeps only the latest nonzero checkpoint in this 50-rollout run.
+      Megatron prunes after model save, before Miles saves its rollout state.
   --save-trigger-sentinel: Optional existing Miles checkpoint-request file path.
   --eval-interval: Default 10, with evaluation before the first training rollout.
   --no-enable-eval: Disable evaluation for an explicitly bounded execution check.
@@ -91,6 +95,7 @@ class ScriptArgs(U.ExecuteTrainConfig):
     eval_top_k: int = -1
     n_samples_per_eval_prompt: int = 1
     save_interval: int = 50
+    save_retain_interval: int = 0
     save_trigger_sentinel: str = ""
     save_debug_event_data: str = ""
     save_debug_rollout_data: str = ""
@@ -134,6 +139,10 @@ class ScriptArgs(U.ExecuteTrainConfig):
             raise ValueError("SGLang memory fraction must be in (0, 1)")
         if self.save_interval < 0 or (self.enable_eval and self.eval_interval < 1):
             raise ValueError("Save interval must be nonnegative; enabled evaluation needs a positive interval")
+        if self.save_retain_interval < 0:
+            raise ValueError("Checkpoint retention interval must be nonnegative")
+        if self.save_retain_interval and not self.save_interval:
+            raise ValueError("Checkpoint retention requires checkpoint saving to be enabled")
         if self.save_trigger_sentinel and not self.save_interval:
             raise ValueError("A checkpoint sentinel requires checkpoint saving to be enabled")
         if self.n_samples_per_eval_prompt < 1 or not self.custom_rm_path:
@@ -180,6 +189,8 @@ def _checkpoint_args(args: ScriptArgs) -> str:
     if args.save_interval:
         # train.py also saves the final rollout when an interval is configured.
         result += f"--save {shlex.quote(str(args.checkpoint_output))} --save-interval {args.save_interval} "
+    if args.save_retain_interval:
+        result += f"--save-retain-interval {args.save_retain_interval} "
     if args.save_trigger_sentinel:
         result += f"--save-trigger-sentinel {shlex.quote(args.save_trigger_sentinel)} "
     return result
