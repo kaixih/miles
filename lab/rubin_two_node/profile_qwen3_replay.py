@@ -22,6 +22,11 @@ Args:
   --execute-run: Explicitly submit. Default, or --print-only, only prints the plan.
   --max-trace-gib: Default 10; a detached guard stops only this submission on excess.
   --max-runtime-seconds: Default 4500, counted from guard arming, including loading.
+  --profile-max-tokens-per-gpu: Default 0 preserves recorded microbatch budgets.
+      A positive value explicitly lowers only the training token budget and an
+      explicitly recorded log-prob token budget. It must fit the recorded rollout
+      context limit and cannot increase either budget. Every override is recorded
+      in the plan; it does not modify the main run or its global batch size.
   --guard-plan: Internal detached guard mode; do not use for other Ray submissions.
 
 Example inside a prepared container (planning creates no files or Ray jobs):
@@ -90,6 +95,7 @@ class ScriptArgs(U.ExecuteTrainConfig):
     megatron_path: str = "/opt/Megatron-LM"
     max_trace_gib: float = 10.0
     max_runtime_seconds: int = 4500
+    profile_max_tokens_per_gpu: int = 0
     poll_seconds: int = 5
     submission_grace_seconds: int = 120
     execute_run: bool = False
@@ -105,6 +111,8 @@ class ScriptArgs(U.ExecuteTrainConfig):
             raise ValueError("Use one node and a simple unique run ID of at most 80 characters")
         if self.max_trace_gib <= 0 or self.max_runtime_seconds <= 0:
             raise ValueError("Trace and elapsed-time limits must be positive")
+        if self.profile_max_tokens_per_gpu < 0:
+            raise ValueError("profile-max-tokens-per-gpu must be zero or positive")
         if not 1 <= self.poll_seconds <= 30 or self.submission_grace_seconds < self.poll_seconds:
             raise ValueError("Use a 1-30 second poll and a longer submission grace period")
         if self.execute_run and self.print_only:
@@ -162,6 +170,42 @@ def _one_value(groups, name):
     if len(matches) != 1 or len(matches[0]) != 1:
         raise ValueError(f"Expected exactly one scalar {name}")
     return matches[0][0]
+
+
+def _profile_token_budget(argv, args):
+    requested = args.profile_max_tokens_per_gpu
+    record = {"enabled": bool(requested), "requested_tokens_per_gpu": requested, "overrides": [],
+              "reason": "Default preserves the recorded token budgets."}
+    if requested == 0:
+        return argv, record
+    if requested < 0:
+        raise ValueError("profile-max-tokens-per-gpu must be zero or positive")
+    groups = _flag_groups(argv)
+
+    def positive_value(flag):
+        value = _one_value(groups, flag)
+        if not value.isdecimal() or int(value) <= 0:
+            raise ValueError(f"Expected a recorded positive integer {flag}")
+        return int(value)
+
+    context = positive_value("--rollout-max-context-len")
+    if requested < context:
+        raise ValueError("Profile token budget must be at least the recorded rollout context limit")
+    flags = ["--max-tokens-per-gpu"]
+    if any(group[0] == "--log-probs-max-tokens-per-gpu" for group in groups):
+        flags.append("--log-probs-max-tokens-per-gpu")
+    for flag in flags:
+        old = positive_value(flag)
+        if requested > old:
+            raise ValueError(f"Profile token budget must not increase recorded {flag} {old}")
+        record["overrides"].append({"flag": flag, "old": old, "new": requested, "changed": old != requested})
+    for group in groups:
+        if group[0] in flags:
+            group[1] = str(requested)
+    record.update(recorded_context_limit_tokens=context,
+                  reason="Explicit profile-only common memory-fit microbatch budget; global batch, "
+                         "optimizer updates and all other recorded recipe settings are unchanged.")
+    return [token for group in groups for token in group], record
 
 
 def _replay_arguments(argv, args):
@@ -273,7 +317,8 @@ def _build_plan(args):
     model_argv = shlex.split(U.shell_safe_model_args(MODEL_TYPE))
     if source_argv[:len(model_argv)] != model_argv:
         raise ValueError("Recorded model prefix differs from this Miles Qwen3 registry; review source versions")
-    argv, removed = _replay_arguments(source_argv, args)
+    profile_argv, token_budget_override = _profile_token_budget(source_argv, args)
+    argv, removed = _replay_arguments(profile_argv, args)
     if argv[:len(model_argv)] != model_argv:
         raise ValueError("Replay unexpectedly changed model arguments")
     env = {k: v for k, v in source_env.items() if not k.startswith("WANDB_")}
@@ -303,6 +348,7 @@ def _build_plan(args):
         "max_trace_bytes": int(args.max_trace_gib * 1024**3), "max_runtime_seconds": args.max_runtime_seconds,
         "poll_seconds": args.poll_seconds, "submission_grace_seconds": args.submission_grace_seconds,
         "removed_flags": removed, "planned_rollouts": 3, "optimizer_steps_per_rollout": 4,
+        "profile_token_budget_override": token_budget_override,
         "planned_optimizer_steps": 12, "profiling_coverage_known": True,
         "profiled_rollouts": [args.checkpoint_iteration + 1, args.checkpoint_iteration + 2],
         "profile_scope": "First replay rollout tail through second rollout train end; all four trainer ranks",

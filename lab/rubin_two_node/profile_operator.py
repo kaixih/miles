@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Experiment-specific profiling operator; PLAN ONLY unless --execute is explicit.
 
-Copy this file to dl3 and run there as UID28644:GID30. It does not tune either
-recipe or change either image. Actions: prepare -> inspect printed replay plan ->
+Copy this file to dl3 and run there as UID28644:GID30. It preserves both images
+and sets the paired replay token budgets to 4096. Actions: prepare -> inspect printed replay plan ->
 submit --expected-checkpoint-id ID -> retain -> stop. Each action plans by default.
 Prepare requires completed learning evidence and explicit permission to stop the
 exact completed main container. Never use this to interrupt a main run.
@@ -27,18 +27,20 @@ import time
 
 BASE = '/home/scratch.kaixih_ent'
 REPO = BASE + '/repo/miles-rubin-cu134'
-RUBIN_ROOT = BASE + '/repro/miles-rubin-qwen3-gsm8k/20260915-j2198331'
+RUBIN_ROOT = BASE + '/repro/miles-rubin-qwen3-gsm8k/20260916-j2198331-a2-mb4096-nfs'
 CHECKPOINT = RUBIN_ROOT + '/checkpoints'
 TERMINAL = {'SUCCEEDED', 'FAILED', 'STOPPED'}
 RUNS = {
     'rubin': dict(node='vr-nvl72-ts2-l11-038-c15', ip='10.102.74.82', nic='mp0',
-        job='2198331', main='miles-rubin-qwen3-j2198331-0', root=RUBIN_ROOT,
-        main_id='raysubmit_vZnATxienP7Z3MSp', main_run='20260915-j2198331-qwen3-a1',
+        job='2198331', main='miles-rubin-qwen3-j2198331-a2-0', root=RUBIN_ROOT,
+        runtime_output='/tmp/miles-rubin-j2198331/run-a2-mb4096',
+        main_id='raysubmit_qCmmzUzbwHrBKAiU', main_run='20260916-j2198331-qwen3-a2-mb4096',
         lease='2026-09-16T06:09:18+00:00', megatron='/opt/Megatron-LM',
         image='gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin@sha256:a03106bdd90c5d6067fbff246fff25df979f9da8486eb0dac795a315a2346d6c'),
     'gb300': dict(node='gb300-nvl-012-compute04', ip='10.85.212.9', nic='enP5p9s0',
         job='2198810', main='miles-gb300-qwen3-j2198810-0',
         root=BASE + '/repro/miles-gb300-qwen3-gsm8k/20260915-j2198810-nfs',
+        runtime_output='/tmp/miles-gb300-j2198810/run',
         main_id='raysubmit_W7k1mh2Y9Uh9wmmk', main_run='20260915-j2198810-qwen3-a1',
         lease='2026-09-16T07:09:02+00:00', megatron='/root/Megatron-LM',
         image='radixark/miles@sha256:226f63d28e4b1482e0a6948ba3d486c1b1635648d079c82c9501640b24657986'),
@@ -76,7 +78,7 @@ def config(args):
     c['name'] = 'miles-profile-' + args.run_id
     c['local'] = '/tmp/' + c['name']
     c['durable'] = c['root'] + '/profiles/' + args.run_id
-    c['input'] = c['root'] + '/inputs' if args.platform == 'rubin' else '/tmp/miles-gb300-j2198810/run/inputs'
+    c['input'] = c['runtime_output'] + '/inputs'
     c['source_plan'] = c['root'] + '/original-ray-job.json'
     c['submission_id'] = 'qwen3-profile-' + args.run_id
     c['dashboard'] = 'http://' + c['ip'] + ':29265'
@@ -144,7 +146,8 @@ def replay_command(c, seconds, execute=False, checkpoint_id=''):
            '--source-plan', '/profile-source/original-ray-job.json', '--checkpoint-root', '/profile-checkpoint',
            '--checkpoint-iteration', '49', '--output-dir', '/run-output/replay', '--run-id', c['run_id'],
            '--ray-address', c['dashboard'], '--megatron-path', c['megatron'],
-           '--max-runtime-seconds', str(seconds), '--max-trace-gib', '10']
+           '--max-runtime-seconds', str(seconds), '--max-trace-gib', '10',
+           '--profile-max-tokens-per-gpu', '4096']
     return cmd + (['--expected-checkpoint-id', checkpoint_id, '--execute-run'] if execute else ['--print-only'])
 
 
@@ -166,15 +169,70 @@ def allocation(c):
         raise RuntimeError('Recorded allocation lease expired')
 
 
+def check_checkpoint_retention():
+    """Require a separately verified copy; never copy or overwrite checkpoints."""
+    checkpoint = Path(CHECKPOINT)
+    record_path = Path(RUBIN_ROOT, 'checkpoint-retention.json')
+    record = json.loads(record_path.read_text())
+    expected = {'exit_code': 0, 'uid': 28644, 'run_id': RUNS['rubin']['main_run'],
+                'source_node': RUNS['rubin']['node'],
+                'source_root': RUNS['rubin']['runtime_output'] + '/checkpoints',
+                'destination_root': CHECKPOINT, 'iteration': 49,
+                'rsync_exit_code': 0,
+                'verification': 'rsync_transfer_plus_sizes_and_metadata_sha256'}
+    if any(record.get(k) != v for k, v in expected.items()):
+        raise RuntimeError('Shared Rubin checkpoint lacks a matching verified retention record')
+    if record_path.stat().st_uid != 28644 or checkpoint.stat().st_uid != 28644:
+        raise RuntimeError('Checkpoint retention writer UID mismatch')
+    if checkpoint.resolve() != checkpoint or record_path.resolve() != record_path:
+        raise RuntimeError('Checkpoint retention paths must not contain symlinks')
+    indexes = [name for name in ('iter_0000049/.metadata', 'iter_0000049/metadata.json')
+               if (checkpoint / name).is_file()]
+    critical = {'latest_checkpointed_iteration.txt', 'iter_0000049/common.pt',
+                'rollout/global_dataset_state_dict_49.pt', *indexes}
+    files = record.get('files', {})
+    if not indexes or not critical.issubset(files) or not any(n.startswith('iter_0000049/') and n.endswith('.distcp') for n in files):
+        raise RuntimeError('Checkpoint retention manifest is incomplete')
+    for name, meta in files.items():
+        relative = Path(name)
+        if relative.is_absolute() or '..' in relative.parts or relative.as_posix() != name:
+            raise RuntimeError('Invalid checkpoint manifest path')
+        path = checkpoint / relative
+        if path.resolve() != path or not path.is_file() or path.stat().st_uid != 28644:
+            raise RuntimeError('Checkpoint file missing, symlinked, or foreign-owned: ' + name)
+        if (type(meta.get('bytes')) is not int or meta['bytes'] <= 0
+                or path.stat().st_size != meta['bytes']):
+            raise RuntimeError('Checkpoint file size/hash metadata mismatch: ' + name)
+        # rsync verifies transferred data; all shard sizes and small metadata
+        # hashes are compared separately. This is not a full tensor-content hash.
+        if name in critical:
+            if (meta['bytes'] > 32 * 1024**2
+                    or not re.fullmatch('[0-9a-f]{64}', meta.get('sha256', ''))
+                    or hashlib.sha256(path.read_bytes()).hexdigest() != meta['sha256']):
+                raise RuntimeError('Checkpoint metadata changed after verified retention: ' + name)
+    if (checkpoint / 'latest_checkpointed_iteration.txt').read_text().strip() != '49':
+        raise RuntimeError('Shared Rubin checkpoint is not final iteration49')
+    shards = sorted((str(p.relative_to(checkpoint)), p.stat().st_size)
+                    for p in (checkpoint / 'iter_0000049').rglob('*.distcp'))
+    if shards != sorted((n, m['bytes']) for n, m in files.items() if n.endswith('.distcp')):
+        raise RuntimeError('Checkpoint shard inventory differs from retained manifest')
+    metadata = ['iter_0000049/common.pt', 'rollout/global_dataset_state_dict_49.pt', *indexes]
+    identity = {'iteration': 49, 'metadata': [{'path': n, 'sha256': files[n]['sha256']} for n in metadata],
+                'shards': shards}
+    fingerprint = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+    if record.get('source_checkpoint_id') != fingerprint or record.get('destination_checkpoint_id') != fingerprint:
+        raise RuntimeError('Retained checkpoint fingerprint differs from its verified source')
+    return hashlib.sha256(record_path.read_bytes()).hexdigest()
+
+
 def check_main(c):
     r = Path(c['root'])
     for filename in ['train_exit.json', 'train-driver-exit.json']:
         if json.loads((r / filename).read_text()).get('exit_code') != 0:
             raise RuntimeError('Main launcher did not exit successfully: ' + filename)
-    if c['platform'] == 'gb300':
-        retained = json.loads((r / 'artifact-retention-exit.json').read_text())
-        if retained.get('exit_code') != 0 or retained.get('uid') != 28644:
-            raise RuntimeError('GB main evidence has not been retained by normal UID')
+    retained = json.loads((r / 'artifact-retention-exit.json').read_text())
+    if retained.get('exit_code') != 0 or retained.get('uid') != 28644:
+        raise RuntimeError('Main node-local evidence has not been retained by normal UID')
     spec = importlib.util.spec_from_file_location('qwen3_summary', REPO + '/lab/rubin_two_node/summarize_qwen3_runs.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -197,11 +255,10 @@ def check_main(c):
         raise RuntimeError('Review recorded Ray routing before replay; will not rewrite it: ' + repr(unexpected_routing))
     if main.get('entrypoint') != original.get('entrypoint'):
         raise RuntimeError('Main entrypoint differs from saved source plan')
-    tracker = Path(CHECKPOINT, 'latest_checkpointed_iteration.txt').read_text().strip()
-    if tracker != '49':
-        raise RuntimeError('Shared Rubin checkpoint is not final iteration49')
+    checkpoint_record_sha256 = check_checkpoint_retention()
     return {'checked_at': utc(), 'ray_job': main, 'log_sha256': metrics['source_log_sha256'],
-            'completed_rollouts': metrics['completed_training_rollouts'], 'optimizer_updates': 200}
+            'completed_rollouts': metrics['completed_training_rollouts'], 'optimizer_updates': 200,
+            'checkpoint_retention_record_sha256': checkpoint_record_sha256}
 
 
 def inspect_profile(c):
@@ -396,12 +453,16 @@ def main():
     if not args.execute:
         print(json.dumps({'mode': 'PLAN_ONLY_NO_REMOTE_CALLS', 'action': args.action, 'config': c,
             'completion_gates': ['exact main Ray SUCCEEDED', 'both launcher exits0', '50rollouts/200updates',
-                                 'GB main evidence retained', 'shared Rubin tracker49', 'no active Ray submissions'],
+                                 'main node-local evidence retained', 'shared Rubin tracker49',
+                                 'Rubin A2 checkpoint retained: rsync success, shard sizes and metadata hashes match',
+                                 'no active Ray submissions'],
             'docker_argv': docker_command(c), 'ray_start_argv': ray_command(c),
             'replay_plan_argv': replay_command(c, args.max_runtime_seconds),
             'runtime_budget': 'min(requested, recorded lease remaining - retention margin), recomputed before submit',
             'retention_margin_seconds': args.retention_margin_seconds,
             'caveats': ['Both versioned runtimes read the same checkpoint; cross-version optimizer resume untested.',
+                        'Both replays explicitly use4096 tokens/GPU; GB main used8192 and Rubin A2 main4096.',
+                        'Shared checkpoint retention is an external reviewed prerequisite; no automatic copy/overwrite.',
                         '10GiB is a polled trace limit; API failure may delay scoped stopping.',
                         'Cold loading is inside runtime budget; insufficient lease means skip, never extend.',
                         'SGLang bounded4-step API capture must target one replay engine, not the main job.',

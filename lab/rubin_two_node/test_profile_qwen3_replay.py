@@ -7,7 +7,7 @@ import sys
 import tempfile
 import types
 import unittest
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -62,6 +62,7 @@ def _source_argv():
         "--pipeline-model-parallel-size 1 --context-parallel-size 1 --expert-model-parallel-size 4 "
         "--expert-tensor-parallel-size 1 --rollout-batch-size 256 --n-samples-per-prompt 8 "
         "--global-batch-size 512 --num-steps-per-rollout 4 --ref-load '/reference with spaces' "
+        "--max-tokens-per-gpu 8192 --rollout-max-context-len 1536 "
         "--hf-checkpoint /hf --prompt-data /data/train.jsonl --num-rollout 50 "
         "--save /original/checkpoints --save-interval 50 --save-trigger-sentinel /original/stop "
         "--eval-prompt-data gsm8k /original/test.jsonl --eval-interval 10 "
@@ -95,6 +96,74 @@ class ReplayTests(unittest.TestCase):
             source_plan=str(source), checkpoint_root=str(checkpoint), checkpoint_iteration=49,
             output_dir=str(self.root / "profile"), run_id="isolated-test",
         )
+
+    def _write_source_argv(self, argv):
+        path = Path(self.args.source_plan)
+        source = json.loads(path.read_text())
+        source["argv"] = argv
+        path.write_text(json.dumps(source))
+
+    def test_default_preserves_recorded_training_and_logprob_budgets(self):
+        self._write_source_argv(_source_argv() + ["--log-probs-max-tokens-per-gpu", "6144"])
+        plan = P._build_plan(self.args)
+        groups = P._flag_groups(shlex.split(plan["entrypoint"])[2:])
+        self.assertEqual(P._one_value(groups, "--max-tokens-per-gpu"), "8192")
+        self.assertEqual(P._one_value(groups, "--log-probs-max-tokens-per-gpu"), "6144")
+        self.assertFalse(plan["profile_token_budget_override"]["enabled"])
+        self.assertEqual(plan["profile_token_budget_override"]["overrides"], [])
+
+    def test_explicit_profile_budget_changes_only_two_recorded_flags(self):
+        self._write_source_argv(_source_argv() + ["--log-probs-max-tokens-per-gpu", "6144"])
+        baseline = P._build_plan(self.args)
+        plan = P._build_plan(replace(self.args, profile_max_tokens_per_gpu=4096))
+        before = P._flag_groups(shlex.split(baseline["entrypoint"])[2:])
+        after = P._flag_groups(shlex.split(plan["entrypoint"])[2:])
+        self.assertEqual(len(before), len(after))
+        changes = [(old, new) for old, new in zip(before, after) if old != new]
+        self.assertEqual(changes, [(["--max-tokens-per-gpu", "8192"], ["--max-tokens-per-gpu", "4096"]),
+                                  (["--log-probs-max-tokens-per-gpu", "6144"],
+                                   ["--log-probs-max-tokens-per-gpu", "4096"])])
+        self.assertEqual(plan["checkpoint"], baseline["checkpoint"])
+        self.assertEqual(plan["runtime_env"], baseline["runtime_env"])
+        self.assertEqual(plan["planned_rollouts"], 3)
+        self.assertEqual(plan["planned_optimizer_steps"], 12)
+        self.assertEqual(P._one_value(after, "--global-batch-size"), "512")
+        self.assertEqual(P._one_value(after, "--num-steps-per-rollout"), "4")
+        self.assertNotEqual(plan["entrypoint_sha256"], baseline["entrypoint_sha256"])
+        override = plan["profile_token_budget_override"]
+        self.assertTrue(override["enabled"])
+        self.assertEqual(override["recorded_context_limit_tokens"], 1536)
+        self.assertEqual([(x["old"], x["new"]) for x in override["overrides"]], [(8192, 4096), (6144, 4096)])
+        self.assertIn("profile-only", override["reason"])
+        self.assertFalse(Path(self.args.output_dir).exists())
+
+    def test_explicit_profile_budget_does_not_invent_logprob_flag(self):
+        plan = P._build_plan(replace(self.args, profile_max_tokens_per_gpu=4096))
+        groups = P._flag_groups(shlex.split(plan["entrypoint"])[2:])
+        self.assertEqual(P._one_value(groups, "--max-tokens-per-gpu"), "4096")
+        self.assertNotIn("--log-probs-max-tokens-per-gpu", {g[0] for g in groups})
+        original = _source_argv()
+        original[original.index("--max-tokens-per-gpu") + 1] = "4096"
+        self._write_source_argv(original)
+        unchanged = P._build_plan(replace(self.args, profile_max_tokens_per_gpu=4096))
+        self.assertEqual(unchanged["profile_token_budget_override"]["overrides"],
+                         [{"flag": "--max-tokens-per-gpu", "old": 4096, "new": 4096, "changed": False}])
+
+    def test_profile_budget_rejects_unsafe_or_unrecorded_limits(self):
+        for value, message in [(1024, "context limit"), (8193, "must not increase")]:
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, message):
+                P._build_plan(replace(self.args, profile_max_tokens_per_gpu=value))
+        with self.assertRaisesRegex(ValueError, "zero or positive"):
+            replace(self.args, profile_max_tokens_per_gpu=-1)
+        original = _source_argv()
+        i = original.index("--max-tokens-per-gpu")
+        del original[i:i+2]
+        self._write_source_argv(original)
+        with self.assertRaisesRegex(ValueError, "scalar --max-tokens-per-gpu"):
+            P._build_plan(replace(self.args, profile_max_tokens_per_gpu=4096))
+        self._write_source_argv(_source_argv() + ["--log-probs-max-tokens-per-gpu", "3072"])
+        with self.assertRaisesRegex(ValueError, "must not increase recorded --log-probs"):
+            P._build_plan(replace(self.args, profile_max_tokens_per_gpu=4096))
 
     def test_resume_retains_recipe_and_isolates_outputs(self):
         plan = P._build_plan(self.args)

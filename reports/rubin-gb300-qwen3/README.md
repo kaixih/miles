@@ -164,6 +164,13 @@ in `report-data.json`.
 The scope slide displays `metadata.hardware.name`, `memory_mib_per_gpu`, and the
 engineering-sample qualification. The recipe slide shows recorded parallelism,
 training-token budget, rollout kernel choices, and CUDA graph settings.
+Training-token budgets appear in a separate recipe-table row from
+`metadata.recipe.max_training_tokens_per_gpu` (or the same field directly under
+`metadata`). If recorded budgets differ, the recipe, performance and findings
+slides identify the mismatch and reject a hardware-only speedup interpretation.
+Equal budgets retain the normal presentation without a mismatch warning; missing
+values remain unrecorded. Browser QA checks both equal and unequal cases against
+the supplied metadata, never fills or alters the experiment measurements.
 
 Optional `--run-health snapshot-health.json` accepts `miles-run-health-v1` with
 `runs[{label, run_id, run_health, issue}]`. It records explicit investigation or

@@ -3,11 +3,17 @@
 `profile_operator.py` is specific to the two allocations embedded in
 `profile_operator.py`. Its default prints JSON without SSH, filesystem writes or process
 control. Transfer it to **dl3** and execute only there as **UID28644:GID30**.
-It uses the existing reviewed `profile_qwen3_replay.py`; it does not alter recipes,
-images or packages. Both fresh containers set `nofile=65535:65535`, explicitly
+It uses the reviewed `profile_qwen3_replay.py` and preserves images and packages.
+Both replays explicitly use `--profile-max-tokens-per-gpu 4096`; this changes only
+the replay token budget, not either main run. Both fresh containers set `nofile=65535:65535`, explicitly
 recording the FD-limit correction found during the GB300 main run.
 
 ## Reviewable sequence
+
+The Rubin source is **A2**: `raysubmit_qCmmzUzbwHrBKAiU`, run
+`20260916-j2198331-qwen3-a2-mb4096`, container
+`miles-rubin-qwen3-j2198331-a2-0`. GB300 remains **A1**:
+`raysubmit_W7k1mh2Y9Uh9wmmk`. Its running main job must not be interrupted.
 
 Set `OP` to the copied script's path on dl3. Repeat for `rubin` and `gb300`, with
 different unique run IDs. These IDs are examples; do not reuse one after creation.
@@ -19,7 +25,7 @@ ready. There is no requirement to wait for both main runs before starting Rubin.
 python3 "$OP" rubin --run-id rubin-qwen3-final-profile
 python3 "$OP" gb300 --run-id gb300-qwen3-final-profile
 
-# Only after the respective main job has fully completed and Rubin checkpoint49 exists:
+# Only after the respective main job completes and Rubin checkpoint49 is retained/verified:
 python3 "$OP" rubin --run-id rubin-qwen3-final-profile --action prepare \
   --execute --allow-stop-completed-main
 # Inspect the Rubin plan and record checkpoint.id.
@@ -40,8 +46,10 @@ python3 "$OP" gb300 --run-id gb300-qwen3-final-profile --action stop --execute
 
 Preparation rejects absent/partial evidence: exact original Ray ID and entrypoint,
 `SUCCEEDED`, both launcher exits0, 50 logged complete rollouts/200 updates, final
-shared tracker49, and no active Ray submission. GB main retention must also have
-succeeded. Immediately before the exact completed main-container stop, it repeats
+shared tracker49, and no active Ray submission. Both main runs use node-local
+outputs: each `artifact-retention-exit.json` must report exit0 and UID28644.
+The shared checkpoint also requires the separate verification record below.
+Immediately before the exact completed main-container stop, it repeats
 these checks. No broad process cleanup is used. Remaining GPU processes cause a
 refusal; they are never killed. Partial preparation leaves its files for inspection and can already have stopped
 the completed main container. It is deliberately not auto-resumable: inspect the
@@ -49,9 +57,9 @@ recorded stage, then use reviewed exact-path cleanup or an explicitly chosen new
 run ID. Do not perform broad cleanup or blindly rerun prepare.
 
 Both new clusters use TCP27379, dashboard29265, workers27400–27999 and explicit
-agent/metrics ports27380–27385. Both original source plans were inspected: neither
-contains `RAY_ADDRESS`, `RAY_API_SERVER_ADDRESS`, or `MILES_SCRIPT_EXTERNAL_RAY`.
-The operator rejects their unexpected presence instead of silently rewriting them.
+agent/metrics ports27380–27385. Preparation checks each actual source plan for
+`RAY_ADDRESS`, `RAY_API_SERVER_ADDRESS`, or `MILES_SCRIPT_EXTERNAL_RAY` and rejects
+their unexpected presence instead of silently rewriting them.
 New container environment routes to its own cluster; original platform NIC/IP and
 Megatron paths stay distinct. A new GB container gets only scoped `/root` traversal
 `chmod o+x` (preserving existing permission bits); its upstream image and installed packages remain unchanged.
@@ -60,9 +68,10 @@ Megatron paths stay distinct. A new GB container gets only scoped `/root` traver
 
 | Item | Rubin | GB300 |
 |---|---|---|
-| Original source plan | `/home/scratch.kaixih_ent/repro/miles-rubin-qwen3-gsm8k/20260915-j2198331/original-ray-job.json` | `/home/scratch.kaixih_ent/repro/miles-gb300-qwen3-gsm8k/20260915-j2198810-nfs/original-ray-job.json` through read-only `/mnt/cifs` host alias |
-| Input files | Original main root `inputs/` | `/tmp/miles-gb300-j2198810/run/inputs/` |
-| Shared actor checkpoint | `/home/scratch.kaixih_ent/repro/miles-rubin-qwen3-gsm8k/20260915-j2198331/checkpoints` | Same directory through read-only `/mnt/cifs` host alias |
+| Original source plan | `/home/scratch.kaixih_ent/repro/miles-rubin-qwen3-gsm8k/20260916-j2198331-a2-mb4096-nfs/original-ray-job.json` | `/home/scratch.kaixih_ent/repro/miles-gb300-qwen3-gsm8k/20260915-j2198810-nfs/original-ray-job.json` through read-only `/mnt/cifs` host alias |
+| Main node-local output | `/tmp/miles-rubin-j2198331/run-a2-mb4096` | `/tmp/miles-gb300-j2198810/run` |
+| Input files | Main node-local output `inputs/` | Main node-local output `inputs/` |
+| Shared actor checkpoint | `/home/scratch.kaixih_ent/repro/miles-rubin-qwen3-gsm8k/20260916-j2198331-a2-mb4096-nfs/checkpoints` | Same directory through read-only `/mnt/cifs` host alias |
 | Container checkpoint | `/profile-checkpoint`, read-only | Same |
 | New output/cache | `/tmp/miles-profile-RUN_ID/{run,cache}` | Same pattern, local to GB node |
 | Durable trace destination | Original main root `/profiles/RUN_ID/node-output/` | Original durable login-NFS main root `/profiles/RUN_ID/node-output/` |
@@ -80,6 +89,72 @@ identity and unchanged artifacts, then uses `ray stop` inside only that profile
 container and stops that exact container. It does not remove containers or traces.
 If retention fails, inspect and retry retention; do not remove the local trace.
 
+### Required Rubin checkpoint copy, before either profile preparation
+
+The operator does **not** copy checkpoints or overwrite an existing destination.
+After Rubin A2 has succeeded with all 50 rollouts/200 updates, its final tracker must
+be 49 and its final rollout-state file must exist. Keep that completed source
+unchanged. On **dl3 as UID28644:GID30**, check NFS free space against the final
+checkpoint size plus headroom, then use a new destination:
+
+```bash
+set -eu
+node=vr-nvl72-ts2-l11-038-c15
+source_ckpt=/tmp/miles-rubin-j2198331/run-a2-mb4096/checkpoints
+durable_run=/home/scratch.kaixih_ent/repro/miles-rubin-qwen3-gsm8k/20260916-j2198331-a2-mb4096-nfs
+destination_ckpt="$durable_run/checkpoints"
+test "$(id -u):$(id -g)" = 28644:30
+test ! -e "$destination_ckpt"
+mkdir -m 700 "$destination_ckpt"
+rsync -rt --no-perms --omit-dir-times --partial \
+  --include='/latest_checkpointed_iteration.txt' \
+  --include='/iter_0000049/***' \
+  --include='/rollout/' --include='/rollout/global_dataset_state_dict_49.pt' \
+  --exclude='*' "$node:$source_ckpt/" "$destination_ckpt/"
+```
+
+An existing or partial destination requires an explicit review before a retry;
+do not delete it or automatically overwrite it. Never use the GB CIFS view as a
+writer. A successful rsync verifies transferred data. Separately compare all
+relative shard names and byte sizes between the immutable source and destination,
+and SHA256 of `common.pt`, `.metadata` and/or `metadata.json`, the tracker, and
+`rollout/global_dataset_state_dict_49.pt`. Check every retained file has UID28644
+and no symlink path. Compute `_checkpoint_manifest(root, 49)` from the reviewed
+replay helper on both views; its IDs must match. This fingerprint covers metadata
+hashes plus shard names/sizes; it is **not** a full tensor-content checksum.
+
+Only after those checks succeed, write `checkpoint-retention.json` in the durable
+Rubin A2 run root with this contract (fill actual values, not placeholders):
+
+```json
+{
+  "exit_code": 0,
+  "rsync_exit_code": 0,
+  "uid": 28644,
+  "run_id": "20260916-j2198331-qwen3-a2-mb4096",
+  "source_node": "vr-nvl72-ts2-l11-038-c15",
+  "source_root": "/tmp/miles-rubin-j2198331/run-a2-mb4096/checkpoints",
+  "destination_root": "/home/scratch.kaixih_ent/repro/miles-rubin-qwen3-gsm8k/20260916-j2198331-a2-mb4096-nfs/checkpoints",
+  "iteration": 49,
+  "verification": "rsync_transfer_plus_sizes_and_metadata_sha256",
+  "source_checkpoint_id": "ACTUAL_HELPER_FINGERPRINT",
+  "destination_checkpoint_id": "SAME_ACTUAL_HELPER_FINGERPRINT",
+  "files": {
+    "latest_checkpointed_iteration.txt": {"bytes": 2, "sha256": "ACTUAL_SHA256"},
+    "iter_0000049/common.pt": {"bytes": 1, "sha256": "ACTUAL_SHA256"},
+    "iter_0000049/.metadata": {"bytes": 1, "sha256": "ACTUAL_SHA256"},
+    "rollout/global_dataset_state_dict_49.pt": {"bytes": 1, "sha256": "ACTUAL_SHA256"},
+    "iter_0000049/__0_0.distcp": {"bytes": 1}
+  }
+}
+```
+
+The `files` map must contain every copied shard and actual metadata size/hash;
+the example sizes are schematic. `check_checkpoint_retention()` checks scope,
+ownership, inventory, sizes, metadata hashes and both recorded fingerprints before
+either profile mount. It intentionally avoids an additional hundreds-of-GB full
+hash pass. The profile checkpoint bind stays read-only on both platforms.
+
 ## Time, size and interpretation limits
 
 Recorded leases end Rubin06:09:18UTC and GB07:09:02UTC on2026-09-16. The budget is
@@ -89,6 +164,15 @@ a slow cold load may prevent useful profiling. There is no lease extension.
 The existing detached guard limits traces to10GiB and stops only the exact profile
 submission. Its checks are polled: bytes can overshoot and Ray API failures can
 delay stopping. Twenty minutes is a reserve, not a guaranteed transfer duration.
+Main watchdog cutoffs remain Rubin 05:20/05:50 UTC and GB300 06:20/06:50 UTC;
+this operator never changes them.
+
+Main-run token caps differ: Rubin A2 uses4096, while the uninterrupted GB300 A1
+uses8192. Their main performance curves must disclose that difference. Both
+profile replays explicitly use4096. The helper records old/new token budgets in
+`profile_token_budget_override`, including a log-prob token cap if originally
+explicit; it never increases a budget or changes sampling, global batch, model,
+parallelism, image, or packages. Review this field in both saved replay plans.
 
 Replay keeps optimizer/RNG resume, runs3rollouts/12updates, disables save/eval and
 profiles `train_overall` start1/end2. Counter selection is relative to the new actor;

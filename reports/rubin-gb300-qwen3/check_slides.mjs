@@ -50,6 +50,16 @@ const evidenceChecks=await page.evaluate(()=>{
   const report=JSON.parse(document.getElementById('report-data').textContent);
   const runs=report.inputs.comparison?.runs||[], failures=[];
   const hardwareText=document.getElementById('slide-2').textContent;
+  const recipeSlide=document.getElementById('slide-5');
+  const budgetRow=[...recipeSlide.querySelectorAll('tbody tr')].find(row=>row.cells[0]?.textContent==='Training tokens / GPU');
+  const budgets=runs.slice(0,2).map(run=>run.metadata?.recipe?.max_training_tokens_per_gpu ?? run.metadata?.max_training_tokens_per_gpu);
+  for (const [i,budget] of budgets.entries()) {
+    if (Number.isFinite(budget) && budgetRow?.cells[i+1]?.textContent!==String(budget)) failures.push(`${runs[i].label}: training-token budget missing or incorrect in recipe table`);
+  }
+  const budgetMismatch=new Set(budgets.filter(Number.isFinite)).size>1;
+  const recipeWarning=recipeSlide.textContent.includes('not matched recipes');
+  const performanceWarning=document.getElementById('slide-9').textContent.includes('No hardware-only speedup inference');
+  if (recipeWarning!==budgetMismatch || performanceWarning!==budgetMismatch) failures.push('Training-budget mismatch warnings do not match the recorded recipe values');
   for (const run of runs.slice(0,2)) {
     const hardware=run.metadata?.hardware;
     if (hardware?.name && !hardwareText.includes(hardware.name)) failures.push(`${run.label}: device name missing`);
@@ -81,7 +91,7 @@ const evidenceChecks=await page.evaluate(()=>{
   });
   const stepSelections=timingSelections(timeTraces,'step_seconds','steady step');
   const throughputSelections=timingSelections(throughputTraces,'output_tokens_per_gpu_generation_second','steady generation throughput');
-  return {failures,step_selections:stepSelections,generation_throughput_selections:throughputSelections,evaluation_series:evalTraces.map(trace=>trace.name),hardware_visible:!failures.some(x=>/device|engineering/.test(x))};
+  return {failures,training_budget_comparison:{tokens_per_gpu:budgets,mismatch:budgetMismatch,recipe_warning:recipeWarning,performance_warning:performanceWarning},step_selections:stepSelections,generation_throughput_selections:throughputSelections,evaluation_series:evalTraces.map(trace=>trace.name),hardware_visible:!failures.some(x=>/device|engineering/.test(x))};
 });
 const report={slides:count,errors,external_requests:network,checks,evidence_checks:evidenceChecks,keyboard:{space,end,overview},mobile_horizontal_overflow:mobileOverflow};
 await writeFile(path.join(output,'browser-checks.json'),JSON.stringify(report,null,2)+'\n');

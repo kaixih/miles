@@ -54,7 +54,7 @@ slide("One node and four GPUs per system", "01 / Comparison scope", `
     const name=run ? niceName(run) : i===0 ? "Rubin" : "GB300";
     return `<div class="rule"><div class="run-status"><h3 class="run-name ${i===1?"orange":""}">${e(name)}</h3><span class="status ${state.css}">${e(state.label)}</span></div>
       <div class="stats-row"><div class="metric"><div class="big-number">${run ? e((run.completed_training_rollouts||[]).length) : "—"}</div><div class="number-label">complete training rollouts${meta.expected_rollouts ? ` / ${e(meta.expected_rollouts)}`:""}</div></div><div class="metric"><div class="big-number">${pct(run && last(run,"training_reward_mean"))}</div><div class="number-label">latest training reward</div></div></div>
-      <div class="run-details hardware-details"><div class="hardware-name">${e(meta.hardware?.name || "Hardware not recorded")}</div><div>${finite(meta.hardware?.memory_mib_per_gpu) ? `${number(meta.hardware.memory_mib_per_gpu,0)} MiB per GPU` : "GPU memory not recorded"}${meta.hardware?.engineering_sample === true ? " · Engineering sample" : ""}</div><div>${e(meta.gpus ?? "Unrecorded")} GPUs · ${e(meta.optimizer_steps_per_rollout ?? "Unrecorded")} optimizer updates / rollout</div>${healthFor(run)?.issue ? `<p class="run-issue">${e(healthFor(run).issue)} Ray: ${e(meta.status||"unknown")}.</p>` : ""}</div></div>`;
+      <div class="run-details hardware-details"><div class="hardware-name">${e(meta.hardware?.name || "Hardware not recorded")}</div><div>${finite(meta.hardware?.memory_mib_per_gpu) ? `${number(meta.hardware.memory_mib_per_gpu,0)} MiB per GPU` : "GPU memory not recorded"}${meta.hardware?.engineering_sample === true ? " · Engineering sample" : ""}</div><div>${e(meta.gpus ?? "Unrecorded")} GPUs · ${e(meta.optimizer_steps_per_rollout ?? "Unrecorded")} optimizer updates / rollout</div>${healthFor(run)?.previous_attempt ? `<p class="small muted">Fresh attempt after backward OOM (${e(healthFor(run).previous_attempt.completed_training_rollouts)} completed rollouts). Earlier results are retained separately.</p>` : ""}${healthFor(run)?.issue ? `<p class="run-issue">${e(healthFor(run).issue)} Ray: ${e(meta.status||"unknown")}.</p>` : ""}</div></div>`;
   }).join("")}</div><div class="callout">${runs.some(r=>r.metadata?.hardware?.engineering_sample === true) ? "Rubin is an engineering sample; its measured capacity and software stack define this comparison." : "Library versions and kernel choices can differ. The results describe each recorded system configuration."}</div>`, "Hardware comes from recorded device metadata. A partial snapshot never counts as a completed run.");
 
 // Build schema supports components/changes/validation while retaining the full original input.
@@ -100,21 +100,25 @@ function field(meta, names) {
 }
 const recipeFields = [["Model",["model","model_name"]],["Dataset / reward",["dataset_reward","dataset"]],
   ["Prompts × samples",["batch_description","rollout_batch_size"]],["Response / prompt cap",["length_description","rollout_max_response_len","max_response_tokens"]],
-  ["Learning rate",["learning_rate","lr"]],["Sampling",["sampling","sampling_description"]],["Group filtering",["group_filter","dynamic_sampling_filter_path","filter"]]];
+  ["Training tokens / GPU",["max_training_tokens_per_gpu"]],["Learning rate",["learning_rate","lr"]],["Sampling",["sampling","sampling_description"]],["Group filtering",["group_filter","dynamic_sampling_filter_path","filter"]]];
+const trainingBudget=run=>run?.metadata?.recipe?.max_training_tokens_per_gpu ?? run?.metadata?.max_training_tokens_per_gpu;
+const recordedBudgets=runs.map(run=>({name:niceName(run),value:trainingBudget(run)})).filter(row=>finite(row.value));
+const trainingBudgetsDiffer=new Set(recordedBudgets.map(row=>row.value)).size>1;
+const budgetComparison=recordedBudgets.map(row=>`${row.name} ${number(row.value,0)}`).join(" vs ");
 function runtimeConditions(run) {
   const meta=run.metadata||{}, recipe=meta.recipe||{}, kernels=meta.kernels||{}, graph=meta.graph||{};
-  if (!recipe.parallelism || !finite(recipe.max_training_tokens_per_gpu) || !kernels.sglang_attention || !kernels.sglang_moe || !kernels.sglang_bf16_gemm || typeof graph.rollout_cuda_graph!=="boolean" || typeof graph.rollout_piecewise_cuda_graph!=="boolean") return null;
+  if (!recipe.parallelism || !kernels.sglang_attention || !kernels.sglang_moe || !kernels.sglang_bf16_gemm || typeof graph.rollout_cuda_graph!=="boolean" || typeof graph.rollout_piecewise_cuda_graph!=="boolean") return null;
   const backend=name=>({triton:"Triton",torch:"Torch"}[name]||name);
   const attention=kernels.sglang_attention===kernels.sglang_moe ? `${backend(kernels.sglang_attention)} attention + MoE` : `${backend(kernels.sglang_attention)} attention / ${backend(kernels.sglang_moe)} MoE`;
   const graphs=graph.rollout_cuda_graph===false&&graph.rollout_piecewise_cuda_graph===false ? "rollout CUDA graphs off" : `rollout CUDA graphs ${graph.rollout_cuda_graph?"on":"off"} / piecewise ${graph.rollout_piecewise_cuda_graph?"on":"off"}`;
-  return `${recipe.parallelism} · ${number(recipe.max_training_tokens_per_gpu,0)} train tokens/GPU · ${attention} · ${backend(kernels.sglang_bf16_gemm)} GEMM · ${graphs}`;
+  return `${recipe.parallelism} · ${attention} · ${backend(kernels.sglang_bf16_gemm)} GEMM · ${graphs}`;
 }
 const conditionRows=runs.map(run=>({name:niceName(run),text:runtimeConditions(run)})).filter(row=>row.text);
 const conditionNote=conditionRows.length===runs.length && new Set(conditionRows.map(r=>r.text)).size===1
   ? `${runs.length>1?"Shared conditions":"Recorded conditions"}: ${conditionRows[0].text}.`
   : conditionRows.map(r=>`${r.name}: ${r.text}.`).join(" ");
 slide("Qwen3 experiment recipe", "04 / Learning setup", `
-  <p class="subtitle">The current comparison uses Qwen3-30B-A3B. Earlier Qwen3.5 tests are separate experiments.</p>
+  <p class="subtitle">${trainingBudgetsDiffer?"Training-token budgets differ between the selected attempts; these are not matched recipes.":"The current comparison uses Qwen3-30B-A3B. Earlier Qwen3.5 tests are separate experiments."}</p>
   ${table(["Setting",...displayRuns.map((r,i)=>r?niceName(r):i===0?"Rubin":"GB300")],recipeFields.map(([label,names])=>[e(label),...displayRuns.map(run=>e(field(run?.metadata||{},names)))]),"compact")}
   <p class="chart-note">${e(conditionNote || comparison.recipe_note || "Reward parsing, sampling, batch size, and output length belong to the comparison contract.")}</p>`, "Missing recipe values remain explicit. The historical VeRL run appears only in the appendix.");
 
@@ -143,7 +147,7 @@ const coldStartNote=coldStartSteps.length ? `Recorded rollout 0 step: ${coldStar
 slide("Runtime and generation throughput", "08 / Performance curves", `
   <p class="subtitle">Both curves use the same completed, eligible unprofiled observations after warmup.</p>
   <div class="chart-columns"><div><h3 class="chart-title">Miles step timer · after warmup</h3><div id="time-chart" class="chart half"></div></div><div><h3 class="chart-title">Generation throughput · after warmup</h3><div id="throughput-chart" class="chart half"></div></div></div>
-  <p class="chart-note">Rollout 0 is excluded, including GB300's FD-limit recovery and queued backlog. Step = train wait + train.</p>`, `${coldStartNote} Throughput = retained output tokens / generation seconds / GPUs. All raw timings remain downloadable.`);
+  <p class="chart-note">${trainingBudgetsDiffer?`Training budgets: ${e(budgetComparison)} tokens/GPU. No hardware-only speedup inference.<br>`:""}Excludes rollout 0 (including GB recovery), observed checkpoint-save rollouts and their following rollouts. Step = train wait + train.</p>`, `${coldStartNote} Throughput = retained output tokens / generation seconds / GPUs. All raw timings remain downloadable.`);
 
 slide("Time in each measured stage", "09 / Unprofiled timing", `
   <p class="subtitle">Means use only completed, explicitly unprofiled rollouts after the configured warmup exclusion.</p>
@@ -175,7 +179,7 @@ for (const run of runs.slice(0,2)) {
 if (!findings.length) findings.push(["Learning","The current Miles runs have no supplied result records yet."]);
 const profileSummary = profiles.summary || profiles.gap_summary;
 findings.push(["Measured gap", profileSummary ? textValue(profileSummary) : "A causal GPU-speed conclusion is pending comparable timings and profile evidence."]);
-findings.push(["Scope","This compares the recorded Rubin and upstream GB300 software stacks. Version and kernel differences remain part of the result."]);
+findings.push(["Scope",trainingBudgetsDiffer?`Training budgets differ: ${budgetComparison} tokens/GPU. Recipe, runtime and hardware all affect timings; this is not a hardware-only speedup comparison.`:"This compares the recorded Rubin and upstream GB300 software stacks. Version and kernel differences remain part of the result."]);
 slide("Findings at this snapshot", "12 / Conclusions", `
   <ul class="observations">${findings.slice(0,4).map(([label,body])=>`<li><strong>${e(label)}</strong><span class="body">${e(body)}</span></li>`).join("")}</ul>`, "Only supplied metrics and profile observations support these statements. No projected final reward or extrapolated speedup.");
 

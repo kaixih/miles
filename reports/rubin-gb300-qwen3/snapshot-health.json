@@ -1,18 +1,62 @@
 {
   "schema": "miles-run-health-v1",
-  "observed_at": "2026-09-16T01:00:34.143277+00:00",
-  "comparison_sha256": "7d80060c627804306bbd7cf4dac64cc2dd2522245c91c76b2becbe1f3da62f8b",
+  "observed_at": "2026-09-16T01:42:42.677981+00:00",
+  "comparison_sha256": "21c59340827fb96e3ab7db504c76d5d5b046dfada9eb01f3a63888d18974b1f5",
   "runs": [
+    {
+      "label": "rubin",
+      "run_id": "20260916-j2198331-qwen3-a2-mb4096",
+      "run_health": "restarted_initializing",
+      "issue": null,
+      "source_log": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3/rubin-a2/logs/qwen3_train.log",
+      "source_log_sha256": "5f09705da611e1ce585fc9b09e9142ed7701344452d12f60bd3ce9989f213da5",
+      "ray_status": "RUNNING",
+      "completed_training_rollouts": 0,
+      "recorded_optimizer_updates": 0,
+      "scope": "Fresh A2 memory-fit restart at4096tokens/GPU. No optimizer results yet. A1 failed after17 complete rollouts and69 updates; preserve it as a separate attempt, never stitch curves. GB A1 continues8192 pending explicit restart approval.",
+      "previous_attempt": {
+        "label": "rubin",
+        "run_id": "20260915-j2198331-qwen3-a1",
+        "run_health": "failed_training_oom",
+        "issue": "Backward OOM: rollout 17, GPU 3, after 69 updates. 2.32 GiB request + 1 GiB TMS margin; 3.25 GiB free.",
+        "source_log": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3/rubin/logs/qwen3_train.log",
+        "source_log_sha256": "a6cfd6fe01f5be0b060a61b6fdf3255120e27dd828efff5d322584c0447b1ee9",
+        "failure_at": "2026-09-16T00:52:34+00:00",
+        "ray_status": "FAILED",
+        "completed_training_rollouts": 17,
+        "recorded_optimizer_updates": 69,
+        "failed_rollout": 17,
+        "failed_update_within_rollout_zero_based": 1,
+        "training_phase": "backward",
+        "device": 3,
+        "allocation_bytes": 2489319424,
+        "tms_margin_bytes": 1073741824,
+        "reported_free_bytes": 3486121984,
+        "evidence_records": [
+          {
+            "line": 235525,
+            "text": "\u001b[36m(MegatronTrainRayActor pid=22646)\u001b[0m [torch_memory_saver.cpp] TorchMemorySaver::malloc return OOM since memory_margin_bytes=1073741824 allocation_size=2489319424 free_bytes=3486121984",
+            "sha256_without_lf": "2b522411a06bedf5a51740962fcbb42dadb2a6c90a704f5f3a7daba48a2f0c09"
+          },
+          {
+            "line": 235568,
+            "text": "torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 2.32 GiB. GPU 3 has a total capacity of 163.80 GiB of which 3.25 GiB is free. Including non-PyTorch memory, this process has 159.08 GiB memory in use. Process 23192 has 1.32 GiB memory in use. Of the allocated memory 143.46 GiB is allocated by PyTorch, with 1.20 MiB allocated in private pools (e.g., CUDA Graphs), and 9.52 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf)",
+            "sha256_without_lf": "643c1ae61fa4449e53612e204d8134ef5e27fd18365c05195fd532d2d8120d51"
+          }
+        ],
+        "scope": "Partial result only: rollout 17 has one logged optimizer update and is incomplete. Do not join a later rerun onto this curve. Fragmentation has not been established as the cause; preserve the actual TMS margin failure evidence. Profiling remains pending."
+      }
+    },
     {
       "label": "gb300",
       "run_id": "20260915-j2198810-qwen3-a1",
       "run_health": "healthy_recovered",
       "issue": null,
       "source_log": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3/gb300/logs/qwen3_train.log",
-      "source_log_sha256": "78c93543a9240b4412b90e7a80e198fb5065b81a634bcc1026c62bf56e408def",
+      "source_log_sha256": "47b0f90d4e50f8fd58d68a3d3a95fb3aed89d98108e694db89357a5f988c7db6",
       "evidence_line": 592858,
       "evidence": "\u001b[36m(CommandActor pid=9033)\u001b[0m httpx.ConnectError: All connection attempts failed",
-      "scope": "Rollout 0 completed with four optimizer updates. All four engines were verified decoding the next rollout at 01:00:30\u201332 UTC. Eligible steady-state performance still awaits a completed rollout after rollout 0.",
+      "scope": "Seven complete training rollouts and28 optimizer updates are recorded. The prior FD-limit incident remains resolved; its historical evidence is retained below. GB A1 continues at8192training tokens/GPU. No stop occurred; restart permission is pending.",
       "recovery": {
         "changed_at": "2026-09-16T00:39:18+00:00",
         "source": "Root task verified live router and parent process limits",
@@ -82,5 +126,5 @@
       "evidence_scope": "Historical first-rollout incident; resolved according to the later operational verification below."
     }
   ],
-  "snapshot_at": "2026-09-16T00:59:08.725028+00:00"
+  "snapshot_at": "2026-09-16T01:42:42.677981+00:00"
 }
