@@ -1,0 +1,28 @@
+{
+  "status": "terminal_incomplete_trainer_traces_all_outputs_retained",
+  "rubin": {
+    "run_id": "rubin-j2198331-initial-profile-v1",
+    "ray_status": "STOPPED",
+    "completed_optimizer_updates": 8,
+    "stopped_at": "2026-09-16T05:59:29.691+00:00",
+    "reason": "Original runtime guard ended the separate diagnostic replay during trainer trace export. Native gzip files are partial/unverified. Complete SGLang capture is independently retained.",
+    "artifacts_retained": true,
+    "retained_bytes": 3191993166,
+    "profile_container_stopped_at": "2026-09-16T06:04:57.145352+00:00",
+    "retention_receipt_sha256": "62d0b7a86f0d5f7ec208bab6c55c325186679f3cabc6f3157d47687f5165c865",
+    "stop_receipt_sha256": "c578e41e874c87d843b323deaea66f103295fe0b17dd3f721e9cd74fb70b55de"
+  },
+  "gb300": {
+    "run_id": "gb300-j2198810-initial-profile-v1",
+    "ray_status": "FAILED",
+    "completed_optimizer_updates": 8,
+    "reason": "Ray host-memory OOM during profiler finalization after all eight updates;916.31/958.34GB reported, above the95% Ray threshold. No trainer trace exported. Main training previously SUCCEEDED.",
+    "ended_at": "2026-09-16T06:01:10.836+00:00",
+    "artifacts_retained": true,
+    "retained_bytes": 4822909,
+    "profile_container_stopped_at": "2026-09-16T06:04:18.965694+00:00",
+    "retention_receipt_sha256": "8a5ece5e781d946407aede3675dcc55d88e19db5f36125e72b2061299a34e943",
+    "stop_receipt_sha256": "6749a560f5c9852422cc8f7d45bb3287ddb803615fc89cd7941adcd4ac43854e"
+  },
+  "note": "Both main training runs separately SUCCEEDED with50rollouts/200updates. Training-profile status does not change main-run completion or the verified SGLang captures."
+}

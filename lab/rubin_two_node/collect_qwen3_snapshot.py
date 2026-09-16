@@ -28,6 +28,7 @@ RUNS = {
         "display_name": "Rubin ES A2",
         "node": "vr-nvl72-ts2-l11-038-c15",
         "container": "miles-rubin-qwen3-j2198331-a2-0",
+        "watchdog_host_path": "/tmp/miles-rubin-j2198331/run-a2-mb4096/watchdog.json",
         "hardware": {"name": "NVIDIA VR NVL72 ES", "memory_mib_per_gpu": 168896,
                      "compute_capability": "10.7", "engineering_sample": True},
     },
@@ -37,6 +38,7 @@ RUNS = {
         "display_name": "GB300",
         "node": "gb300-nvl-012-compute04",
         "container": "miles-gb300-qwen3-j2198810-0",
+        "watchdog_host_path": "/tmp/miles-gb300-j2198810/run/watchdog.json",
         "hardware": {"name": "NVIDIA GB300", "memory_mib_per_gpu": 284208,
                      "compute_capability": "10.3", "engineering_sample": False},
     },
@@ -121,11 +123,27 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def watchdog_source(config):
+    """Bind the proven host file to its exact main node/container identity."""
+    known = {
+        ("vr-nvl72-ts2-l11-038-c15", "miles-rubin-qwen3-j2198331-a2-0"):
+            "/tmp/miles-rubin-j2198331/run-a2-mb4096/watchdog.json",
+        ("gb300-nvl-012-compute04", "miles-gb300-qwen3-j2198810-0"):
+            "/tmp/miles-gb300-j2198810/run/watchdog.json",
+    }
+    expected = known.get((config.get("node"), config.get("container")))
+    if expected is None or config.get("watchdog_host_path") != expected:
+        raise ValueError("Unverified watchdog host path or main identity")
+    return {"node": config["node"], "path": expected, "read_method": "host_ssh",
+            "main_container": config["container"], "container_path": "/run-output/watchdog.json"}
+
+
 def _remote_payload(config, prefix, files):
     """Executed read-only on dl3. Hash the prefix; transfer only a verified append."""
     import base64, datetime, hashlib, json, os, pathlib, shlex, signal, subprocess, time, zlib
     signal.alarm(80)
     started = time.monotonic()
+    watchdog_provenance = watchdog_source(config)
     root = pathlib.Path(config["root"])
     limit = 1024**3
     def digest(data):
@@ -178,13 +196,19 @@ def _remote_payload(config, prefix, files):
             if source.stat().st_size > 8 * 1024**2:
                 raise ValueError("Auxiliary file exceeds bounded size: " + name)
             records[name] = packet(source.read_bytes())
-    command = ["docker", "exec", config["container"], "cat", "/run-output/watchdog.json"]
+    # The bind-mounted file persists after the completed main container stops.
+    # This read never invokes Docker or depends on the main container lifecycle.
+    command = ["cat", "--", watchdog_provenance["path"]]
     watchdog_started = time.monotonic()
-    watchdog = json.loads(subprocess.check_output(
+    watchdog_raw = subprocess.check_output(
         ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", config["node"], shlex.join(command)],
-        text=True, timeout=30))
+        timeout=30)
+    if len(watchdog_raw) > 8 * 1024**2 or not isinstance(json.loads(watchdog_raw), dict):
+        raise ValueError("Invalid or oversized host watchdog record")
+    watchdog_provenance.update(observed_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                               bytes=len(watchdog_raw), sha256=digest(watchdog_raw))
     return {"schema": "verified-log-append-v1", "root": config["root"], "log": log,
-            "files": records, "watchdog": watchdog,
+            "files": records, "watchdog": packet(watchdog_raw), "watchdog_source": watchdog_provenance,
             "watchdog_read_seconds": time.monotonic() - watchdog_started,
             "remote_seconds": time.monotonic() - started}
 
@@ -222,15 +246,22 @@ def decode_payload(data, config, previous):
     result = {name: decode_packet(value, MAX_AUX_BYTES) for name, value in data["files"].items()}
     if not {"planned-run-config.json", "train-launch.json"}.issubset(result):
         raise ValueError("Required launch evidence missing")
-    if not isinstance(data["watchdog"], dict):
+    expected_watchdog_source = watchdog_source(config)
+    provenance = data.get("watchdog_source", {})
+    if any(provenance.get(key) != value for key, value in expected_watchdog_source.items()):
+        raise ValueError("Watchdog host provenance differs from the verified source")
+    watchdog_raw = decode_packet(data["watchdog"], MAX_AUX_BYTES)
+    if (not isinstance(json.loads(watchdog_raw), dict)
+            or provenance.get("sha256") != sha(watchdog_raw)
+            or provenance.get("bytes") != len(watchdog_raw)):
         raise ValueError("Invalid watchdog record")
     result[LOG] = raw
-    result["watchdog.json"] = (json.dumps(data["watchdog"], indent=2) + "\n").encode()
+    result["watchdog.json"] = watchdog_raw
     receipt = {k: v for k, v in log.items() if k != "tail"}
     receipt.update(tail_bytes=log["tail"]["bytes"], tail_sha256=log["tail"]["sha256"],
                    compressed_base64_bytes=len(log["tail"]["data"]),
                    remote_seconds=data["remote_seconds"], watchdog_read_seconds=data["watchdog_read_seconds"],
-                   source_root=config["root"])
+                   source_root=config["root"], watchdog_source=provenance)
     result["collection-receipt.json"] = (json.dumps(receipt, indent=2) + "\n").encode()
     return result
 
@@ -238,11 +269,12 @@ def decode_payload(data, config, previous):
 def collect(item):
     """Fetch/validate one platform entirely in memory. Never mutate current files."""
     label, config = item
+    watchdog_source(config)  # Reject an unverified path before any SSH call.
     destination = ROOT / config["destination"]
     old_path = destination / LOG
     previous = old_path.read_bytes() if old_path.is_file() else b""
     prefix = {"bytes": len(previous), "sha256": sha(previous)}
-    code = inspect.getsource(_remote_payload) + "\nimport json\nprint(json.dumps(_remote_payload(" + \
+    code = inspect.getsource(watchdog_source) + "\n" + inspect.getsource(_remote_payload) + "\nimport json\nprint(json.dumps(_remote_payload(" + \
         repr(config) + "," + repr(prefix) + "," + repr(FILES) + ")))"
     raw = subprocess.check_output(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "dl3",
                                    shlex.join(["python3", "-c", code])], timeout=90)

@@ -1,0 +1,32 @@
+{
+  "profile_run_id": "rubin-j2198331-initial-profile-v1",
+  "rank0_gzip_check": {
+    "utc": "2026-09-16T06:01:29.251781+00:00",
+    "path": "/raid/dldata/miles-kaixih-j2198331-profile/miles-profile-rubin-j2198331-initial-profile-v1/run/replay/traces/train/train_overall_rank_0.1789537794926531034.pt.trace.json.gz",
+    "bytes": 824137190,
+    "seconds": 9.887754935014527,
+    "bounded_seconds": 35,
+    "compressed_bytes_read": 824137190,
+    "decoded_bytes": 12564284222,
+    "gzip_eof": true,
+    "state": "complete_gzip",
+    "error": null,
+    "source_unchanged": true
+  },
+  "rank0_json_tail_check": {
+    "utc": "2026-09-16T06:03:02.907093+00:00",
+    "seconds": 10.306444818008458,
+    "gzip_fully_decoded": true,
+    "decoded_bytes": 12564284222,
+    "decoded_tail": "h/attention/dot_product_attention/backends.py(917): <genexpr>\",\n    \"pid\": 4437,\n    \"tid\": 4437,\n    \"ts\": 6569299333250.037,\n    \"dur\": 0.176\n    ,\n    \"args\": {\n      \"CallFrom\": \"transformer_engine/pytorch/attention/dot_product_attention/backends.py:916\", \"Python parent id\": 15435831, \"Python id\": 15435834, \"Ev Idx\": 31862348\n    }\n  },\n  {\n    \"ph\": \"X\",\n    \"cat\": \"python_function\",\n    \"name\": \"transformer_engine/pytorch/attention/dot_product_attention/backends.py(917): <genexpr>\",\n    \"pid\": 4437,\n    \"tid\": 4437,\n    \"ts\": 6569299333250.380,\n    \"dur\": 0.074\n    ,\n    \"args\": {\n      \"CallFrom\": \"transformer_engine/pytorch/attention/dot_product_attention/backends.py:916\", \"Python parent id\": 15435831, \"Python id\": 15435835, \"Ev Idx\": 31862349\n    }\n  },\n  {\n    \"ph\": \"X\",\n    \"cat\": \"python_function\",\n    \"name\": \"<built-in function isinstance>\",\n    \"pid\": 4437,\n    \"tid\": 4437,\n    \"ts\": 6569299333251.584,\n    \"dur\": 1.777\n    ,\n    \"args\": {\n      \"CallFrom\": \"transformer_engine/pytorch/attention/dot_product_attention/backends.py:928\", \"Python parent id\": 15435830, \"Python id\": 15435836, \"Ev Idx\": 31862350\n    }\n  },\n  {\n    \"ph\": \"X\",\n    \"cat\": \"python_function\",\n    \"name\": \"torch/_custom_class_base.py(7): __instancecheck__\",\n    \"pid\": 4437,\n    \"tid\": 4437,\n    \"ts\": 6569299333252.037,\n    \"dur\": 1.213\n    ,\n    \"args\": {\n      \"CallFrom\": \"transformer_engine/pytorch/attention/dot_product_attention/backends.py:928\", \"Python parent id\": 15435836, \"Python id\": 15435837, \"Ev Idx\": 31862351\n    }\n  },\n  {\n    \"ph\": \"X\",\n    \"cat\": \"python_function\",\n    \"name\": \"<built-in method __instancecheck__ of CustomClassBaseMeta object at 0x37b25a50>\",\n    \"pid\": 4437,\n    \"tid\": 4437,\n    \"ts\": 6569299333252.426,\n    \"dur\": 0.102\n    ,\n    \"args\": {\n      \"CallFrom\": \"torch/_custom_class_base.py:17\", \"Python parent id\": 15435837, \"Python id\": 15435838, \"Ev Idx\": 31862352\n    }\n  },\n  {\n    \"ph\": \"X\",\n    \"cat\": \"python_function\",\n    \"name\": \"<built-in function isinstance>\",\n    \"pid\": 4437,\n    \"tid\": 4437,\n",
+    "closes_top_level_object": false,
+    "bounded_seconds": 30
+  },
+  "classification": {
+    "rank0_gzip": "complete valid gzip framing/CRC",
+    "rank0_chrome_json": "definitively partial; ends inside a python_function event without closing object",
+    "all_train_exports": "interrupted by original runtime guard; do not treat file presence as validated complete Chrome traces",
+    "sglang_capture": "independently captured and validated CPU+GPU complete trace"
+  },
+  "local_download_policy": "Native trainer traces remain fully retained on durable NFS; large partial rank0 not downloaded by parent instruction."
+}

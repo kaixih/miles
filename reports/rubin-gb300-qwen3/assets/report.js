@@ -11,6 +11,44 @@ const profiles = INPUT.profiles || {};
 const palette = ["#087f96", "#d4773e", "#726198", "#528269"];
 const e = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const finite = value => typeof value === "number" && Number.isFinite(value);
+function decodeGapEvidence(source) {
+  if (!source || source.schema!=="sglang-same-nominal-decode-bs128-v1" ||
+      !["rubin","gb300"].every(label=>source.provenance?.[label]?.verified===true)) return null;
+  const annotation="step[DECODE bs=128]", labels=["rubin","gb300"];
+  const requireEvidence=(value,message)=>{if(!value)throw new Error(`Invalid verified decode comparison: ${message}`);};
+  const mean=values=>values.reduce((a,b)=>a+b,0)/values.length;
+  const close=(a,b)=>finite(a)&&finite(b)&&Math.abs(a-b)<=1e-9*Math.max(1,Math.abs(b));
+  requireEvidence(source.selection?.exact_annotation===annotation,"wrong forward selection");
+  const rows=labels.map(label=>{
+    const n=source.selection.counts?.[label],indices=source.selection.selected_forward_indices?.[label];
+    requireEvidence(Number.isInteger(n)&&n>0&&Array.isArray(indices)&&indices.length===n&&new Set(indices).size===n&&indices.every(i=>Number.isInteger(i)&&i>=0),`${label} forward identities`);
+    requireEvidence(source.selection.all_annotation_counts?.[label]?.[annotation]===n,`${label} annotation count`);
+    const traceSha=source.provenance[label].trace_sha256;
+    requireEvidence(/^[0-9a-f]{64}$/.test(traceSha||""),`${label} trace SHA256`);
+    const read=key=>{
+      const metric=source.forward_statistics?.[label]?.[key],values=metric?.values;
+      requireEvidence(metric?.n===n&&Array.isArray(values)&&values.length===n&&values.every(v=>finite(v)&&v>=0),`${label} ${key} raw values`);
+      requireEvidence(close(metric.mean,mean(values)),`${label} ${key} mean`);
+      return values;
+    };
+    const elapsed=read("gpu_annotation_span_ms"),kernels=read("kernel_union_ms");
+    requireEvidence(elapsed.every((v,i)=>v>0&&kernels[i]<=v),`${label} union outside annotation`);
+    return {label,name:label==="rubin"?"Rubin ES":"GB300",n,forward_indices:indices,trace_sha256:traceSha,
+      elapsed_ms:mean(elapsed),kernel_union_ms:mean(kernels),remaining_ms:mean(elapsed.map((v,i)=>v-kernels[i])),
+      raw_gpu_annotation_ms:elapsed,raw_kernel_union_ms:kernels};
+  });
+  const launchComparisons=[];
+  for(const [category,name] of [["cuda_runtime","cudaLaunchKernel"],["cuda_runtime","cudaLaunchKernelExC"],["cuda_driver","cuLaunchKernelEx"]]){
+    const records=labels.map(label=>source.cpu_api_statistics?.[label]?.[category]?.[name]?.cumulative_ms);
+    if(records.every((metric,i)=>metric?.n===rows[i].n&&metric.values?.length===rows[i].n&&metric.values.every(finite)&&close(metric.mean,mean(metric.values))))
+      launchComparisons.push({category,name,rubin_ms:records[0].mean,gb300_ms:records[1].mean});
+  }
+  return {annotation,rows,launch_comparisons:launchComparisons,
+    longer_gb_launch_calls:launchComparisons.length===3&&launchComparisons.every(r=>r.gb300_ms>r.rubin_ms),
+    outside_kernel_gap:rows[1].elapsed_ms>rows[0].elapsed_ms&&rows[1].kernel_union_ms<=rows[0].kernel_union_ms};
+}
+const decodeGap=decodeGapEvidence(profiles.decode_comparison);
+window.DECODE_GAP_DATA=decodeGap;
 const number = (value, digits=1) => finite(value) ? value.toLocaleString("en-US", {maximumFractionDigits:digits, minimumFractionDigits:digits}) : "Pending";
 const pct = value => finite(value) ? `${number(value*100)}%` : "Pending";
 const textValue = value => value == null ? "Not recorded" : typeof value === "object" ? JSON.stringify(value) : String(value);
@@ -56,7 +94,7 @@ slide("One node and four GPUs per system", "01 / Comparison scope", `
     const name=run ? niceName(run) : i===0 ? "Rubin" : "GB300";
     return `<div class="rule"><div class="run-status"><h3 class="run-name ${i===1?"orange":""}">${e(name)}</h3><span class="status ${state.css}">${e(state.label)}</span></div>
       <div class="stats-row"><div class="metric"><div class="big-number">${run ? e((run.completed_training_rollouts||[]).length) : "—"}</div><div class="number-label">complete training rollouts${meta.expected_rollouts ? ` / ${e(meta.expected_rollouts)}`:""}</div></div><div class="metric"><div class="big-number">${pct(run && last(run,"training_reward_mean"))}</div><div class="number-label">latest training reward</div></div></div>
-      <div class="run-details hardware-details"><div class="hardware-name">${e(meta.hardware?.name || "Hardware not recorded")}</div><div>${finite(meta.hardware?.memory_mib_per_gpu) ? `${number(meta.hardware.memory_mib_per_gpu,0)} MiB per GPU` : "GPU memory not recorded"}${meta.hardware?.engineering_sample === true ? " · Engineering sample" : ""}</div><div>${e(meta.gpus ?? "Unrecorded")} GPUs · ${e(meta.optimizer_steps_per_rollout ?? "Unrecorded")} optimizer updates / rollout</div>${healthFor(run)?.previous_attempt ? `<p class="small muted">Fresh attempt after backward OOM (${e(healthFor(run).previous_attempt.completed_training_rollouts)} completed rollouts). Earlier results are retained separately.</p>` : ""}${healthFor(run)?.issue ? `<p class="run-issue">${e(healthFor(run).issue)} Ray: ${e(meta.status||"unknown")}.</p>` : ""}</div></div>`;
+      <div class="run-details hardware-details"><div class="hardware-name">${e(meta.hardware?.name || "Hardware not recorded")}</div><div>${finite(meta.hardware?.memory_mib_per_gpu) ? `${number(meta.hardware.memory_mib_per_gpu,0)} MiB per GPU` : "GPU memory not recorded"}${meta.hardware?.engineering_sample === true ? " · Engineering sample" : ""}</div><div>${e(meta.gpus ?? "Unrecorded")} GPUs · ${run ? e((run.rows||[]).reduce((n,row)=>n+(row.train_steps||[]).length,0)) : "—"} updates · ${e(meta.optimizer_steps_per_rollout ?? "Unrecorded")} updates / rollout</div>${healthFor(run)?.previous_attempt ? `<p class="small muted">Fresh attempt after backward OOM (${e(healthFor(run).previous_attempt.completed_training_rollouts)} completed rollouts). Earlier results are retained separately.</p>` : ""}${healthFor(run)?.issue ? `<p class="run-issue">${e(healthFor(run).issue)} Ray: ${e(meta.status||"unknown")}.</p>` : ""}</div></div>`;
   }).join("")}</div><div class="callout">${runs.some(r=>r.metadata?.hardware?.engineering_sample === true) ? "Rubin is an engineering sample; its measured capacity and software stack define this comparison." : "Library versions and kernel choices can differ. The results describe each recorded system configuration."}</div>`, "Hardware comes from recorded device metadata. A partial snapshot never counts as a completed run.");
 
 // Build schema supports components/changes/validation while retaining the full original input.
@@ -126,7 +164,7 @@ slide("Qwen3 experiment recipe", "04 / Learning setup", `
 
 slide("Training rollout reward", "05 / Learning curve", `
   <p class="subtitle">Observed reward from the retained training samples at each policy version</p>
-  <div id="reward-chart" class="chart chart-wide"></div>`, "Rollout 0 samples the initial policy. Reward at each rollout precedes that rollout’s optimizer updates. This is not held-out accuracy.");
+  <div id="reward-chart" class="chart chart-wide"></div>`, "IDs are zero-based: 0–49 means 50 rollouts. Rollout 0 samples the initial policy. Each reward precedes that rollout’s updates; this is not held-out accuracy.");
 
 slide("Truncation and response length", "06 / Generation behavior", `
   <p class="subtitle">Output length changes the amount of work and can affect the reward curve.</p>
@@ -156,7 +194,7 @@ const pairGap=paired.step_difference_seconds_second_minus_first;
 const largestGap=paired.largest_observed_stage_gap;
 const stageLabel=key=>stageNames.find(([id])=>id===key)?.[1]||key;
 const measuredGap=paired.count && finite(pairGap) && largestGap
-  ? `Shared N=${paired.count}: step means ${number(paired.statistics[paired.run_labels[0]].step.mean_seconds)} / ${number(paired.statistics[paired.run_labels[1]].step.mean_seconds)} s (${pairedNames.join(" / ")}). Largest measured stage gap: ${stageLabel(largestGap.stage)}, ${number(Math.abs(largestGap.difference_seconds_second_minus_first))} s. Cause awaits profiling.`
+  ? `Shared N=${paired.count}: step means ${number(paired.statistics[paired.run_labels[0]].step.mean_seconds)} / ${number(paired.statistics[paired.run_labels[1]].step.mean_seconds)} s (${pairedNames.join(" / ")}). Largest measured stage gap: ${stageLabel(largestGap.stage)}, ${number(Math.abs(largestGap.difference_seconds_second_minus_first))} s. ${decodeGap ? "Actual decode samples are shown next; causal isolation remains open." : "Cause awaits profiling."}`
   : "A shared timing cohort or complete stage measurements are pending; cause awaits profiling.";
 slide("Time in each measured stage", "09 / Paired unprofiled timing", `
   <p class="subtitle">${paired.count?`Same rollout IDs on both systems · N=${paired.count} · means and medians from this shared cohort.`:"Paired stage comparison pending: no shared eligible rollout IDs."}</p>
@@ -180,6 +218,14 @@ function profileSlide(label, index) {
 }
 profileSlide("Rubin",10);
 profileSlide("GB300",11);
+if(decodeGap){
+  slide(decodeGap.outside_kernel_gap?"Decode gap sits outside recorded kernels":"Decode spans and recorded kernel intervals", "12 / Actual decode subset", `
+    <p id="decode-gap-scope" class="subtitle">DECODE bs=128: Rubin N=${decodeGap.rows[0].n}; GB300 N=${decodeGap.rows[1].n}. Context lengths and expert routing are not proven matched.</p>
+    <div id="decode-gap-chart" class="chart short"></div>
+    <p class="chart-note">Per-forward mean. Remainder = GPU annotation span − kernel interval union; it includes gaps, copies and unknown time.</p>
+    <div class="callout">${decodeGap.longer_gb_launch_calls?"GB launch API calls were longer; they do not account for the full span gap.":"The cause of the span difference is not established."} No hardware-only attribution.</div>`,
+    "Initial workload with profiler overhead. Unequal sample counts. Remainder is neither CPU time nor production GPU utilization; full mixed GB trace is retained.");
+}
 
 const findings=[];
 for (const run of runs.slice(0,2)) {
@@ -190,7 +236,7 @@ if (!findings.length) findings.push(["Learning","The current Miles runs have no 
 const profileSummary = profiles.summary || profiles.gap_summary;
 findings.push(["Measured gap", profileSummary ? textValue(profileSummary) : measuredGap]);
 findings.push(["Scope",trainingBudgetsDiffer?`Training budgets differ: ${budgetComparison} tokens/GPU. Recipe, runtime and hardware all affect timings; this is not a hardware-only speedup comparison.`:"This compares the recorded Rubin and upstream GB300 software stacks. Version and kernel differences remain part of the result."]);
-slide("Findings at this snapshot", "12 / Conclusions", `
+slide("Findings at this snapshot", `${decodeGap?"13":"12"} / Conclusions`, `
   <ul class="observations">${findings.slice(0,4).map(([label,body])=>`<li><strong>${e(label)}</strong><span class="body">${e(body)}</span></li>`).join("")}</ul>`, "Only supplied metrics and profile observations support these statements. No projected final reward or extrapolated speedup.");
 
 function normalizeHistorical(source) {
@@ -238,13 +284,19 @@ function timingEligible(run,row) {
   return row.rollout_id!==0 && row.training_stage_complete===true && row.profiled===false &&
     row.unprofiled_timing_eligible===true && !(run.metadata?.exclude_timing_rollouts||[]).includes(row.rollout_id);
 }
+function timingRows(run) {
+  const byId=new Map((run.rows||[]).map(row=>[row.rollout_id,row]));
+  const ids=[...byId.keys()].filter(id=>Number.isInteger(id)&&id>=0);
+  // Null slots for missing and excluded IDs prevent lines spanning unobserved timing intervals.
+  return ids.length ? Array.from({length:Math.max(...ids)+1},(_,id)=>byId.get(id)||{rollout_id:id,timing_missing:true}) : [];
+}
 function lines(key, {steady=false, markWarmup=false}={}) {
   return runs.map((run,i)=>{
-    const rows=(run.rows||[]).filter(row=>!steady || timingEligible(run,row));
+    const rows=steady?timingRows(run):(run.rows||[]);
     return {name:niceName(run),type:"scatter",mode:"lines+markers",connectgaps:false,
-      x:rows.map(r=>r.rollout_id),y:rows.map(r=>finite(r.common?.[key])?r.common[key]:null),
+      x:rows.map(r=>r.rollout_id),y:rows.map(r=>(!steady||timingEligible(run,r))&&finite(r.common?.[key])?r.common[key]:null),
       line:{color:palette[i%palette.length],width:3},marker:{size:7,color:palette[i%palette.length],symbol:rows.map(r=>r.profiled?"diamond":markWarmup&&r.rollout_id===0?"circle-open":"circle")},
-      customdata:rows.map(r=>`${markWarmup&&r.rollout_id===0?"Warmup / rollout 0 · ":""}${r.profiled==null?"Profiling coverage unknown":r.profiled?"Profiled":"Unprofiled"}`),
+      customdata:rows.map(r=>r.timing_missing?"No recorded rollout":steady&&!timingEligible(run,r)?"Excluded timing observation":`${markWarmup&&r.rollout_id===0?"Warmup / rollout 0 · ":""}${r.profiled==null?"Profiling coverage unknown":r.profiled?"Profiled":"Unprofiled"}`),
       hovertemplate:"Rollout %{x}<br>%{y:.5g}<br>%{customdata}<extra>%{fullData.name}</extra>"};
   });
 }
@@ -271,6 +323,13 @@ draw("stage-chart",paired.count ? runs.map((run,i)=>({name:niceName(run),type:"b
   y:stageNames.map(([key])=>paired.statistics[run.label]?.[key]?.paired_metric_available ? paired.statistics[run.label][key].mean_seconds : null),
   customdata:stageNames.map(([key])=>[paired.statistics[run.label]?.[key]?.count ?? 0,paired.statistics[run.label]?.[key]?.median_seconds ?? null,paired.rollout_ids.join(", ")]),
   hovertemplate:"%{x}<br>Paired mean %{y:.3f} s<br>Shared n=%{customdata[0]}<br>Median %{customdata[1]:.3f} s<br>IDs %{customdata[2]}<extra>%{fullData.name}</extra>"})) : [],{xTitle:"",yTitle:"Mean seconds · shared cohort",layout:{barmode:"group"},emptyTitle:"Paired timings pending",emptyMessage:paired.reason||"No shared eligible cohort is available; no stage comparison is inferred."});
+if(decodeGap){
+  draw("decode-gap-chart",[["Recorded kernel interval union","kernel_union_ms","#087f96"],["Remainder of GPU annotation","remaining_ms","#c7d2d9"]].map(([name,key,color])=>({
+    name,type:"bar",x:decodeGap.rows.map(r=>`${r.name} · N=${r.n}`),y:decodeGap.rows.map(r=>r[key]),
+    marker:{color},customdata:decodeGap.rows.map(r=>[r.n,r.elapsed_ms,r.trace_sha256]),
+    hovertemplate:"%{x}<br>%{y:.6f} ms<br>Total span %{customdata[1]:.6f} ms<br>Trace %{customdata[2]}<extra>%{fullData.name}</extra>"
+  })),{xTitle:"",yTitle:"Mean milliseconds / forward",layout:{barmode:"stack",bargap:.55}});
+}
 
 for (const [id,key] of [["historical-reward-chart","training_reward_mean"],["historical-truncation-chart","capacity_clip_ratio_not_engine_truncation"]]) {
   draw(id,historical?[{name:"Historical GB300 / VeRL",type:"scatter",mode:"lines+markers",x:historical.rows.map(r=>r.rollout_id),y:historical.rows.map(r=>r.common?.[key]??null),line:{color:"#726198",width:3},marker:{size:5}}]:[],{percent:true,yTitle:id.includes("reward")?"Reward":"Capacity clip fraction",emptyMessage:"No historical baseline was supplied. It will remain separate from current Miles results."});

@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-09-16T06:06:34.969957+00:00",
+  "run_id": "gb300-j2198810-initial-profile-v1",
+  "submission_id": "qwen3-profile-gb300-j2198810-initial-profile-v1",
+  "scope": "Independent initial-policy profiler replay; main 50-rollout learning run is separate and succeeded.",
+  "terminal": {
+    "ray_status": "FAILED",
+    "driver_exit_code": 1,
+    "ended_at": "2026-09-16T06:01:10.836000+00:00",
+    "guard_completed_at": "2026-09-16T06:01:12.640974+00:00",
+    "guard_stop_requests": 0
+  },
+  "training_updates": {
+    "expected_optimizer_updates": 8,
+    "distinct_normal_rank_step_markers": 32,
+    "all_four_ranks_eight_updates_normal": true,
+    "all_eight_rank0_gradients_finite_positive": true
+  },
+  "failure": {
+    "kind": "RAY_HOST_MEMORY_OOM",
+    "host_memory_usage_bytes": 979406946304,
+    "host_memory_threshold_bytes": 977561583616,
+    "threshold_fraction": 0.95,
+    "workers_killed": 2,
+    "proof_excerpts": [
+      {
+        "file": "node-output/replay/job-driver.log",
+        "line": 30063,
+        "text": "[2026-09-16 06:01:06.171 main] cell.py:247 - ft op=execute phase=fail cell=trainer-actor-0 fn=train elapsed_s=598.6"
+      },
+      {
+        "file": "node-output/replay/job-driver.log",
+        "line": 30071,
+        "text": "ray.exceptions.OutOfMemoryError: 2 worker(s) were killed due to the node running low on memory. Memory on the node (IP: 10.85.212.9, ID: 2ad5e529571586f75f09722ae7f1edfd9655fd826a0f7286ea6c4ca6) was 916.31GB / 958.34GB (0.956141)"
+      },
+      {
+        "file": "node-output/replay/job-driver.log",
+        "line": 30072,
+        "text": "OOM kill reason: Memory usage 979406946304B exceeded threshold of 977561583616B (95.0% of 1029012193280B total)"
+      }
+    ],
+    "interpretation": "Ray host-memory monitor killed two workers after the eighth optimizer update and before any trainer trace appeared. This is not a GPU OOM or a failure of the already completed main training run. Exact internal allocation responsible is not established."
+  },
+  "trainer_trace": {
+    "exported_files": [],
+    "state": "not_exported"
+  },
+  "sglang_trace": {
+    "state": "captured",
+    "path": "node-output/replay/traces/sglang/gb300-j2198810-initial-profile-v1-engine5158-TP-0.trace.json.gz",
+    "bytes": 462630,
+    "sha256": "a662e13aabe0ccf5a4801a5a1635343c5ad4eb363d9e7ed4604021c82905f940",
+    "scope": "Four forwards: one DECODE128, two DECODE127, one EXTEND1/toks1; not homogeneous with Rubin four DECODE128 forwards."
+  },
+  "retention": {
+    "state": "verified",
+    "bytes": 4822909,
+    "retained_at": "2026-09-16T06:03:03.511090+00:00",
+    "local_validation": "Every retained runtime file byte count and SHA256 matched canonical retention.json",
+    "durable_root": "/home/scratch.kaixih_ent/repro/miles-gb300-qwen3-gsm8k/20260915-j2198810-nfs/profiles/gb300-j2198810-initial-profile-v1"
+  },
+  "shutdown": {
+    "state": "verified",
+    "stopped_at": "2026-09-16T06:04:18.965694+00:00",
+    "container": "miles-profile-gb300-j2198810-initial-profile-v1",
+    "container_status": "exited",
+    "container_running": false,
+    "container_pid": 0,
+    "container_exit_code": 137,
+    "note": "Container exit137 followed explicit docker stop of sleep-infinity; Ray driver exit1 is recorded separately."
+  },
+  "source": {
+    "commit": "22d757522647b096e69dda387703f05a1d0fa962",
+    "operator_path": "lab/rubin_two_node/profile_operator.py",
+    "operator_sha256": "7be12dd3accdaeec15ea28e60572380b5113e3723c2dfd3d189e5e4d6256cb5f"
+  },
+  "proof_files": {
+    "node-output/replay/job-driver.log": {
+      "bytes": 4330064,
+      "sha256": "61998df2a503a248c981e762550dd8fcc1802b313f4af060bf50ef6e30471aa3"
+    },
+    "node-output/replay/final-ray-job.json": {
+      "bytes": 5934,
+      "sha256": "68e663e175de2bf23ce0d0b9d6592ca49a04e35480efa7ef22fbbdf2c503f92f"
+    },
+    "node-output/replay/profile-guard.json": {
+      "bytes": 527,
+      "sha256": "b3ae419e47f1d03fd799b8e4bb0c078d6f44fd6fa78527cc1a36298b6801fad2"
+    },
+    "node-output/replay/profile-plan.json": {
+      "bytes": 17598,
+      "sha256": "614cd63bad26043c9effb77448a88e7832bb593056f6f8d26ea9a936aac16006"
+    },
+    "retention.json": {
+      "bytes": 9634,
+      "sha256": "8a5ece5e781d946407aede3675dcc55d88e19db5f36125e72b2061299a34e943"
+    },
+    "retain-attempt.json": {
+      "bytes": 2179,
+      "sha256": "69d90e7417de91f27f13f2fc034c9c7b9866328650de7337133710c6fc1b50fa"
+    },
+    "stop-attempt.json": {
+      "bytes": 1698,
+      "sha256": "9e85edfceb0e71cfd0cab4cf4f9b76106c661edc2b440fb52f6dc7a9b53d0707"
+    },
+    "operator-stopped.json": {
+      "bytes": 1565,
+      "sha256": "6749a560f5c9852422cc8f7d45bb3287ddb803615fc89cd7941adcd4ac43854e"
+    }
+  }
+}

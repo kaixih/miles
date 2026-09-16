@@ -11,11 +11,13 @@ python3 reports/rubin-gb300-qwen3/generate.py \
   --build lab/rubin_two_node/rubin-build-report.json \
   --profiles /path/to/profiles.json \
   --historical lab/rubin_two_node/qwen3-gb300-baseline.json \
+  --run-health reports/rubin-gb300-qwen3/snapshot-health.json \
   --output reports/rubin-gb300-qwen3/site
 ```
 
 Open `site/index.html` directly, including from `file://`. The directory is portable.
-There are 13 main slides and two appendices. Arrow keys, Space, Page Up/Down,
+There are 13 main slides and two appendices, plus one optional measured decode
+comparison slide when verified trace metrics are supplied. Arrow keys, Space, Page Up/Down,
 Home/End navigate. **F** toggles fullscreen and **O** opens the overview. Printing
 uses landscape pages. Chart toolbar export produces standalone PNG figures.
 
@@ -100,6 +102,44 @@ them content hashes, and preserves their source paths. HTTP asset URLs are rejec
 The two profile slides select the first record whose `run_label` or title contains
 `Rubin` / `GB300`. All records remain in the downloadable JSON. Up to three concise
 observations appear with each capture. The image opens at original resolution.
+
+### Optional actual decode comparison
+
+To add the measured interval slide immediately after those two profile slides,
+embed the complete independently checked analysis object (not manually entered
+means) in the existing profile input:
+
+```python
+profiles["decode_comparison"] = json.loads(
+    Path("outputs/rubin-gb300-qwen3/profiles/sglang-decode-comparison.json").read_text()
+)
+```
+
+This object's schema is `sglang-same-nominal-decode-bs128-v1`. Both
+`provenance.<rubin|gb300>.verified` fields must be true and contain exact
+`trace_sha256` values. `selection` records the exact annotation, per-platform
+counts, indices and all captured annotation counts. `forward_statistics` retains
+the raw per-forward `gpu_annotation_span_ms.values` and `kernel_union_ms.values`,
+each with `n` and `mean`. The renderer independently calculates means from those
+arrays, validates counts/hashes/means, and rejects a union exceeding its forward
+span. Missing or unverified evidence leaves the original 15-slide layout intact;
+inconsistent evidence claiming verification fails visibly. Verified input adds
+slide13 and shifts conclusions/appendices, giving16 slides.
+
+The stacked bars show kernel interval union and the remaining GPU annotation
+span. The remainder includes gaps, copies and unknown time; it is neither CPU
+time nor production utilization. For the retained captures, the actual subset
+is Rubin N=4 versus GB300 N=1 at `DECODE bs=128`. GB's other decode/extend batches
+stay outside this comparison. Context lengths and expert routing are not proven
+matched. `cpu_api_statistics` optionally supports the qualified launch-API note;
+runtime/driver totals may nest and are never added into the stacked bars.
+
+The full input, source hashes and raw forward arrays remain in `report-data.json`.
+`window.DECODE_GAP_DATA` exposes the checked derived stack for browser inspection.
+`check_slides.mjs` verifies both stack components against raw values, displayed
+unequal counts, dynamic15/16 slide count, and negative cases for false verification,
+wrong mean/count/hash and impossible kernel unions. No fabricated traces are
+needed for these checks; mutated validation objects are never rendered.
 
 ## Evidence and offline assets
 
@@ -221,3 +261,16 @@ statistics, empty cohorts and missing stage values. `check_slides.mjs` independe
 recomputes the cohort and stage means/medians from raw rows, then checks both the
 derived JSON and rendered bar values. It also continues to verify the unchanged
 per-run line-curve selections.
+
+## Retained September16 result
+
+[Final measured results](FINAL_RESULTS.md) records both completed50-rollout/200-update
+learning runs, the shared17-rollout timing cohort, and the actual short SGLang
+decode comparison. Compact raw statistics and source hashes are checked in under
+`evidence/`. The generated portable site also embeds the full comparison and
+profile inputs and carries the original short SGLang gzip traces.
+
+The separate trainer profiling replays did not produce complete usable trainer
+traces: Rubin reached its original profiling deadline during export; GB300 hit
+Ray's host-memory threshold during profiler finalization. Those outcomes do not
+change the successful main runs or the independently verified SGLang captures.

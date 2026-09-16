@@ -1,0 +1,734 @@
+{
+  "schema": "sglang-same-nominal-decode-bs128-v1",
+  "provenance": {
+    "rubin": {
+      "verified": true,
+      "run_id": "rubin-j2198331-initial-profile-v1",
+      "submission_id": "qwen3-profile-rubin-j2198331-initial-profile-v1",
+      "capture_started_at": "2026-09-16T05:29:52.198161+00:00",
+      "capture_completed_at": "2026-09-16T05:29:54.865144+00:00",
+      "engine": {
+        "pid": 4822,
+        "start_ticks": 14080591,
+        "host": "10.102.74.82",
+        "port": 20000,
+        "started_timestamp": 1789536400.91,
+        "tp_size": 1,
+        "pp_size": 1,
+        "base_gpu_id": 0,
+        "model_path": "/home/scratch.kaixih_ent/models/Qwen3-30B-A3B",
+        "profile_v2": false,
+        "run_id": "rubin-j2198331-initial-profile-v1",
+        "argv_sha256": "bc465464506123ac8e093bae4abcae83c0928ff9db4155123f0ef8f917f4efcf"
+      },
+      "image": "gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin@sha256:a03106bdd90c5d6067fbff246fff25df979f9da8486eb0dac795a315a2346d6c",
+      "trace_sha256": "b931f4835f9561011419f772ab5a503d355dbd742f367b04f0b5d26029b52bb8",
+      "records": {
+        "local-retention.json": {
+          "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3/profiles/rubin-sglang-early/local-retention.json",
+          "sha256": "22726a1d1b8c0bcbb00471893024abf1d8766ec2c7c458567d89782ec457d091"
+        },
+        "retention.json": {
+          "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3/profiles/rubin-sglang-early/retention.json",
+          "sha256": "36b4da8ab27614db95b31fbca467f59bcefb8a1576f1fbf9e59f0abcaaf1eb67"
+        },
+        "sglang-capture.json": {
+          "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3/profiles/rubin-sglang-early/sglang-capture.json",
+          "sha256": "18b9e1ca43978d8748978ac1ac3dfdd51ee17262a047e7556677c533148dfe1f"
+        }
+      },
+      "scope": "Local file hashes match unchanged source-before/source-after and durable retention receipts; actual capture state is captured."
+    },
+    "gb300": {
+      "verified": true,
+      "run_id": "gb300-j2198810-initial-profile-v1",
+      "submission_id": "qwen3-profile-gb300-j2198810-initial-profile-v1",
+      "capture_started_at": "2026-09-16T05:39:35.357734+00:00",
+      "capture_completed_at": "2026-09-16T05:39:38.518969+00:00",
+      "engine": {
+        "pid": 5158,
+        "start_ticks": 116668332,
+        "host": "10.85.212.9",
+        "port": 20035,
+        "started_timestamp": 1789536786.32,
+        "tp_size": 1,
+        "pp_size": 1,
+        "base_gpu_id": 0,
+        "model_path": "/home/scratch.kaixih_ent/models/Qwen3-30B-A3B",
+        "profile_v2": false,
+        "run_id": "gb300-j2198810-initial-profile-v1",
+        "argv_sha256": "85ac907720b03cf4501b9858bc314a460cb6df77483779c38035516730303778"
+      },
+      "image": "radixark/miles@sha256:226f63d28e4b1482e0a6948ba3d486c1b1635648d079c82c9501640b24657986",
+      "trace_sha256": "a662e13aabe0ccf5a4801a5a1635343c5ad4eb363d9e7ed4604021c82905f940",
+      "records": {
+        "local-retention.json": {
+          "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3/profiles/gb300-sglang-early/local-retention.json",
+          "sha256": "0c80ee14b9a2118d91dbf005db0def8dc2d41c8293b8ea7cb59cdab6a6732812"
+        },
+        "retention.json": {
+          "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3/profiles/gb300-sglang-early/retention.json",
+          "sha256": "4d81289fcbae726e9051b8a5eeb8bff2598495e458a7516e02c1ac111c991e29"
+        },
+        "sglang-capture.json": {
+          "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3/profiles/gb300-sglang-early/sglang-capture.json",
+          "sha256": "6d3485bdffb19cb3471cf4ae6195516b40ba850c7d48c6739a17c0315f632834"
+        }
+      },
+      "scope": "Local file hashes match unchanged source-before/source-after and durable retention receipts; actual capture state is captured."
+    }
+  },
+  "analysis_inputs": {
+    "rubin": {
+      "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3/profiles/rubin-decode-analysis.json",
+      "sha256": "52b95a0d7698730997abbad0d27747502d496734a839f89ca94ce4c99d693fbd"
+    },
+    "gb300": {
+      "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3/profiles/gb300-decode-analysis.json",
+      "sha256": "4e51e2eb41ad2e37bcfbfca37fa211c6206d51617413300622bcd686eb801421"
+    }
+  },
+  "selection": {
+    "exact_annotation": "step[DECODE bs=128]",
+    "counts": {
+      "rubin": 4,
+      "gb300": 1
+    },
+    "selected_forward_indices": {
+      "rubin": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "gb300": [
+        0
+      ]
+    },
+    "all_annotation_counts": {
+      "rubin": {
+        "step[DECODE bs=128]": 4
+      },
+      "gb300": {
+        "step[DECODE bs=128]": 1,
+        "step[DECODE bs=127]": 2,
+        "step[EXTEND bs=1 toks=1]": 1
+      }
+    },
+    "excluded_forward_labels": {
+      "rubin": [],
+      "gb300": [
+        "step[DECODE bs=127]",
+        "step[EXTEND bs=1 toks=1]",
+        "step[DECODE bs=127]"
+      ]
+    },
+    "matching_scope": "Only nominal batch size/mode and kernel counts match. Context lengths, expert routing and exact workload shapes are unknown."
+  },
+  "forward_statistics": {
+    "rubin": {
+      "cpu_span_ms": {
+        "n": 4,
+        "mean": 36.04490425,
+        "median": 35.4450635,
+        "values": [
+          38.340934,
+          35.799818,
+          34.948556,
+          35.090309
+        ]
+      },
+      "gpu_annotation_span_ms": {
+        "n": 4,
+        "mean": 36.05276725,
+        "median": 35.4694075,
+        "values": [
+          38.31058,
+          35.819348,
+          34.961674,
+          35.119467
+        ]
+      },
+      "kernel_count": {
+        "n": 4,
+        "mean": 875,
+        "median": 875.0,
+        "values": [
+          875,
+          875,
+          875,
+          875
+        ]
+      },
+      "kernel_cumulative_ms": {
+        "n": 4,
+        "mean": 15.71902975,
+        "median": 15.697729500000001,
+        "values": [
+          15.834828,
+          15.645832,
+          15.716784,
+          15.678675
+        ]
+      },
+      "kernel_union_ms": {
+        "n": 4,
+        "mean": 14.8318505,
+        "median": 14.805895,
+        "values": [
+          14.962433,
+          14.753179,
+          14.844232,
+          14.767558
+        ]
+      },
+      "gpu_event_union_ms": {
+        "n": 4,
+        "mean": 14.8318505,
+        "median": 14.805895,
+        "values": [
+          14.962433,
+          14.753179,
+          14.844232,
+          14.767558
+        ]
+      },
+      "gpu_window_uncovered_ms": {
+        "n": 4,
+        "mean": 21.22091675,
+        "median": 20.709038999999997,
+        "values": [
+          23.348147,
+          21.066169,
+          20.117442,
+          20.351909
+        ]
+      }
+    },
+    "gb300": {
+      "cpu_span_ms": {
+        "n": 1,
+        "mean": 85.396644,
+        "median": 85.396644,
+        "values": [
+          85.396644
+        ]
+      },
+      "gpu_annotation_span_ms": {
+        "n": 1,
+        "mean": 85.220166,
+        "median": 85.220166,
+        "values": [
+          85.220166
+        ]
+      },
+      "kernel_count": {
+        "n": 1,
+        "mean": 875,
+        "median": 875,
+        "values": [
+          875
+        ]
+      },
+      "kernel_cumulative_ms": {
+        "n": 1,
+        "mean": 14.049562,
+        "median": 14.049562,
+        "values": [
+          14.049562
+        ]
+      },
+      "kernel_union_ms": {
+        "n": 1,
+        "mean": 13.270202,
+        "median": 13.270202,
+        "values": [
+          13.270202
+        ]
+      },
+      "gpu_event_union_ms": {
+        "n": 1,
+        "mean": 13.270202,
+        "median": 13.270202,
+        "values": [
+          13.270202
+        ]
+      },
+      "gpu_window_uncovered_ms": {
+        "n": 1,
+        "mean": 71.949964,
+        "median": 71.949964,
+        "values": [
+          71.949964
+        ]
+      }
+    }
+  },
+  "kernel_group_statistics": {
+    "rubin": {
+      "decode_attention_stage1_stage2": {
+        "calls": {
+          "n": 4,
+          "mean": 96,
+          "median": 96.0,
+          "values": [
+            96,
+            96,
+            96,
+            96
+          ]
+        },
+        "cumulative_ms": {
+          "n": 4,
+          "mean": 2.95945625,
+          "median": 2.9503565,
+          "values": [
+            2.99345,
+            2.943662,
+            2.945828,
+            2.954885
+          ]
+        }
+      },
+      "flashinfer_named_norm": {
+        "calls": {
+          "n": 4,
+          "mean": 97,
+          "median": 97.0,
+          "values": [
+            97,
+            97,
+            97,
+            97
+          ]
+        },
+        "cumulative_ms": {
+          "n": 4,
+          "mean": 0.37169075,
+          "median": 0.373251,
+          "values": [
+            0.364609,
+            0.371492,
+            0.37501,
+            0.375652
+          ]
+        }
+      },
+      "fused_moe_compute": {
+        "calls": {
+          "n": 4,
+          "mean": 96,
+          "median": 96.0,
+          "values": [
+            96,
+            96,
+            96,
+            96
+          ]
+        },
+        "cumulative_ms": {
+          "n": 4,
+          "mean": 8.55345775,
+          "median": 8.545666,
+          "values": [
+            8.630835,
+            8.491664,
+            8.584914,
+            8.506418
+          ]
+        }
+      },
+      "moe_routing_activation_reduction": {
+        "calls": {
+          "n": 4,
+          "mean": 240,
+          "median": 240.0,
+          "values": [
+            240,
+            240,
+            240,
+            240
+          ]
+        },
+        "cumulative_ms": {
+          "n": 4,
+          "mean": 1.63865425,
+          "median": 1.6407889999999998,
+          "values": [
+            1.638583,
+            1.642995,
+            1.622423,
+            1.650616
+          ]
+        }
+      },
+      "other_kernel": {
+        "calls": {
+          "n": 4,
+          "mean": 57,
+          "median": 57.0,
+          "values": [
+            57,
+            57,
+            57,
+            57
+          ]
+        },
+        "cumulative_ms": {
+          "n": 4,
+          "mean": 0.17577825,
+          "median": 0.175762,
+          "values": [
+            0.175618,
+            0.176164,
+            0.175906,
+            0.175425
+          ]
+        }
+      },
+      "qknorm_rope": {
+        "calls": {
+          "n": 4,
+          "mean": 96,
+          "median": 96.0,
+          "values": [
+            96,
+            96,
+            96,
+            96
+          ]
+        },
+        "cumulative_ms": {
+          "n": 4,
+          "mean": 0.32409125,
+          "median": 0.32425950000000003,
+          "values": [
+            0.321345,
+            0.323106,
+            0.326501,
+            0.325413
+          ]
+        }
+      },
+      "torch_mm_linked_kernels": {
+        "calls": {
+          "n": 4,
+          "mean": 193,
+          "median": 193.0,
+          "values": [
+            193,
+            193,
+            193,
+            193
+          ]
+        },
+        "cumulative_ms": {
+          "n": 4,
+          "mean": 1.69590125,
+          "median": 1.6935075,
+          "values": [
+            1.710388,
+            1.696749,
+            1.686202,
+            1.690266
+          ]
+        }
+      }
+    },
+    "gb300": {
+      "decode_attention_stage1_stage2": {
+        "calls": {
+          "n": 1,
+          "mean": 96,
+          "median": 96,
+          "values": [
+            96
+          ]
+        },
+        "cumulative_ms": {
+          "n": 1,
+          "mean": 2.311118,
+          "median": 2.311118,
+          "values": [
+            2.311118
+          ]
+        }
+      },
+      "flashinfer_named_norm": {
+        "calls": {
+          "n": 1,
+          "mean": 97,
+          "median": 97,
+          "values": [
+            97
+          ]
+        },
+        "cumulative_ms": {
+          "n": 1,
+          "mean": 0.288384,
+          "median": 0.288384,
+          "values": [
+            0.288384
+          ]
+        }
+      },
+      "fused_moe_compute": {
+        "calls": {
+          "n": 1,
+          "mean": 96,
+          "median": 96,
+          "values": [
+            96
+          ]
+        },
+        "cumulative_ms": {
+          "n": 1,
+          "mean": 8.378049,
+          "median": 8.378049,
+          "values": [
+            8.378049
+          ]
+        }
+      },
+      "moe_routing_activation_reduction": {
+        "calls": {
+          "n": 1,
+          "mean": 240,
+          "median": 240,
+          "values": [
+            240
+          ]
+        },
+        "cumulative_ms": {
+          "n": 1,
+          "mean": 1.49277,
+          "median": 1.49277,
+          "values": [
+            1.49277
+          ]
+        }
+      },
+      "other_kernel": {
+        "calls": {
+          "n": 1,
+          "mean": 57,
+          "median": 57,
+          "values": [
+            57
+          ]
+        },
+        "cumulative_ms": {
+          "n": 1,
+          "mean": 0.130176,
+          "median": 0.130176,
+          "values": [
+            0.130176
+          ]
+        }
+      },
+      "qknorm_rope": {
+        "calls": {
+          "n": 1,
+          "mean": 96,
+          "median": 96,
+          "values": [
+            96
+          ]
+        },
+        "cumulative_ms": {
+          "n": 1,
+          "mean": 0.271296,
+          "median": 0.271296,
+          "values": [
+            0.271296
+          ]
+        }
+      },
+      "torch_mm_linked_kernels": {
+        "calls": {
+          "n": 1,
+          "mean": 193,
+          "median": 193,
+          "values": [
+            193
+          ]
+        },
+        "cumulative_ms": {
+          "n": 1,
+          "mean": 1.177769,
+          "median": 1.177769,
+          "values": [
+            1.177769
+          ]
+        }
+      }
+    }
+  },
+  "cpu_api_statistics": {
+    "rubin": {
+      "cuda_runtime": {
+        "cudaLaunchKernel": {
+          "calls": {
+            "n": 4,
+            "mean": 199,
+            "median": 199.0,
+            "values": [
+              199,
+              199,
+              199,
+              199
+            ]
+          },
+          "cumulative_ms": {
+            "n": 4,
+            "mean": 1.19300325,
+            "median": 1.1700629999999996,
+            "values": [
+              1.271529000000001,
+              1.1776819999999992,
+              1.162444,
+              1.1603580000000002
+            ]
+          }
+        },
+        "cudaLaunchKernelExC": {
+          "calls": {
+            "n": 4,
+            "mean": 289,
+            "median": 289.0,
+            "values": [
+              289,
+              289,
+              289,
+              289
+            ]
+          },
+          "cumulative_ms": {
+            "n": 4,
+            "mean": 1.7543822500000004,
+            "median": 1.7536085,
+            "values": [
+              1.7912289999999997,
+              1.8001610000000003,
+              1.710151000000001,
+              1.7159879999999998
+            ]
+          }
+        },
+        "synchronization_call_count_per_forward": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "cuda_driver": {
+        "cuLaunchKernelEx": {
+          "calls": {
+            "n": 4,
+            "mean": 387,
+            "median": 387.0,
+            "values": [
+              387,
+              387,
+              387,
+              387
+            ]
+          },
+          "cumulative_ms": {
+            "n": 4,
+            "mean": 2.4583555000000006,
+            "median": 2.4506875000000004,
+            "values": [
+              2.500927999999998,
+              2.4401369999999982,
+              2.4612380000000025,
+              2.4311190000000042
+            ]
+          }
+        },
+        "synchronization_call_count_per_forward": [
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    "gb300": {
+      "cuda_runtime": {
+        "cudaLaunchKernel": {
+          "calls": {
+            "n": 1,
+            "mean": 199,
+            "median": 199,
+            "values": [
+              199
+            ]
+          },
+          "cumulative_ms": {
+            "n": 1,
+            "mean": 2.149285,
+            "median": 2.149285,
+            "values": [
+              2.149285
+            ]
+          }
+        },
+        "cudaLaunchKernelExC": {
+          "calls": {
+            "n": 1,
+            "mean": 289,
+            "median": 289,
+            "values": [
+              289
+            ]
+          },
+          "cumulative_ms": {
+            "n": 1,
+            "mean": 3.536299999999999,
+            "median": 3.536299999999999,
+            "values": [
+              3.536299999999999
+            ]
+          }
+        },
+        "synchronization_call_count_per_forward": [
+          0
+        ]
+      },
+      "cuda_driver": {
+        "cuLaunchKernelEx": {
+          "calls": {
+            "n": 1,
+            "mean": 387,
+            "median": 387,
+            "values": [
+              387
+            ]
+          },
+          "cumulative_ms": {
+            "n": 1,
+            "mean": 4.2801430000000025,
+            "median": 4.2801430000000025,
+            "values": [
+              4.2801430000000025
+            ]
+          }
+        },
+        "synchronization_call_count_per_forward": [
+          0
+        ]
+      }
+    }
+  },
+  "limitations": [
+    "RubinN4 versus GBN1; no confidence interval or general performance claim is justified by this small profile sample.",
+    "GB full capture is mixed: one DECODEbs128, two DECODEbs127 and one EXTENDbs1/toks1. Full-trace aggregates are not treated as matched batches.",
+    "Both observations are initial-workload profiler captures on one TP1 engine. Profiling overhead, images, host/runtime and unmatched context/routing remain confounders.",
+    "Temporal union coverage is not production GPU utilization or occupancy; uncovered spans alone do not establish their cause.",
+    "CPU runtime/driver calls may nest or overlap; do not add these values to each other, CPU operators, GPU kernel totals or forward spans.",
+    "These snapshots do not establish the quantitative cause of the full learning-run generation gap or a hardware-only speedup.",
+    "No new capture, rearm, request, runtime change or optimization was performed for this analysis."
+  ]
+}

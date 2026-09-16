@@ -20,18 +20,26 @@ def packet(raw):
     return {'bytes': len(raw), 'sha256': C.sha(raw), 'data': base64.b64encode(zlib.compress(raw)).decode()}
 
 
+def test_config(root='/test'):
+    return {**C.RUNS['rubin'], 'root': root}
+
+
 def payload(config, previous, tail):
     whole = previous + tail
+    watch = b'{}\n'
     return {'schema': 'verified-log-append-v1', 'root': config['root'],
             'log': {'mode': 'append', 'offset': len(previous), 'prefix_sha256': C.sha(previous),
                     'bytes': len(whole), 'sha256': C.sha(whole), 'tail': packet(tail)},
             'files': {'planned-run-config.json': packet(b'{}'), 'train-launch.json': packet(b'{}')},
-            'watchdog': {}, 'remote_seconds': 1, 'watchdog_read_seconds': .1}
+            'watchdog': packet(watch),
+            'watchdog_source': {**C.watchdog_source(config), 'bytes': len(watch), 'sha256': C.sha(watch),
+                                'observed_at': '2026-09-16T05:00:00+00:00'},
+            'remote_seconds': 1, 'watchdog_read_seconds': .1}
 
 
 class TransferTests(unittest.TestCase):
     def test_append_preserves_exact_bytes_including_partial_unicode_line(self):
-        config = {'root': '/test'}
+        config = test_config()
         previous = b'physical line\nutf8 ' + '\u2028'.encode() + b' unfin'
         tail = b'ished\n\x1b[36mnew line\x1b[0m\n'
         decoded = C.decode_payload(payload(config, previous, tail), config, previous)
@@ -39,9 +47,11 @@ class TransferTests(unittest.TestCase):
         receipt = json.loads(decoded['collection-receipt.json'])
         self.assertEqual(receipt['tail_bytes'], len(tail))
         self.assertEqual(receipt['sha256'], C.sha(previous + tail))
+        self.assertEqual(receipt['watchdog_source']['path'], config['watchdog_host_path'])
+        self.assertEqual(receipt['watchdog_source']['sha256'], C.sha(decoded['watchdog.json']))
 
     def test_corrupt_prefix_tail_full_hash_and_paths_rejected(self):
-        config, old, tail = {'root': '/test'}, b'old\n', b'new\n'
+        config, old, tail = test_config(), b'old\n', b'new\n'
         original = payload(config, old, tail)
         cases = []
         item = deepcopy(original); item['log']['prefix_sha256'] = '0' * 64; cases.append(item)
@@ -49,6 +59,9 @@ class TransferTests(unittest.TestCase):
         item = deepcopy(original); item['log']['tail']['bytes'] += 1; cases.append(item)
         item = deepcopy(original); item['files']['../unsafe'] = packet(b'x'); cases.append(item)
         item = deepcopy(original); item['root'] = '/other'; cases.append(item)
+        item = deepcopy(original); item['watchdog_source']['path'] = '/another/watchdog.json'; cases.append(item)
+        item = deepcopy(original); item['watchdog_source']['sha256'] = '0' * 64; cases.append(item)
+        item = deepcopy(original); item['watchdog']['bytes'] += 1; cases.append(item)
         for item in cases:
             with self.subTest(item=item), self.assertRaises(ValueError):
                 C.decode_payload(item, config, old)
@@ -58,10 +71,10 @@ class TransferTests(unittest.TestCase):
     def test_remote_append_and_same_size_rewrite_full_fallback(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); (root / 'logs').mkdir()
-            config = {'root': directory, 'node': 'no-network', 'container': 'no-docker'}
+            config = test_config(directory)
             old = b'original\n'; current = old + b'append\n'
             path = root / C.LOG; path.write_bytes(current)
-            with patch.object(signal, 'alarm'), patch.object(C.subprocess, 'check_output', return_value='{}'):
+            with patch.object(signal, 'alarm'), patch.object(C.subprocess, 'check_output', return_value=b'{}'):
                 first = C._remote_payload(config, {'bytes': len(old), 'sha256': C.sha(old)}, [])
                 self.assertEqual(first['log']['mode'], 'append')
                 self.assertEqual(first['log']['tail']['bytes'], len(current) - len(old))
@@ -70,6 +83,54 @@ class TransferTests(unittest.TestCase):
             self.assertEqual(second['log']['mode'], 'full')
             self.assertEqual(second['log']['offset'], 0)
             self.assertEqual(C.decode_packet(second['log']['tail'], C.MAX_LOG_BYTES), path.read_bytes())
+
+    def test_completed_stopped_container_needs_only_the_same_host_watchdog(self):
+        import shlex
+        for label, original in C.RUNS.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                config = {**original, 'root': directory}
+                root = Path(directory); (root / 'logs').mkdir()
+                raw_watch = b'{"run_id":"test-main","submission_id":"exact-job","terminal_status":"SUCCEEDED"}\n'
+                (root / C.LOG).write_bytes(b'Running entrypoint for job exact-job: python train.py --max-tokens-per-gpu 4096\n')
+                (root / 'planned-run-config.json').write_text(json.dumps({'run_id':'test-main','image':'unchanged'}))
+                (root / 'train-launch.json').write_text(json.dumps({'git_commit':'commit','source_sha256':{},'started_utc':'UTC'}))
+                def host_read(argv, **kwargs):
+                    # Docker exec would fail for this fixture's stopped container.
+                    command = shlex.split(argv[-1])
+                    if 'docker' in command:
+                        raise RuntimeError('container is stopped')
+                    self.assertEqual(command, ['cat', '--', original['watchdog_host_path']])
+                    self.assertEqual(argv[-2], original['node'])
+                    self.assertEqual(kwargs['timeout'], 30)
+                    return raw_watch
+                with patch.object(signal, 'alarm'), patch.object(C.subprocess, 'check_output', side_effect=host_read) as read:
+                    data = C._remote_payload(config, {'bytes':0,'sha256':C.sha(b'')}, C.FILES)
+                self.assertEqual(read.call_count, 1)
+                files = C.decode_payload(data, config, b'')
+                self.assertEqual(files['watchdog.json'], raw_watch)
+                self.assertEqual(C.metadata_for(label, config, files)['status'], 'SUCCEEDED')
+                receipt = json.loads(files['collection-receipt.json'])
+                self.assertEqual(receipt['watchdog_source']['node'], original['node'])
+                self.assertEqual(receipt['watchdog_source']['main_container'], original['container'])
+                self.assertEqual(receipt['watchdog_source']['sha256'], C.sha(raw_watch))
+                for wrong in ({'run_id':'another-main'}, {'submission_id':'another-job'}):
+                    changed = dict(files)
+                    changed['watchdog.json'] = json.dumps({**json.loads(raw_watch), **wrong}).encode()
+                    with self.assertRaisesRegex(ValueError, 'identit'):
+                        C.metadata_for(label, config, changed)
+
+    def test_unverified_host_path_or_identity_rejected_before_ssh(self):
+        cases = [
+            {'watchdog_host_path':'/tmp/miles-rubin-j2198331/run-a2-mb4096/../other/watchdog.json'},
+            {'watchdog_host_path':C.RUNS['gb300']['watchdog_host_path']},
+            {'node':C.RUNS['gb300']['node']},
+            {'container':'a-profile-container'}, {'watchdog_host_path':None},
+        ]
+        for change in cases:
+            with self.subTest(change=change), patch.object(C.subprocess, 'check_output') as ssh:
+                with self.assertRaisesRegex(ValueError, 'Unverified watchdog'):
+                    C.collect(('rubin', {**test_config(), **change}))
+                ssh.assert_not_called()
 
     def test_decompression_trailing_data_or_oversize_rejected(self):
         record = packet(b'abc')
