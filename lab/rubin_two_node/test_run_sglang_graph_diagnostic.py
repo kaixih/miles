@@ -99,6 +99,58 @@ class DiagnosticTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             D.batch_metrics(short, 1, 2)
 
+    def test_run_mode_records_warmup_and_three_measured_batches(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime = D.Runtime(root, "run", 9999999999, 1024)
+            runtime.leader = member()
+            args = SimpleNamespace(model_path=Path("/models/Qwen3"), host="127.0.0.1", port=0,
+                                   cache_dir=root / "cache")
+            response = {"status": 200, "body": json.dumps([{"meta_info": {
+                "prompt_tokens": 3, "completion_tokens": 64}}] * 128)}
+            def api(origin, path, payload=None, **kwargs):
+                if path == "/server_info":
+                    return {"status": 200, "body": json.dumps({"model_path": str(args.model_path),
+                        "tp_size": 1, "pp_size": 1, "base_gpu_id": 0,
+                        "cuda_graph_config": {"decode": {"backend": "full"}, "prefill": {"backend": "disabled"}}})}
+                if path == "/start_profile":
+                    for name in ("EXTEND", "DECODE"):
+                        (root / "on/traces" / (name + ".trace.json.gz")).write_bytes(b"fixture")
+                    return {"status": 200, "body": "armed"}
+                self.assertEqual(path, "/generate")
+                return response
+            evidence = {"prefill_forward_observed": True, "decode_graph_replay_proven": True,
+                        "scheduler_forward_counts": {"DECODE": 2}, "cpu_and_gpu_activity_observed": True}
+            with patch.object(runtime, "start"), patch.object(runtime, "stop"), patch.object(D.socket, "socket"), \
+                    patch.object(D, "wait_ready"), patch.object(D, "flush_cache", return_value={"status": 200}), \
+                    patch.object(D, "http", side_effect=api), patch.object(D.time, "sleep"), \
+                    patch.object(D.capture, "stage_payload", return_value={"fixture": True}), \
+                    patch.object(D.capture, "inspect_trace", return_value=evidence):
+                result = D.run_mode(args, runtime, "on", {"input_ids": [[1, 2, 3]] * 128,
+                    "source": {"dataset_sha256": "a" * 64, "tokenizer_model": str(args.model_path),
+                               "chat_template_kwargs": {}, "selected_row_indices": list(range(128))}})
+            events = json.loads((root / "events.json").read_text())
+            self.assertEqual([e["kind"] for e in events], ["warmup"] + ["measured"] * 3)
+            self.assertTrue(all(e["event"] == "batch_complete" for e in events))
+            self.assertEqual(len(result["measurements"]), 3)
+            self.assertTrue(result["capture"]["four_decode_forwards_verified"])
+
+    def test_process_environ_permission_race_only_excuses_zombie_or_exit(self):
+        def stat(state):
+            return "90 (python) " + " ".join([state, "89", "90", "90"] + ["0"] * 15 + ["100"])
+        for final, allowed in [(stat("Z"), True), (FileNotFoundError(), True), (stat("S"), False)]:
+            states = iter([stat("S"), final])
+            def read_text(path, *args, **kwargs):
+                if path.name == "status": return "Uid:\t123\t123\t123\t123\nVmRSS:\t1 kB\n"
+                value = next(states)
+                if isinstance(value, Exception): raise value
+                return value
+            with patch.object(Path, "read_text", read_text), \
+                    patch.object(Path, "read_bytes", side_effect=PermissionError(13, "denied")):
+                if allowed: self.assertIsNone(D.process_info(90))
+                else:
+                    with self.assertRaises(PermissionError): D.process_info(90)
+
     def test_owned_group_rejects_reused_or_foreign_pid(self):
         leader = member()
         D.verify_owned_group([leader, member(pid=91, start=101)], leader, "run", 123)

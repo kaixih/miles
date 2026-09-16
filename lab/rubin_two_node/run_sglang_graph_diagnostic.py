@@ -175,6 +175,8 @@ def process_info(pid):
     p = Path("/proc") / str(pid)
     try:
         stat = p.joinpath("stat").read_text().rpartition(") ")[2].split()
+        if stat[0] == "Z":
+            return None
         status = dict(line.split(":", 1) for line in p.joinpath("status").read_text().splitlines() if ":" in line)
         env = dict(x.split(b"=", 1) for x in p.joinpath("environ").read_bytes().split(b"\0") if b"=" in x)
         return {"pid": pid, "ppid": int(stat[1]), "state": stat[0], "pgid": int(stat[2]),
@@ -185,6 +187,15 @@ def process_info(pid):
                 "argv_sha256": hashlib.sha256(p.joinpath("cmdline").read_bytes()).hexdigest()}
     except (FileNotFoundError, ProcessLookupError):
         return None
+    except PermissionError:
+        # A process can become a zombie after the initial stat read; its
+        # environ can then become unreadable. Never excuse a live process.
+        try:
+            if p.joinpath("stat").read_text().rpartition(") ")[2].split()[0] == "Z":
+                return None
+        except (FileNotFoundError, ProcessLookupError):
+            return None
+        raise
 
 
 def group_members(pgid):
@@ -239,9 +250,9 @@ class Runtime:
         self.child, self.leader = None, None
         self.events = []
 
-    def record(self, kind, **values):
+    def record(self, event_kind, **values):
         with self.lock:
-            self.events.append({"at": utc(), "event": kind, **values})
+            self.events.append({"at": utc(), "event": event_kind, **values})
             save(self.output / "events.json", self.events)
 
     def start(self, argv, log, env):
@@ -442,7 +453,15 @@ def run_mode(args, runtime, mode, token_input):
             save(directory / "summary.json", result)
             return result
         finally:
-            runtime.stop()
+            primary = sys.exc_info()[1]
+            try:
+                runtime.stop()
+            except Exception as cleanup_error:
+                if primary is not None:
+                    save(directory / "cleanup-failure.json", {"at": utc(),
+                        "primary_error": repr(primary), "cleanup_error": repr(cleanup_error)})
+                    raise primary from cleanup_error
+                raise
 
 
 def main():
