@@ -1,6 +1,7 @@
 """Focused CPU-only checks for ownership, timing labels and diagnostic bounds."""
 
 import datetime as dt
+import errno
 import importlib.util
 import json
 import os
@@ -247,6 +248,39 @@ while True:
                                          (leader["pgid"], leader["sid"], leader["start_ticks"], leader["uid"]))
                         child.kill()
                         child.wait(timeout=5)
+
+    @unittest.skipUnless(sys.platform == "linux", "Native Linux TCP TIME_WAIT and listener regression")
+    def test_native_linux_port_probe_accepts_time_wait_but_refuses_active_listener(self):
+        host = "127.0.0.1"
+        with D.socket.socket() as server, D.socket.socket() as client:
+            server.setsockopt(D.socket.SOL_SOCKET, D.socket.SO_REUSEADDR, 1)
+            server.bind((host, 0)); server.listen(1)
+            port = server.getsockname()[1]
+            server.settimeout(3); client.settimeout(3)
+            client.connect((host, port))
+            accepted, _ = server.accept()
+            accepted.close()  # Server actively closes: its port enters TIME_WAIT.
+            self.assertEqual(client.recv(1), b"")
+            client.close()
+        deadline = D.time.monotonic() + 3
+        while D.time.monotonic() < deadline:
+            rows = [line.split() for line in Path("/proc/net/tcp").read_text().splitlines()[1:]]
+            if any(int(row[1].rsplit(":", 1)[1], 16) == port and row[3] == "06" for row in rows):
+                break
+            D.time.sleep(.02)
+        else:
+            self.fail("Server-side TIME_WAIT was not observed within the bounded test")
+        with D.socket.socket() as plain:
+            with self.assertRaises(OSError) as refused:
+                plain.bind((host, port))
+            self.assertEqual(refused.exception.errno, errno.EADDRINUSE)
+        D.probe_engine_port(host, port)
+        with D.socket.socket() as active:
+            active.setsockopt(D.socket.SOL_SOCKET, D.socket.SO_REUSEADDR, 1)
+            active.bind((host, port)); active.listen(1)
+            with self.assertRaises(OSError) as refused:
+                D.probe_engine_port(host, port)
+            self.assertEqual(refused.exception.errno, errno.EADDRINUSE)
 
     def test_stop_only_own_group_and_refuses_changed_identity(self):
         with tempfile.TemporaryDirectory() as directory:

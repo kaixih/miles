@@ -389,6 +389,15 @@ def wait_ready(runtime, origin, host, port):
     raise TimeoutError("Engine startup exhausted its bounded budget")
 
 
+def probe_engine_port(host, port):
+    # A cleanly stopped prior engine can leave server-side TIME_WAIT sockets.
+    # Reuse their address, but listen too so a real active listener is refused.
+    with socket.socket() as probe:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        probe.bind((host, port))
+        probe.listen(1)
+
+
 def run_mode(args, runtime, mode, token_input):
     directory = runtime.output / mode
     directory.mkdir()
@@ -399,8 +408,7 @@ def run_mode(args, runtime, mode, token_input):
                        ("FLASHINFER_WORKSPACE_BASE", "flashinfer")]:
         env[key] = str(args.cache_dir / runtime.run_id / mode / child)
     origin = f"http://{args.host}:{args.port}"
-    with socket.socket() as probe:
-        probe.bind((args.host, args.port))  # Refuse an occupied port before starting an engine.
+    probe_engine_port(args.host, args.port)
     with (directory / "engine.log").open("w") as log:
         runtime.start(engine_argv(args, mode), log, env)
         try:
