@@ -5,7 +5,7 @@ import shlex
 import sys
 import types
 import unittest
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -67,6 +67,28 @@ class CheckpointLauncherTests(unittest.TestCase):
         self.assertNotIn("--save", argv)
         self.assertNotIn("--save-interval", argv)
         self.assertNotIn("--save-retain-interval", argv)
+
+
+class CudaGraphLauncherTests(unittest.TestCase):
+    def test_default_remains_eager_for_decode_and_prefill(self):
+        args = launcher.ScriptArgs()
+        argv = shlex.split(launcher._build_train_args(args))
+        self.assertFalse(args.sglang_enable_cuda_graph)
+        self.assertEqual(argv.count("--sglang-disable-cuda-graph"), 1)
+        self.assertEqual(argv.count("--sglang-disable-piecewise-cuda-graph"), 1)
+
+    def test_decode_graph_opt_in_changes_only_its_disable_flag(self):
+        for options in ({}, {"max_tokens_per_gpu": 4096, "save_interval": 10,
+                             "save_retain_interval": 1000000, "enable_eval": False}):
+            with self.subTest(options=options):
+                eager = launcher.ScriptArgs(**options)
+                enabled = replace(eager, sglang_enable_cuda_graph=True)
+                before = shlex.split(launcher._build_train_args(eager))
+                after = shlex.split(launcher._build_train_args(enabled))
+                self.assertEqual(after, [x for x in before if x != "--sglang-disable-cuda-graph"])
+                self.assertIn("--sglang-disable-piecewise-cuda-graph", after)
+                self.assertNotIn("--sglang-enforce-piecewise-cuda-graph", after)
+                self.assertNotIn("--sglang-enable-torch-compile", after)
 
 
 if __name__ == "__main__":

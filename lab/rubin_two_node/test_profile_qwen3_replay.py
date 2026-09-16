@@ -171,6 +171,29 @@ class ReplayTests(unittest.TestCase):
         self.assertNotIn("private-key", json.dumps(plan))
         self.assertFalse(Path(args.output_dir).exists())
 
+    def test_replay_preserves_source_decode_and_prefill_graph_policy(self):
+        for initial_policy in (False, True):
+            for decode_enabled in (False, True):
+                with self.subTest(initial_policy=initial_policy, decode_enabled=decode_enabled):
+                    args = self.args
+                    if initial_policy:
+                        args, _, _ = self._initial_fixture()
+                    else:
+                        self._write_source_argv(_source_argv())
+                    source = json.loads(Path(args.source_plan).read_text())
+                    source["argv"] += ["--sglang-disable-piecewise-cuda-graph"]
+                    if not decode_enabled:
+                        source["argv"] += ["--sglang-disable-cuda-graph"]
+                    self._write_source_argv(source["argv"])
+                    with self._initial_mounts():
+                        plan = P._build_plan(args)
+                    groups = P._flag_groups(shlex.split(plan["entrypoint"])[2:])
+                    graph_groups = [g for g in groups if "cuda-graph" in g[0]]
+                    expected = [["--sglang-disable-piecewise-cuda-graph"]]
+                    if not decode_enabled:
+                        expected += [["--sglang-disable-cuda-graph"]]
+                    self.assertEqual(graph_groups, expected)
+
     def test_initial_common_id_excludes_platform_host_paths_and_never_hashes_tensors(self):
         args, roots, _ = self._initial_fixture()
         original_hash = P._hash_file

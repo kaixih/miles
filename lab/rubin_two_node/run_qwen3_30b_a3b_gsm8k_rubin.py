@@ -23,6 +23,11 @@ Args:
   --eval-interval: Default 10, with evaluation before the first training rollout.
   --no-enable-eval: Disable evaluation for an explicitly bounded execution check.
   --rollout-max-context-len: 0 derives prompt plus response limits (512 + 1024).
+  --sglang-enable-cuda-graph: Enable SGLang's default decode CUDA Graph path by
+      omitting --sglang-disable-cuda-graph. Default false preserves the old eager
+      recipe. Piecewise/prefill CUDA Graph stays explicitly disabled in both
+      modes; this option does not enable torch.compile or force graph support.
+      Confirm actual capture/replay in SGLang logs before claiming graph use.
   --custom-rm-path: Async adapter for the original verl GSM8K answer scorer.
   --save-debug-event-data / --save-debug-rollout-data: Optional audit artifacts.
   --save-local-weight-checksum: Optional CPU tensor hashes after every optimizer
@@ -87,6 +92,7 @@ class ScriptArgs(U.ExecuteTrainConfig):
     max_tokens_per_gpu: int = 8192
     sglang_mem_fraction_static: float = 0.55
     sglang_max_running_requests: int = 128
+    sglang_enable_cuda_graph: bool = False
     rollout_num_gpus_per_engine: int = 1
     enable_eval: bool = True
     eval_interval: int = 10
@@ -245,11 +251,14 @@ def _training_args(args: ScriptArgs) -> str:
 
 
 def _build_train_args(args: ScriptArgs) -> str:
+    # Decode graphs and piecewise/prefill graphs are separate SGLang paths.
+    # Leave the latter off until it has its own explicit, validated recipe.
+    graph_args = "" if args.sglang_enable_cuda_graph else "--sglang-disable-cuda-graph "
     sglang_args = (
         f"--rollout-num-gpus-per-engine {args.rollout_num_gpus_per_engine} "
         "--sglang-ep-size 1 --sglang-dtype bfloat16 "
         "--sglang-moe-runner-backend triton --sglang-attention-backend triton --sglang-bf16-gemm-backend torch "
-        "--sglang-disable-cuda-graph --sglang-disable-piecewise-cuda-graph "
+        f"{graph_args}--sglang-disable-piecewise-cuda-graph "
         f"--sglang-context-length {args.context_length} "
         f"--sglang-mem-fraction-static {args.sglang_mem_fraction_static} "
         f"--sglang-max-running-requests {args.sglang_max_running_requests} "
