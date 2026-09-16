@@ -143,6 +143,32 @@ class AdapterTests(unittest.TestCase):
         evidence=M.load(self.base/'generated/rubin/evidence.json')
         self.assertEqual(evidence['wrapper_terminal']['status'],'FAILED')
 
+    def test_closed_failed_on_only_pair_is_unavailable(self):
+        import shutil
+        shutil.rmtree(self.node/'diagnostic/off')
+        self.write(self.node/'diagnostic/terminal.json',{'status':'FAILED','error':'synthetic failure'})
+        self.seal();p=self.root/'diagnostic-retention.json';receipt=M.load(p)
+        receipt['container_stopped_before_retention']=True;self.write(p,receipt)
+        self.run_build();pair=M.load(self.base/'generated/diagnostics.json')['pairs'][0]
+        self.assertFalse(pair['verified']);self.assertEqual(pair['status'],'unavailable')
+        self.assertEqual(pair['status_reason'],'ON capture retained; OFF did not run; see receipt.')
+        evidence=M.load(self.base/'generated/rubin/evidence.json')
+        for module in [M.wrapper,M.capture]:
+            self.assertEqual(evidence['offline_recompute_helper_sha256'][Path(module.__file__).name],M.sha(Path(module.__file__)))
+        records=M.load(self.base/'generated/profiles.json')['profiles']
+        self.assertNotIn('step[',records[0]['scope']);self.assertIn('batch 128',records[0]['scope'])
+        self.assertIn('128 input tokens total',records[0]['scope'])
+        self.assertIn('4,096 KV tokens total',records[1]['scope'])
+        self.assertIn('step[',records[1]['selection']['selected_forward']['annotation'])
+
+    def test_missing_summary_does_not_claim_off_never_ran(self):
+        (self.node/'diagnostic/off/summary.json').unlink()
+        self.write(self.node/'diagnostic/terminal.json',{'status':'FAILED','error':'synthetic failure'})
+        self.seal();p=self.root/'diagnostic-retention.json';receipt=M.load(p)
+        receipt['container_stopped_before_retention']=True;self.write(p,receipt)
+        self.run_build();pair=M.load(self.base/'generated/diagnostics.json')['pairs'][0]
+        self.assertEqual(pair['status'],'unavailable');self.assertNotIn('OFF did not run',pair['status_reason'])
+
     def test_request_from_another_capture_is_rejected(self):
         p=self.node/'diagnostic/on/measured-1.json';data=M.load(p)
         data['request']=M.capture.generation_request(self.frozen,'OTHER_CAPTURE-on-1')

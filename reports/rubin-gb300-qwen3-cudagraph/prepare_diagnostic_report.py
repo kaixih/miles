@@ -179,6 +179,31 @@ def select_forward(analyses, stage):
     return min(candidates, key=lambda v: v[:3]) if candidates else None
 
 
+def forward_scope(row, stage):
+    fields = row['fields']
+    details = []
+    if 'bs' in fields: details.append(f"batch {fields['bs']:,}")
+    if stage == 'prefill':
+        tokens = fields.get('toks', fields.get('c_sq'))
+        if tokens is not None: details.append(f"{tokens:,} input tokens total")
+    else:
+        tokens = fields.get('g_sk')
+        if tokens is not None: details.append(f"{tokens:,} KV tokens total")
+    return f"Earliest qualifying ON {stage}: " + (', '.join(details) or 'one paired forward') + '.'
+
+
+def diagnostic_state(verified, store, modes, analyses, terminal):
+    if verified: return 'available', 'Verified matched OFF/ON pair.'
+    closed_failed = (terminal.get('status') == 'FAILED'
+                     and store.receipt.get('container_stopped_before_retention') is True)
+    if closed_failed:
+        off_absent = not any(name.startswith('diagnostic/off/') for name in store.files)
+        if modes['on'] and analyses['on'] and off_absent:
+            return 'unavailable', 'ON capture retained; OFF did not run; see receipt.'
+        return 'unavailable', 'Matched OFF/ON evidence incomplete after wrapper failure; see receipt.'
+    return 'pending', 'Awaiting complete matched OFF/ON evidence.'
+
+
 def render_selected(selected, output, title, png):
     _, _, index, analysis, row = selected
     spec = importlib.util.spec_from_file_location('retained_trace_renderer', ROOT.parent / 'rubin-gb300-qwen3/render_trace.py')
@@ -232,6 +257,8 @@ def build(experiment, inputs, output, png=False):
             'retained_directory': str(store.root), 'retention': refs, 'checked_node_artifacts': store.checked, 'wrapper_terminal': terminal,
             'raw_modes': modes, 'analyses': analyses, 'wrapper_order': plan.get('order'),
             'utility_sha256': sha(Path(__file__)), 'analyzer_sha256': sha(LAB / 'analyze_sglang_graph_trace.py'),
+            'offline_recompute_helper_sha256': {Path(module.__file__).name: sha(Path(module.__file__))
+                                               for module in (wrapper, capture)},
             'limitations': ['Single TP1 initial-policy diagnostic, not four-engine main throughput.',
                 'HTTP timings include prefill/decode/queue/response; profiled forward durations include profiler overhead.',
                 'Initial input equality does not prove equal per-forward contexts, generated tokens or expert routing.',
@@ -244,9 +271,10 @@ def build(experiment, inputs, output, png=False):
             and sum(r.get('kernel_launch_calls_by_category', {}).values()) > 0 for r in off_decode)
         on_replay = any(r.get('decode_replay_proven') for a in analyses['on'] for r in a['forwards'])
         pair_verified = all(modes.values()) and off_eager and on_replay
+        pair_status, pair_reason = diagnostic_state(pair_verified, store, modes, analyses, terminal)
         diagnostics['pairs'].append({'platform': label, **bound, 'verified': pair_verified,
             'actual_trace_condition_proof': {'off_eager_decode_observed': off_eager, 'on_decode_replay_observed': on_replay},
-            'status': 'available' if pair_verified else 'pending', 'wrapper_terminal_status': terminal['status'], 'scope': 'One TP1 engine; 128 frozen requests × 64 output tokens; three cold-radix HTTP batches per mode, including prefill/decode/queue/response.',
+            'status': pair_status, 'status_reason': pair_reason, 'wrapper_terminal_status': terminal['status'], 'scope': 'One TP1 engine; 128 frozen requests × 64 output tokens; three cold-radix HTTP batches per mode, including prefill/decode/queue/response.',
             'evidence_refs': refs, **modes})
         rows = [r for a in analyses['on'] for r in a['forwards']]
         decode = [r for r in rows if r['stage'] == 'DECODE']; replay = sum(bool(r.get('decode_replay_proven')) for r in decode)
@@ -266,11 +294,11 @@ def build(experiment, inputs, output, png=False):
                 rendered = render_selected(chosen, output / label / stage, record['title'], png)
                 row = chosen[-1]; source = chosen[-2]['source']
                 record.update(verified=True, trace=source['path'], source_trace_sha256=source['sha256'],
-                    scope=f"ON diagnostic; earliest qualifying {row['annotation']}; one selected forward. Full mixed/stage trace retained.",
+                    scope=forward_scope(row, stage),
                     observations=[f"GPU annotation: {float(row['gpu_duration_ms']):.3f} ms.",
                         f"Recorded kernel union: {float(row['kernel_intervals']['union_ms']):.3f} ms; not utilization.",
                         'Actual graph replay observed.' if stage == 'decode' else 'Kernel launches observed; no graph launch in this paired EXTEND.'],
-                    caption='Rendered from actual retained trace. Instrumented one-engine scope; context/routing not proven matched across platforms.',
+                    caption='Actual trace window, including overlapping device work and profiler overhead. One engine; context/routing not proven matched across platforms.',
                     selection=rendered, evidence_refs=refs)
                 if rendered.get('png'): record['image'] = rendered['png']
             profiles['profiles'].append(record)

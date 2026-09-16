@@ -65,10 +65,16 @@ slide("Gradient signal and held-out evaluation","07 / Learning evidence",`<div c
 slide("System timing after warmup","08 / Unprofiled performance",`<div class="chart-columns content"><div><h3>Miles step timer</h3><div id="time-chart" class="chart half"></div></div><div><h3>Generation throughput</h3><div id="throughput-chart" class="chart half"></div></div></div><p class="chart-note">Excludes rollout0, incomplete/profiled work and recorded save/I/O intervals. Missing observations stay as gaps.</p>`,"Throughput = retained output tokens / generation seconds / GPUs. Record graph replay and fallback coverage before interpreting the curves.");
 slide("Stage timing on the same rollout IDs","09 / Paired system measurements",`<p class="subtitle">${paired.count?`Shared eligible observations: N=${paired.count}`:"PENDING / no shared eligible observations"}</p><div id="stage-chart" class="chart short"></div><p class="chart-note">${paired.count?`Shared IDs: ${e(paired.rollout_ids.join(", "))}`:"Both new runs must supply complete, explicitly unprofiled timing evidence."}</p>`,"Nested stage timers are not additive. A measured difference alone does not identify its hardware, software or host cause.");
 
-const verifiedPairs=(diagnostics.pairs||[]).filter(pair=>pair.verified===true);
+function diagnosticRow(label){
+  const pair=(diagnostics.pairs||[]).find(item=>item.platform===label);
+  const verified=pair?.verified===true;
+  const state=verified?"available":pair?.status==="unavailable"?"unavailable":"pending";
+  const reason=pair?.status_reason||(verified?"Verified matched OFF/ON pair.":"Awaiting complete matched OFF/ON evidence.");
+  return `<tr data-diagnostic-platform="${e(label)}" data-diagnostic-status="${state}" data-diagnostic-verified="${verified}"><td>${e(name(label))}</td><td data-mode="off">${verified?`${number(pair.off?.generation_seconds_mean,3)} s`:"—"}</td><td data-mode="on">${verified?`${number(pair.on?.generation_seconds_mean,3)} s`:"—"}</td><td><strong>${verified?"Verified pair":state==="unavailable"?"Unavailable":"Pending"}</strong><br><span class="small">${e(reason)}</span></td></tr>`;
+}
 slide("Separate generation-only OFF / ON diagnostic","10 / Attribution",`
   <p class="subtitle">Same initial policy and fixed request/context evidence within each platform.</p>
-  ${verifiedPairs.length?`<table class="table content"><thead><tr><th>Platform</th><th>OFF mean request</th><th>ON mean request</th><th>Scope</th></tr></thead><tbody>${verifiedPairs.map(pair=>`<tr><td>${e(name(pair.platform))}</td><td>${number(pair.off?.generation_seconds_mean,3)} s</td><td>${number(pair.on?.generation_seconds_mean,3)} s</td><td>${e(pair.scope)}</td></tr>`).join("")}</tbody></table>`:`<div class="chart short">${pending("PENDING / UNMEASURED","No verified matched OFF/ON diagnostic has been supplied. The old trace is not a replacement for this pair.")}</div>`}
+  <table class="table content"><thead><tr><th>Platform</th><th>OFF mean request</th><th>ON mean request</th><th>Evidence state</th></tr></thead><tbody>${requested.platforms.map(diagnosticRow).join("")}</tbody></table>
   <p class="chart-note">Request time includes prefill + decode, queueing and response delivery. One TP1 engine; input/output token counts and cache policy remain in the raw receipts.</p>`,"Full HTTP generation time is separate from trace-only decode spans and the 50-rollout learning run. No end-to-end Miles speedup is inferred.");
 
 let profileSequence=11;
