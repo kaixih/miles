@@ -18,7 +18,7 @@ not the Miles hardware-performance baseline. New training results are pending.
 | Algorithm | GRPO, token-mean loss, clip 0.2/0.28, dual clip 10 |
 | Optimizer | Adam lr 1e-6, betas 0.9/0.999, epsilon 1e-8, weight decay 0.1, grad clip 1 |
 | Reference KL | Loss coefficient 0.001, low-var estimator; no KL reward penalty |
-| Training layout | TP1 / PP1 / CP1 / EP4, expert TP1, BF16, TE FA2 |
+| Training layout | TP1 / PP1 / CP1 / EP4, expert TP1, BF16, TE `flash` policy |
 | Rollout layout | Four TP1 engines, BF16, Triton attention/MoE, Torch GEMM |
 | Runtime | Colocate/offload, 8192 training tokens/GPU, CUDA graphs disabled |
 | Evaluation | Fixed 256 GSM8K test questions, seed 42, before training and every 10 rollouts |
@@ -75,6 +75,12 @@ CUDA 13.0, Torch 2.13.0+cu130, TE 2.17.0 and SGLang
 training arguments with each run: this compares the available Miles runtimes
 on the two platforms, with dependency-version differences visible. It is not a
 measurement isolating hardware alone.
+
+Rubin's image supplies FA2. The upstream GB300 image also supplies FA4
+4.0.0b19, which its TE selected in the d128 forced-flash numerical smoke.
+Record the actual packed-training attention backend from the training trace;
+the common `flash` policy does not guarantee the same FA implementation for
+every layout or software version.
 
 The upstream image stores editable source under `/root`; its directory needs
 traverse permission for the normal container UID. A container-local
