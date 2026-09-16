@@ -23,13 +23,15 @@ function slide(title,kicker,body,footnote="",dark=false){
   document.getElementById("deck").insertAdjacentHTML("beforeend",`<section id="slide-${id}" class="slide${dark?" dark":""}" aria-label="Slide ${id}: ${e(title)}"><div class="kicker">${e(kicker)}</div>${dark?"":`<h2>${e(title)}</h2>`}${body}<div class="footnote">${footnote}</div><div class="page-number">${String(id).padStart(2,"0")}</div></section>`);
 }
 const allComplete=runs.length===2&&runs.every(complete);
+const capturedReplayVerified=requested.platforms.length===2&&requested.platforms.every(label=>
+  (profiles.graph_evidence||[]).some(proof=>proof.run_label===label&&proof.verified===true&&finite(proof.decode_graph_replays)&&proof.decode_graph_replays>0));
 slide("Qwen3 with decode CUDA Graph","New experiment / Rubin and GB300",`
   <h1>Qwen3 with<br>decode CUDA Graph</h1>
   <p class="cover-subtitle">One node and four GPUs on each platform.<br>New learning curves and measured graph replay.</p>
-  <div class="cover-bottom"><div><p class="status ${allComplete?"complete":runs.length?"partial":"pending"}">${allComplete?"Both main runs complete":runs.length?"New evidence / completion under review":"PENDING / UNMEASURED"}</p><p class="small">Decode ON and prefill OFF are requested settings.<br>Observed capture and replay need separate evidence.</p></div><p class="small">${e(experiment.experiment_id)}<br>${e(INPUT.comparison?.collected_at||"No new metrics snapshot")}</p></div>`,"The previous eager report remains a separate, preserved artifact.",true);
+  <div class="cover-bottom"><div><p class="status ${allComplete?"complete":runs.length?"partial":"pending"}">${allComplete?"Both main runs complete":runs.length?"New evidence / completion under review":"PENDING / UNMEASURED"}</p><p class="small">${capturedReplayVerified?"Decode replay verified in captured windows.<br>Full-run coverage is not inferred.":"Decode ON and prefill OFF are requested settings.<br>Observed capture and replay need separate evidence."}</p></div><p class="small">${e(experiment.experiment_id)}<br>${e(INPUT.comparison?.collected_at||"No new metrics snapshot")}</p></div>`,"The previous eager report remains a separate, preserved artifact.",true);
 
 slide("The comparison changes decode execution","01 / Intended experiment",`
-  <div class="columns content"><div class="rule"><h3>Common new recipe</h3><p>Qwen3-30B-A3B on GSM8K.<br>50 rollouts, 200 optimizer updates.<br>4,096 training tokens per GPU.</p><p class="callout">Decode CUDA Graph ON.<br>Prefill CUDA Graph OFF.</p></div><div class="rule"><h3>Interpretation boundaries</h3><p>Keep each platform’s existing image and kernel choices.</p><p>The previous GB300 run used 8,192 training tokens/GPU. Its old-to-new change includes both graph mode and token budget.</p></div></div>`,"These are planned settings. Actual recipes and replay evidence appear on the following slides. Software differences remain part of the system comparison.");
+  <div class="columns content"><div class="rule"><h3>Common new recipe</h3><p>Qwen3-30B-A3B on GSM8K.<br>50 rollouts, 200 optimizer updates.<br>4,096 training tokens per GPU.</p><p class="callout">Decode CUDA Graph ON.<br>Prefill CUDA Graph OFF.</p></div><div class="rule"><h3>Interpretation boundaries</h3><p>Keep each platform’s existing image and kernel choices.</p><p>GB300’s old-to-new change includes decode graph mode, training and log-prob budgets (8,192 → 4,096 tokens/GPU), and the save schedule.</p></div></div>`,"These are planned settings. Actual recipes and replay evidence appear on the following slides. Software differences remain part of the system comparison.");
 
 slide("New runs and completion evidence","02 / Actual run state",`
   <div class="columns content">${requested.platforms.map((label,i)=>{
@@ -92,8 +94,22 @@ for(const platform of requested.platforms){
 }
 
 const prior=experiment.previous_report,priorHref=prior?.href&&!/[:\\]/.test(prior.href)?prior.href:null;
+const finalStageLabels={rollout:"generation",actor_train:"actor update",log_probs:"old log prob",ref_log_probs:"reference",update_weights:"weight sync"};
+const generationMeans=requested.platforms.map(label=>paired.statistics?.[label]?.rollout);
+const measuredFinal=allComplete&&paired.count>0&&generationMeans.every(value=>value?.paired_metric_available===true&&finite(value.mean_seconds));
+const finalGap=paired.largest_observed_stage_gap;
+const gapMeans=finalGap?requested.platforms.map(label=>paired.statistics?.[label]?.[finalGap.stage]?.mean_seconds):[];
+const gapMeasured=measuredFinal&&gapMeans.length===2&&gapMeans.every(finite);
+const gapDifference=gapMeasured?gapMeans[1]-gapMeans[0]:null;
+const gapLonger=gapMeasured?name(requested.platforms[gapDifference>=0?1:0]):null;
+const finalFindings=measuredFinal?`
+  <h3>Measured system takeaways</h3>
+  <p class="small">Mean generation: ${requested.platforms.map((label,i)=>`${e(name(label))} ${number(generationMeans[i].mean_seconds,1)} s`).join("; ")}.<br>Same ${paired.count} eligible rollout IDs.</p>
+  ${gapMeasured?`<p class="small">Largest stage gap: ${e(finalStageLabels[finalGap.stage]||finalGap.stage)}, ${e(gapLonger)} ${number(Math.abs(gapDifference),1)} s longer per rollout.</p>`:'<p class="small">Stage gap awaits complete paired timing evidence.</p>'}
+  <p class="small">System timers; nested stages are not additive. Software differs, and GPU causality remains unresolved.</p>`:
+  `<h3>${allComplete?"Main runs complete":"Conclusions require measurements"}</h3><p class="small">${allComplete?"Paired timing remains pending. Graph verification and diagnostic export have independent evidence states.":"New run completion and performance remain under review. Pending sections carry no measured conclusion."}</p><p class="small">${e(experiment.runtime_note)}</p>`;
 slide("Evidence, limits and the preserved baseline","15 / Provenance",`
-  <div class="columns content"><div><h3>New experiment inputs</h3>${REPORT.provenance.map(p=>`<div class="input-evidence-row"><span>${e(p.section)}</span><span class="hash">${p.status==="loaded"?e(p.sha256.slice(0,12)):"PENDING"}</span></div>`).join("")}<p class="small" style="margin-top:24px"><a href="report-data.json" download>Complete recipes, raw observations and hashes</a><br><a href="asset-manifest.json" download>Local artifact checksums</a></p></div><div><h3>Conclusions require measurements</h3><p>${allComplete?"Main training is complete. Graph coverage and diagnostic export retain their separate evidence states.":"New run completion and performance remain under review. Pending sections carry no measured conclusion."}</p><p class="small">${e(experiment.runtime_note)}</p>${priorHref?`<p><a href="${e(priorHref)}">${e(prior.label)}</a></p>`:""}<p class="small muted">${e(prior?.scope_note||"")}</p></div></div>`,"The previous report remains separate. Downloadable evidence preserves exact run identity and does not merge attempts.");
+  <div class="columns content"><div><h3>New experiment inputs</h3>${REPORT.provenance.map(p=>`<div class="input-evidence-row"><span>${e(p.section)}</span><span class="hash">${p.status==="loaded"?e(p.sha256.slice(0,12)):"PENDING"}</span></div>`).join("")}<p class="small" style="margin-top:24px"><a href="report-data.json" download>Complete recipes, raw observations and hashes</a><br><a href="asset-manifest.json" download>Local artifact checksums</a></p></div><div>${finalFindings}${priorHref?`<p class="small"><a href="${e(priorHref)}">Original eager report: preserved separately</a></p>`:""}<p class="small muted">${e(prior?.scope_note||"")}</p></div></div>`,"The previous report remains separate. Downloadable evidence preserves exact run identity and does not merge attempts.");
 
 const plotJobs=[];
 function draw(id,traces,{yTitle="",xTitle="Rollout ID",percent=false,layout={}}={}){

@@ -57,6 +57,22 @@ exact labeled diagnostic container. If retention fails, partial durable files
 and unchanged node-local files remain; no successful retention receipt is
 claimed. Raw partial traces are preserved with explicit validity failures.
 
+For the GB upstream image with `megatron_path=/root/Megatron-LM`, normal and
+recovery operators verify the new container and armed guard, then add only
+`o+x` to its root-owned, nonsymlink `/root` directory. A host bind at `/root`
+is refused. This repeats the main-container traversal fix for editable package
+sources without changing packages or the image. The operator records the exact
+before/after modes in `gb-root-traversal.json`, then verifies `megatron.core`
+as UID28644:GID30 with `CUDA_VISIBLE_DEVICES=''` and saves the CPU import result
+in `gb-editable-import-probe.json`; failed imports get a separate failure receipt.
+
+`recover_cudagraph_diagnostic.py` requires the prior exact diagnostic to be
+stopped and its artifacts stably retained, plus the original completed-main
+evidence. It inherits the prior operator's exact `off,on` or `on,off` order in
+its printed plan, saved plan and engine arguments. Recovery uses the original
+guard's numeric deadline and a fresh output ID; it grants no additional time
+and never restarts the main run.
+
 The host operator needs the sibling main-driver, metrics-parser, watchdog API
 and capture helper modules available in its reviewed source directory. It
 copies only the two standalone engine/capture helpers into the new container,

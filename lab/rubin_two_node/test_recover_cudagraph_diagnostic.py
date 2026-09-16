@@ -90,6 +90,17 @@ class RecoveryTests(unittest.TestCase):
             self.assertEqual(proof["summary"]["completed_training_rollouts"], list(range(50)))
             self.assertEqual(proof["job"]["status"], "SUCCEEDED")
 
+    def test_recovery_inherits_both_valid_orders_and_refuses_other_orders(self):
+        with tempfile.TemporaryDirectory() as tmp, self.owned():
+            c, prior, records, deadline, now, _, _ = self.fixture(tmp)
+            for order in ("off,on", "on,off"):
+                records["operator-plan.json"]["order"] = order
+                self.assertEqual(R.validate_prior(c, prior, records, deadline, now)["order"], order)
+                self.assertEqual(R.inherited_order(records), order)
+            for order in (None, "on", "off,off", "on,off,on", ["off", "on"]):
+                records["operator-plan.json"]["order"] = order
+                with self.assertRaises(ValueError): R.validate_prior(c, prior, records, deadline, now)
+
     def test_missing_real_update_rejected_despite_200_receipt_claim(self):
         with tempfile.TemporaryDirectory() as tmp, self.owned():
             c, prior, records, deadline, now, _, _ = self.fixture(tmp, missing_update=True)

@@ -317,6 +317,65 @@ def docker_command(c):
     return args + [c["image"], "sleep", "infinity"]
 
 
+def gb_root_traversal_action():
+    """Run only as root inside the verified fresh GB diagnostic container."""
+    import os
+    import stat
+    if os.geteuid() != 0:
+        raise ValueError("Scoped /root permission action requires effective UID0")
+    fd = os.open("/root", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        before = os.fstat(fd)
+        if before.st_uid != 0 or not stat.S_ISDIR(before.st_mode):
+            raise ValueError("Require a nonsymlink root-owned /root directory")
+        mode = stat.S_IMODE(before.st_mode)
+        os.fchmod(fd, mode | 0o001)
+        after = os.fstat(fd)
+        if ((after.st_dev, after.st_ino, after.st_uid) != (before.st_dev, before.st_ino, 0)
+                or stat.S_IMODE(after.st_mode) != mode | 0o001):
+            raise ValueError("Unexpected /root identity or permission change")
+        return {"path": "/root", "uid": 0, "before_mode": oct(mode),
+                "after_mode": oct(stat.S_IMODE(after.st_mode)), "added_permission": "o+x only"}
+    finally:
+        os.close(fd)
+
+
+def prepare_gb_editable_sources(c, diagnostic_id, guard):
+    if c.get("platform") != "gb300":
+        return
+    if c.get("megatron_path") != "/root/Megatron-LM":
+        raise ValueError("GB editable-source action requires exact /root/Megatron-LM path")
+    expected = {"state": "armed", "container_id": diagnostic_id, "deadline": guard.get("deadline")}
+    if (any(guard.get(k) != v for k, v in expected.items()) or guard["deadline"] <= time.time()
+            or json.loads(remote(c, ["cat", c["node_base"] + "/guard-state.json"], 10)) != expected):
+        raise ValueError("Exact diagnostic deadline guard must be armed before permission preparation")
+    current = json.loads(remote(c, ["docker", "inspect", diagnostic_id]))[0]
+    container_identity(c, current, c["image_id"], True)
+    if current["Id"] != diagnostic_id or any(m["Destination"] in ("/", "/root") for m in current["Mounts"]):
+        raise ValueError("Refuse replaced diagnostic or host-backed /root")
+    root = Path(c["durable"])
+    code = inspect.getsource(gb_root_traversal_action) + "\nimport json;print(json.dumps(gb_root_traversal_action()))"
+    result = json.loads(remote(c, ["docker", "exec", "--user", "0", diagnostic_id, "python3", "-c", code]))
+    write(root / "gb-root-traversal.json", {"at": utc(), "container_id": diagnostic_id,
+          "image_id": c["image_id"], "guard_deadline": guard["deadline"], **result})
+    probe = """import os,json,importlib
+assert (os.getuid(),os.getgid())==(28644,30) and os.environ.get('CUDA_VISIBLE_DEVICES')==''
+path='/root/Megatron-LM/megatron/core/__init__.py'
+assert os.access(path,os.R_OK)
+module=importlib.import_module('megatron.core')
+assert module.__file__==path
+print(json.dumps({'uid':os.getuid(),'gid':os.getgid(),'cuda_visible_devices':os.environ['CUDA_VISIBLE_DEVICES'],'module_file':module.__file__,'import_ok':True}))
+"""
+    try:
+        output = remote(c, ["docker", "exec", "--user", "28644:30", "--env", "CUDA_VISIBLE_DEVICES=",
+                            diagnostic_id, "python3", "-c", probe], 120)
+        verified = json.loads(output.splitlines()[-1])
+        write(root / "gb-editable-import-probe.json", {"at": utc(), "container_id": diagnostic_id, **verified})
+    except BaseException as error:
+        write(root / "gb-editable-import-probe-failure.json", {"at": utc(), "container_id": diagnostic_id, "error": repr(error)})
+        raise
+
+
 def execute(c, order, port):
     if (os.getuid(), os.getgid()) != (28644, 30): raise ValueError("Run on dl3 as UID28644:GID30")
     root = Path(c["durable"])
@@ -399,6 +458,7 @@ def execute(c, order, port):
         guard_check = "import os;from pathlib import Path;p=" + repr(guard["pid"]) + ";os.kill(p,0);assert int(Path('/proc',str(p),'stat').read_text().rpartition(') ')[2].split()[19])==" + repr(guard["start_ticks"])
         remote(c, ["python3", "-c", guard_check])
         write(root / "guard-armed.json", {**guard, **armed})
+        prepare_gb_editable_sources(c, diagnostic_id, {**guard, **armed})
         argv = ["docker", "exec", diagnostic_id, "python3", "-u", "/opt/diagnostic/run_sglang_graph_diagnostic.py",
             "--identity-file", "/run-output/diagnostic-identity.json", "--model-path", "/models/Qwen3-30B-A3B",
             "--dataset", "/inputs/train.jsonl", "--output-dir", "/run-output/diagnostic", "--host", c["node_ip"],

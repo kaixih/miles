@@ -6,6 +6,7 @@ import io
 import json
 import os
 import shutil
+import stat
 from pathlib import Path
 import subprocess
 import sys
@@ -13,6 +14,7 @@ import tempfile
 import time
 import unittest
 from unittest.mock import Mock, patch
+from types import SimpleNamespace
 from contextlib import ExitStack, redirect_stdout
 
 DIR = Path(__file__).parent
@@ -57,6 +59,55 @@ def completed(c):
 
 
 class OperatorTests(unittest.TestCase):
+    def test_scoped_root_action_adds_only_other_execute_to_verified_directory(self):
+        before = SimpleNamespace(st_uid=0, st_mode=stat.S_IFDIR | 0o700, st_dev=1, st_ino=2)
+        after = SimpleNamespace(st_uid=0, st_mode=stat.S_IFDIR | 0o701, st_dev=1, st_ino=2)
+        with patch.object(O.os, "geteuid", return_value=0), patch.object(O.os, "open", return_value=17) as opened, \
+                patch.object(O.os, "fstat", side_effect=[before, after]), patch.object(O.os, "fchmod") as chmod, \
+                patch.object(O.os, "close") as closed:
+            result = O.gb_root_traversal_action()
+        opened.assert_called_once_with("/root", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        chmod.assert_called_once_with(17, 0o701); closed.assert_called_once_with(17)
+        self.assertEqual((result["before_mode"], result["after_mode"]), ("0o700", "0o701"))
+        for uid, mode in [(28644, stat.S_IFDIR | 0o700), (0, stat.S_IFLNK | 0o777)]:
+            with patch.object(O.os, "geteuid", return_value=0), patch.object(O.os, "open", return_value=17), \
+                    patch.object(O.os, "fstat", return_value=SimpleNamespace(st_uid=uid, st_mode=mode)), \
+                    patch.object(O.os, "fchmod") as chmod, patch.object(O.os, "close"):
+                with self.assertRaises(ValueError): O.gb_root_traversal_action()
+                chmod.assert_not_called()
+
+    def test_gb_preparation_checks_guard_exact_container_then_records_cpu_import(self):
+        with tempfile.TemporaryDirectory() as directory:
+            c = {**config(), "platform": "gb300", "megatron_path": "/root/Megatron-LM", "durable": directory}
+            actual = info(c, True); cid = actual["Id"]
+            guard = {"state": "armed", "container_id": cid, "deadline": time.time() + 1200}
+            def response(conf, argv, timeout=60):
+                if argv[0] == "cat": return json.dumps(guard)
+                if argv[:2] == ["docker", "inspect"]: return json.dumps([actual])
+                if argv[:4] == ["docker", "exec", "--user", "0"]:
+                    self.assertEqual(argv[4], cid)
+                    return json.dumps({"path": "/root", "before_mode": "0o700", "after_mode": "0o701"})
+                self.assertEqual(argv[:7], ["docker", "exec", "--user", "28644:30", "--env", "CUDA_VISIBLE_DEVICES=", cid])
+                return json.dumps({"uid": 28644, "gid": 30, "import_ok": True, "module_file": "/root/Megatron-LM/megatron/core/__init__.py"})
+            with patch.object(O, "remote", side_effect=response):
+                O.prepare_gb_editable_sources(c, cid, guard)
+            self.assertTrue(json.loads(Path(directory, "gb-editable-import-probe.json").read_text())["import_ok"])
+            self.assertEqual(json.loads(Path(directory, "gb-root-traversal.json").read_text())["container_id"], cid)
+            for kind in ("unarmed", "wrong_image", "root_bind"):
+                bad_guard, bad_info = dict(guard), copy.deepcopy(actual)
+                if kind == "unarmed": bad_guard["state"] = "expired"
+                if kind == "wrong_image": bad_info["Image"] = "other"
+                if kind == "root_bind": bad_info["Mounts"].append({"Destination": "/root", "Source": "/host/root", "RW": True})
+                def bad_response(conf, argv, timeout=60):
+                    if argv[0] == "cat": return json.dumps(guard)
+                    if argv[:2] == ["docker", "inspect"]: return json.dumps([bad_info])
+                    self.fail("Refused identity must never execute container action")
+                with patch.object(O, "remote", side_effect=bad_response), self.assertRaises(ValueError):
+                    O.prepare_gb_editable_sources(c, cid, bad_guard)
+            with patch.object(O, "remote") as remote:
+                O.prepare_gb_editable_sources({**c, "platform": "rubin"}, cid, guard)
+                remote.assert_not_called()
+
     def exercise_execution(self, directory, incomplete=False, unstable=False, missing_update=False):
         """Real split login/node files, node read/snapshot, retention and log parser; no GPU or SSH."""
         directory = str(Path(directory).resolve())

@@ -42,7 +42,7 @@
     "label": "Original eager experiment: separate preserved report",
     "href": "../../rubin-gb300-qwen3/site/index.html",
     "comparison_sha256": "89f46cb823c7702cc87604ad6ca83aaa28b75aba2def693af5a81cf6356594e6",
-    "scope_note": "Old Rubin A2 used 4096 training tokens/GPU; old GB300 used 8192. New GB300 changes both graph mode and training budget. The old runs had different save schedules."
+    "scope_note": "Old Rubin A2 used 4,096 training tokens/GPU. GB300 changed both training and log-prob budgets from 8,192 to 4,096 tokens/GPU, alongside decode graph mode and a different save schedule."
   },
   "runtime_note": "Keep the prior Rubin image and unmodified upstream GB300 image. Software versions differ; results describe the recorded systems.",
   "diagnostic_note": "A separate bounded generation-only OFF/ON pair after the main runs will use identical initial policy and request/context evidence. No full trainer profiler is planned."

@@ -58,13 +58,21 @@ def stopped(c, info, expected_id, diagnostic=False):
         raise ValueError("Exact prior container must already be stopped")
 
 
+def inherited_order(records):
+    order = records["operator-plan.json"].get("order")
+    if order not in ("off,on", "on,off"):
+        raise ValueError("Prior operator must record exactly off,on or on,off order")
+    return order
+
+
 def validate_prior(c, prior, records, deadline, now):
     old = records["operator-plan.json"]
     old_c = old["config"]
     if any(c.get(k) != old_c.get(k) for k in MAIN_KEYS):
         raise ValueError("Original main config, source, input paths, or lease differs")
-    if old.get("order") != "on,off" or old_c.get("diagnostic_run") == c["diagnostic_run"]:
-        raise ValueError("Preserve on,off protocol and select a fresh diagnostic ID")
+    order = inherited_order(records)
+    if old_c.get("diagnostic_run") == c["diagnostic_run"]:
+        raise ValueError("Preserve prior order and select a fresh diagnostic ID")
     if str(prior) != old_c.get("durable"):
         raise ValueError("Prior evidence directory is not the original operator directory")
     old_id = records["diagnostic-identity.json"]
@@ -126,7 +134,7 @@ def validate_prior(c, prior, records, deadline, now):
         raise ValueError("Prior diagnostic did not bind the same completed main submission")
     return {"old_config": old_c, "old_identity": old_id, "summary": summary,
             "watchdog": watchdog, "job": job, "driver": driver, "train": train,
-            "main_id": main_stop["container_id"]}
+            "main_id": main_stop["container_id"], "order": order}
 
 
 def execute(c, prior, records, receipt_hashes, deadline, hashes, port):
@@ -156,7 +164,7 @@ def execute(c, prior, records, receipt_hashes, deadline, hashes, port):
     root.mkdir()
     O.write(root / "recovery-plan.json", {"config": c, "prior_directory": str(prior),
         "prior_receipt_sha256": receipt_hashes, "source_sha256": hashes, "allocation": allocation,
-        "fixed_original_deadline": deadline, "deadline_extended": False, "order": "on,off",
+        "fixed_original_deadline": deadline, "deadline_extended": False, "order": proof["order"],
         "port": port, "main_submission_id": proof["job"]["submission_id"],
         "interpretation": "Fresh standalone initial-policy diagnostic; main remains stopped and unchanged"})
     O.node(c, "prepare")
@@ -196,11 +204,12 @@ def execute(c, prior, records, receipt_hashes, deadline, hashes, port):
         probe = "from pathlib import Path;import os;assert(os.getuid(),os.getgid())==(28644,30);p=Path('/run-output/.host-writer-probe');assert p.read_text()==" + repr(c["diagnostic_run"]) + ";p.unlink();q=Path('/run-output/.container-writer-probe');q.write_text('container28644');assert q.stat().st_uid==28644"
         O.remote(c, ["docker", "exec", diagnostic_id, "python3", "-c", probe])
         O.remote(c, ["python3", "-c", "from pathlib import Path;p=Path(" + repr(c["node_base"] + "/run/.container-writer-probe") + ");assert p.read_text()=='container28644' and p.stat().st_uid==28644;p.unlink()"])
+        O.prepare_gb_editable_sources(c, diagnostic_id, {**guard, **armed})
         deadline_check(deadline, records["guard-armed.json"], c["lease_timestamp"], time.time())
         argv = ["docker", "exec", diagnostic_id, "python3", "-u", "/opt/diagnostic/run_sglang_graph_diagnostic.py",
             "--identity-file", "/run-output/diagnostic-identity.json", "--model-path", "/models/Qwen3-30B-A3B",
             "--dataset", "/inputs/train.jsonl", "--output-dir", "/run-output/diagnostic", "--host", c["node_ip"],
-            "--port", str(port), "--order", "on,off", "--deadline-utc", O.utc(deadline), "--execute"]
+            "--port", str(port), "--order", proof["order"], "--deadline-utc", O.utc(deadline), "--execute"]
         with (root / "wrapper-console.log").open("x") as log:
             try:
                 result = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", c["node"], shlex.join(argv)],
@@ -252,7 +261,7 @@ def main():
     print(json.dumps({"mode": "EXECUTE" if a.execute else "PLAN_ONLY_NO_REMOTE_CALLS", "config": c,
         "prior_directory": str(a.prior_directory), "prior_receipt_sha256": receipt_hashes,
         "source_sha256": hashes, "fixed_original_deadline": O.utc(deadline), "deadline_extended": False,
-        "order": "on,off", "port": a.port, "docker_argv": O.docker_command(c)}, indent=2), flush=True)
+        "order": inherited_order(records), "port": a.port, "docker_argv": O.docker_command(c)}, indent=2), flush=True)
     if a.execute: execute(c, a.prior_directory, records, receipt_hashes, deadline, hashes, a.port)
 
 
