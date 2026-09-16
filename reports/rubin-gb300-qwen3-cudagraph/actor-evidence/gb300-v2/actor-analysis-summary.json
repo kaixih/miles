@@ -1,0 +1,762 @@
+{
+  "schema": "actor-update-trace-analysis-v1",
+  "status": "ANALYZED",
+  "timestamp_unit": "microseconds",
+  "raw_event_count": 239122,
+  "valid_complete_events": 156494,
+  "invalid_complete_events": 393,
+  "window": {
+    "cpu_annotation": "actor.selected_microbatch",
+    "capture_window": "single_forward_backward_microbatch",
+    "microbatch_index": 1,
+    "event_index": 71,
+    "start_timestamp_us": 6610348367471.345,
+    "duration_ms": 2048.493546875,
+    "cpu_pid": 4148,
+    "cpu_tid": 4148,
+    "device": "0",
+    "gpu_annotation_matches": 1,
+    "gpu_annotation_duration_ms": 0.0024980000000000002
+  },
+  "device_properties": [
+    {
+      "id": 0,
+      "name": "NVIDIA GB300",
+      "totalGlobalMem": 297020948480,
+      "computeMajor": 10,
+      "computeMinor": 3,
+      "maxThreadsPerBlock": 1024,
+      "maxThreadsPerMultiprocessor": 2048,
+      "regsPerBlock": 65536,
+      "warpSize": 32,
+      "sharedMemPerBlock": 49152,
+      "numSms": 152,
+      "regsPerMultiprocessor": 65536,
+      "sharedMemPerBlockOptin": 232448,
+      "sharedMemPerMultiprocessor": 233472
+    },
+    {
+      "id": 1,
+      "name": "NVIDIA GB300",
+      "totalGlobalMem": 297020948480,
+      "computeMajor": 10,
+      "computeMinor": 3,
+      "maxThreadsPerBlock": 1024,
+      "maxThreadsPerMultiprocessor": 2048,
+      "regsPerBlock": 65536,
+      "warpSize": 32,
+      "sharedMemPerBlock": 49152,
+      "numSms": 152,
+      "regsPerMultiprocessor": 65536,
+      "sharedMemPerBlockOptin": 232448,
+      "sharedMemPerMultiprocessor": 233472
+    },
+    {
+      "id": 2,
+      "name": "NVIDIA GB300",
+      "totalGlobalMem": 297020948480,
+      "computeMajor": 10,
+      "computeMinor": 3,
+      "maxThreadsPerBlock": 1024,
+      "maxThreadsPerMultiprocessor": 2048,
+      "regsPerBlock": 65536,
+      "warpSize": 32,
+      "sharedMemPerBlock": 49152,
+      "numSms": 152,
+      "regsPerMultiprocessor": 65536,
+      "sharedMemPerBlockOptin": 232448,
+      "sharedMemPerMultiprocessor": 233472
+    },
+    {
+      "id": 3,
+      "name": "NVIDIA GB300",
+      "totalGlobalMem": 297020948480,
+      "computeMajor": 10,
+      "computeMinor": 3,
+      "maxThreadsPerBlock": 1024,
+      "maxThreadsPerMultiprocessor": 2048,
+      "regsPerBlock": 65536,
+      "warpSize": 32,
+      "sharedMemPerBlock": 49152,
+      "numSms": 152,
+      "regsPerMultiprocessor": 65536,
+      "sharedMemPerBlockOptin": 232448,
+      "sharedMemPerMultiprocessor": 233472
+    }
+  ],
+  "kernel_activity": {
+    "events": 19136,
+    "cumulative_ms": 295.16091796875,
+    "union_ms": 294.187826171875,
+    "overlap_ms": 0.973091796875,
+    "window_uncovered_ms": 1754.305720703125
+  },
+  "all_gpu_activity": {
+    "events": 19853,
+    "cumulative_ms": 296.7082890625,
+    "union_ms": 295.735197265625,
+    "overlap_ms": 0.973091796875,
+    "window_uncovered_ms": 1752.758349609375
+  },
+  "gpu_streams": {
+    "16": {
+      "events": 384,
+      "cumulative_ms": 0.676431640625,
+      "union_ms": 0.676431640625,
+      "overlap_ms": 0.0,
+      "window_uncovered_ms": 2047.817115234375
+    },
+    "20": {
+      "events": 242,
+      "cumulative_ms": 1.7430478515625,
+      "union_ms": 1.7430478515625,
+      "overlap_ms": 0.0,
+      "window_uncovered_ms": 2046.7504990234374
+    },
+    "471": {
+      "events": 3032,
+      "cumulative_ms": 25.31077734375,
+      "union_ms": 25.31077734375,
+      "overlap_ms": 0.0,
+      "window_uncovered_ms": 2023.18276953125
+    },
+    "472": {
+      "events": 2936,
+      "cumulative_ms": 22.9076298828125,
+      "union_ms": 22.9076298828125,
+      "overlap_ms": 0.0,
+      "window_uncovered_ms": 2025.5859169921875
+    },
+    "473": {
+      "events": 2824,
+      "cumulative_ms": 23.096935546875,
+      "union_ms": 23.096935546875,
+      "overlap_ms": 0.0,
+      "window_uncovered_ms": 2025.396611328125
+    },
+    "474": {
+      "events": 2760,
+      "cumulative_ms": 21.708984375,
+      "union_ms": 21.708984375,
+      "overlap_ms": 0.0,
+      "window_uncovered_ms": 2026.7845625
+    },
+    "7": {
+      "events": 7675,
+      "cumulative_ms": 201.264482421875,
+      "union_ms": 201.2599384765625,
+      "overlap_ms": 0.0045439453125,
+      "window_uncovered_ms": 1847.2336083984376
+    }
+  },
+  "attribution": {
+    "methods": {
+      "external_and_correlation": 16248,
+      "ambiguous_or_conflicting": 2888
+    },
+    "linked": {
+      "events": 16248,
+      "cumulative_ms": 272.5623955078125,
+      "union_ms": 271.7099814453125,
+      "overlap_ms": 0.8524140625,
+      "window_uncovered_ms": 1776.7835654296875
+    },
+    "unlinked": {
+      "events": 0,
+      "cumulative_ms": 0.0,
+      "union_ms": 0.0,
+      "overlap_ms": 0.0,
+      "window_uncovered_ms": 2048.493546875
+    },
+    "ambiguous": {
+      "events": 2888,
+      "cumulative_ms": 22.5985224609375,
+      "union_ms": 22.4778447265625,
+      "overlap_ms": 0.120677734375,
+      "window_uncovered_ms": 2026.0157021484374
+    },
+    "linked_to_semantic_range": {
+      "events": 16134,
+      "cumulative_ms": 262.2798955078125,
+      "union_ms": 261.435833984375,
+      "overlap_ms": 0.8440615234375,
+      "window_uncovered_ms": 1787.057712890625
+    },
+    "linked_kernel_count_fraction": 0.8490802675585284,
+    "semantic_range_kernel_count_fraction": 0.8431229096989966,
+    "linked_cumulative_duration_fraction": 0.9234366032723541
+  },
+  "semantic_ranges_non_additive": {
+    "forward": {
+      "annotation": "actor.forward_step",
+      "cpu_inclusive": {
+        "events": 1,
+        "cumulative_ms": 629.9038974609375,
+        "union_ms": 629.9038974609375,
+        "overlap_ms": 0.0,
+        "window_uncovered_ms": 1418.5896494140625
+      },
+      "correlated_gpu_kernels": {
+        "events": 2572,
+        "cumulative_ms": 63.1617744140625,
+        "union_ms": 63.1617744140625,
+        "overlap_ms": 0.0,
+        "window_uncovered_ms": 1985.3317724609376
+      },
+      "gpu_attribution_status": "OBSERVED",
+      "proof_examples": [
+        {
+          "kernel_event_index": 81453,
+          "kernel": "void at::native::(anonymous namespace)::CatArrayBatchedCopy_alignedK_contig<at::native::(anonymous namespace)::OpaqueType<8u>, unsigned int, 1, 128, 1, 16>(at::native::(anonymous namespace)::OpaqueType<8u>*, at::native::(anonymous namespace)::CatArrInputTensorMetadata<at::native::(anonymous namespace)::OpaqueType<8u>, unsigned int, 128, 1>, at::native::(anonymous namespace)::TensorSizeStride<unsigned int, 4u>, int, unsigned int)",
+          "external_id": "11",
+          "correlation": "22",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            81,
+            81455
+          ]
+        },
+        {
+          "kernel_event_index": 81465,
+          "kernel": "void at::native::vectorized_elementwise_kernel<4, at::native::AUnaryFunctor<int, int, int, at::native::binary_internal::MulFunctor<int> >, std::array<char*, 2ul> >(int, at::native::AUnaryFunctor<int, int, int, at::native::binary_internal::MulFunctor<int> >, std::array<char*, 2ul>)",
+          "external_id": "21",
+          "correlation": "51",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            91,
+            81467
+          ]
+        },
+        {
+          "kernel_event_index": 81469,
+          "kernel": "void at::native::unrolled_elementwise_kernel<at::native::CUDAFunctor_add<int>, std::array<char*, 3ul>, 4, TrivialOffsetCalculator<2, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithoutCast, at::native::memory::StoreWithoutCast>(int, at::native::CUDAFunctor_add<int>, std::array<char*, 3ul>, TrivialOffsetCalculator<2, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithoutCast, at::native::memory::StoreWithoutCast)",
+          "external_id": "26",
+          "correlation": "68",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            96,
+            81471
+          ]
+        },
+        {
+          "kernel_event_index": 81473,
+          "kernel": "void at::native::reduce_kernel<512, 1, at::native::ReduceOp<int, at::native::func_wrapper_t<int, at::native::MaxNanFunctor<int> >, unsigned int, int, 4, 4> >(at::native::ReduceOp<int, at::native::func_wrapper_t<int, at::native::MaxNanFunctor<int> >, unsigned int, int, 4, 4>)",
+          "external_id": "27",
+          "correlation": "86",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            97,
+            81475
+          ]
+        }
+      ],
+      "scope": "same-thread CPU annotation containing the linked operation/API; async GPU execution retained within selected capture window"
+    },
+    "backward": {
+      "annotation": "actor.backward_step",
+      "cpu_inclusive": {
+        "events": 1,
+        "cumulative_ms": 1417.74148828125,
+        "union_ms": 1417.74148828125,
+        "overlap_ms": 0.0,
+        "window_uncovered_ms": 630.75205859375
+      },
+      "correlated_gpu_kernels": {
+        "events": 2,
+        "cumulative_ms": 0.0031357421875,
+        "union_ms": 0.0031357421875,
+        "overlap_ms": 0.0,
+        "window_uncovered_ms": 2048.4904111328124
+      },
+      "gpu_attribution_status": "OBSERVED",
+      "proof_examples": [
+        {
+          "kernel_event_index": 122625,
+          "kernel": "void at::native::vectorized_elementwise_kernel<4, at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulFunctor<float> >, std::array<char*, 3ul> >(int, at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulFunctor<float> >, std::array<char*, 3ul>)",
+          "external_id": "18508",
+          "correlation": "92993",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            18720,
+            122627
+          ]
+        },
+        {
+          "kernel_event_index": 122629,
+          "kernel": "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<float>, std::array<char*, 1ul> >(int, at::native::FillFunctor<float>, std::array<char*, 1ul>)",
+          "external_id": "18512",
+          "correlation": "93007",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            18725,
+            122631
+          ]
+        }
+      ],
+      "scope": "same-thread CPU annotation containing the linked operation/API; async GPU execution retained within selected capture window"
+    },
+    "checkpoint_recompute_and_backward": {
+      "annotation": "actor.checkpoint_recompute_and_backward",
+      "cpu_inclusive": {
+        "events": 48,
+        "cumulative_ms": 1405.722220703125,
+        "union_ms": 1405.722220703125,
+        "overlap_ms": 0.0,
+        "window_uncovered_ms": 642.771326171875
+      },
+      "correlated_gpu_kernels": {
+        "events": 13560,
+        "cumulative_ms": 199.1149853515625,
+        "union_ms": 198.270923828125,
+        "overlap_ms": 0.8440615234375,
+        "window_uncovered_ms": 1850.222623046875
+      },
+      "gpu_attribution_status": "OBSERVED",
+      "proof_examples": [
+        {
+          "kernel_event_index": 123069,
+          "kernel": "void transformer_engine::normalization::rmsnorm_fwd_tuned_kernel<transformer_engine::normalization::Kernel_traits<__nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, unsigned int, 2048u, 1u, 4u, 1u, 16u, transformer_engine::normalization::Kernel_traits_base<2048u, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, unsigned int, 128u> > >(transformer_engine::normalization::ForwardKernelParams)",
+          "external_id": "19482",
+          "correlation": "94650",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            19356,
+            123071
+          ]
+        },
+        {
+          "kernel_event_index": 123075,
+          "kernel": "nvjet_sm103_tst_128x256_64x6_2x2_2cta_h_bz_TNT",
+          "external_id": "19482",
+          "correlation": "94675",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            19356,
+            123077
+          ]
+        },
+        {
+          "kernel_event_index": 123081,
+          "kernel": "void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1} const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1} const&)::{lambda(int)#1})",
+          "external_id": "19498",
+          "correlation": "94690",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            19376,
+            123083
+          ]
+        },
+        {
+          "kernel_event_index": 123091,
+          "kernel": "void transformer_engine::normalization::rmsnorm_fwd_general_kernel<transformer_engine::normalization::Kernel_traits<__nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, unsigned int, 128u, 1u, 4u, 1u, 8u, transformer_engine::normalization::Kernel_traits_base<128u, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, unsigned int, 128u> > >(transformer_engine::normalization::ForwardKernelParams)",
+          "external_id": "19500",
+          "correlation": "94729",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            19379,
+            123093
+          ]
+        }
+      ],
+      "scope": "same-thread CPU annotation containing the linked operation/API; async GPU execution retained within selected capture window"
+    },
+    "checkpointed_forward": {
+      "annotation": "actor.checkpointed_forward",
+      "cpu_inclusive": {
+        "events": 1,
+        "cumulative_ms": 605.8788896484375,
+        "union_ms": 605.8788896484375,
+        "overlap_ms": 0.0,
+        "window_uncovered_ms": 1442.6146572265625
+      },
+      "correlated_gpu_kernels": {
+        "events": 2304,
+        "cumulative_ms": 56.4431884765625,
+        "union_ms": 56.4431884765625,
+        "overlap_ms": 0.0,
+        "window_uncovered_ms": 1992.0503583984375
+      },
+      "gpu_attribution_status": "OBSERVED",
+      "proof_examples": [
+        {
+          "kernel_event_index": 81549,
+          "kernel": "void transformer_engine::normalization::rmsnorm_fwd_tuned_kernel<transformer_engine::normalization::Kernel_traits<__nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, unsigned int, 2048u, 1u, 4u, 1u, 16u, transformer_engine::normalization::Kernel_traits_base<2048u, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, unsigned int, 128u> > >(transformer_engine::normalization::ForwardKernelParams)",
+          "external_id": "120",
+          "correlation": "322",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            193,
+            81551
+          ]
+        },
+        {
+          "kernel_event_index": 81553,
+          "kernel": "nvjet_sm103_tst_128x256_64x6_2x2_2cta_h_bz_TNT",
+          "external_id": "120",
+          "correlation": "345",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            193,
+            81555
+          ]
+        },
+        {
+          "kernel_event_index": 81557,
+          "kernel": "void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1} const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1} const&)::{lambda(int)#1})",
+          "external_id": "136",
+          "correlation": "358",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            210,
+            81559
+          ]
+        },
+        {
+          "kernel_event_index": 81561,
+          "kernel": "void transformer_engine::normalization::rmsnorm_fwd_general_kernel<transformer_engine::normalization::Kernel_traits<__nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, unsigned int, 128u, 1u, 4u, 1u, 8u, transformer_engine::normalization::Kernel_traits_base<128u, __nv_bfloat16, __nv_bfloat16, __nv_bfloat16, float, unsigned int, 128u> > >(transformer_engine::normalization::ForwardKernelParams)",
+          "external_id": "120",
+          "correlation": "391",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            193,
+            81563
+          ]
+        }
+      ],
+      "scope": "same-thread CPU annotation containing the linked operation/API; async GPU execution retained within selected capture window"
+    },
+    "moe_forward": {
+      "annotation": "actor.moe_forward",
+      "cpu_inclusive": {
+        "events": 96,
+        "cumulative_ms": 814.3337080078124,
+        "union_ms": 814.3337080078124,
+        "overlap_ms": 0.0,
+        "window_uncovered_ms": 1234.1598388671875
+      },
+      "correlated_gpu_kernels": {
+        "events": 6152,
+        "cumulative_ms": 109.3980263671875,
+        "union_ms": 108.9473994140625,
+        "overlap_ms": 0.450626953125,
+        "window_uncovered_ms": 1939.5461474609374
+      },
+      "gpu_attribution_status": "OBSERVED",
+      "proof_examples": [
+        {
+          "kernel_event_index": 81615,
+          "kernel": "void at::native::unrolled_elementwise_kernel<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#7}::operator()() const::{lambda(float)#1}, std::array<char*, 2ul>, 4, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1> >(int, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#7}::operator()() const::{lambda(float)#1}, std::array<char*, 2ul>, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1>)",
+          "external_id": "212",
+          "correlation": "604",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            286,
+            81617
+          ]
+        },
+        {
+          "kernel_event_index": 81619,
+          "kernel": "void at::native::unrolled_elementwise_kernel<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#7}::operator()() const::{lambda(float)#1}, std::array<char*, 2ul>, 4, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1> >(int, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#7}::operator()() const::{lambda(float)#1}, std::array<char*, 2ul>, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1>)",
+          "external_id": "216",
+          "correlation": "619",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            290,
+            81621
+          ]
+        },
+        {
+          "kernel_event_index": 81623,
+          "kernel": "cutlass3x_sm100_simt_sgemm_f32_f32_f32_f32_f32_64x32x16_1x1x1_3_tnn_align1_bias_f32_relu",
+          "external_id": "220",
+          "correlation": "632",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            294,
+            81625
+          ]
+        },
+        {
+          "kernel_event_index": 81627,
+          "kernel": "void at::native::sbtopk::gatherTopK<float, unsigned int, 2, false>(at::cuda::detail::TensorInfo<float const, unsigned int>, unsigned int, unsigned int, bool, unsigned int, unsigned int, at::cuda::detail::TensorInfo<float, unsigned int>, unsigned int, at::cuda::detail::TensorInfo<long, unsigned int>, unsigned int, float*)",
+          "external_id": "223",
+          "correlation": "648",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            297,
+            81629
+          ]
+        }
+      ],
+      "scope": "same-thread CPU annotation containing the linked operation/API; async GPU execution retained within selected capture window"
+    },
+    "communication_enqueue": {
+      "annotation": "actor.comm_enqueue.",
+      "cpu_inclusive": {
+        "events": 448,
+        "cumulative_ms": 100.841431640625,
+        "union_ms": 100.841431640625,
+        "overlap_ms": 0.0,
+        "window_uncovered_ms": 1947.652115234375
+      },
+      "correlated_gpu_kernels": {
+        "events": 432,
+        "cumulative_ms": 68.4376298828125,
+        "union_ms": 68.4376298828125,
+        "overlap_ms": 0.0,
+        "window_uncovered_ms": 1980.0559169921876
+      },
+      "gpu_attribution_status": "OBSERVED",
+      "proof_examples": [
+        {
+          "kernel_event_index": 81853,
+          "kernel": "ncclDevKernel_SendRecv(ncclDevKernelArgsStorage<4096ul>)",
+          "external_id": "336",
+          "correlation": "1160",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            410,
+            81855
+          ]
+        },
+        {
+          "kernel_event_index": 81877,
+          "kernel": "ncclDevKernel_SendRecv(ncclDevKernelArgsStorage<4096ul>)",
+          "external_id": "343",
+          "correlation": "1206",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            417,
+            81879
+          ]
+        },
+        {
+          "kernel_event_index": 82349,
+          "kernel": "ncclDevKernel_SendRecv(ncclDevKernelArgsStorage<4096ul>)",
+          "external_id": "470",
+          "correlation": "2051",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            544,
+            82351
+          ]
+        },
+        {
+          "kernel_event_index": 82681,
+          "kernel": "ncclDevKernel_SendRecv(ncclDevKernelArgsStorage<4096ul>)",
+          "external_id": "697",
+          "correlation": "2978",
+          "method": "external_and_correlation",
+          "cpu_event_indices": [
+            772,
+            82683
+          ]
+        }
+      ],
+      "scope": "same-thread CPU annotation containing the linked operation/API; async GPU execution retained within selected capture window"
+    },
+    "optimizer": null,
+    "recompute": null
+  },
+  "kernel_families_name_heuristic": {
+    "attention_name": {
+      "events": 336,
+      "cumulative_ms": 13.7449609375,
+      "union_ms": 13.7449609375,
+      "overlap_ms": 0.0,
+      "window_uncovered_ms": 2034.7485859375
+    },
+    "communication_name": {
+      "events": 528,
+      "cumulative_ms": 69.2999716796875,
+      "union_ms": 69.2999716796875,
+      "overlap_ms": 0.0,
+      "window_uncovered_ms": 1979.1935751953124
+    },
+    "elementwise_norm_or_reduction_name": {
+      "events": 4559,
+      "cumulative_ms": 49.4514775390625,
+      "union_ms": 49.4470927734375,
+      "overlap_ms": 0.004384765625,
+      "window_uncovered_ms": 1999.0464541015624
+    },
+    "matrix_kernel_name": {
+      "events": 12179,
+      "cumulative_ms": 124.3916708984375,
+      "union_ms": 123.4235400390625,
+      "overlap_ms": 0.968130859375,
+      "window_uncovered_ms": 1925.0700068359374
+    },
+    "moe_or_routing_name": {
+      "events": 288,
+      "cumulative_ms": 7.6665322265625,
+      "union_ms": 7.6665322265625,
+      "overlap_ms": 0.0,
+      "window_uncovered_ms": 2040.8270146484374
+    },
+    "other_name": {
+      "events": 1246,
+      "cumulative_ms": 30.6063046875,
+      "union_ms": 30.6063046875,
+      "overlap_ms": 0.0,
+      "window_uncovered_ms": 2017.8872421875
+    }
+  },
+  "top_kernels": [
+    {
+      "name": "ncclDevKernel_SendRecv(ncclDevKernelArgsStorage<4096ul>)",
+      "family": "communication_name",
+      "events": 432,
+      "cumulative_ms": 68.4376298828125,
+      "union_ms": 68.4376298828125,
+      "overlap_ms": 0.0,
+      "window_uncovered_ms": 1980.0559169921876
+    },
+    {
+      "name": "_sort_chunks_by_map_kernel",
+      "family": "other_name",
+      "events": 288,
+      "cumulative_ms": 11.05837109375,
+      "union_ms": 11.05837109375,
+      "overlap_ms": 0.0,
+      "window_uncovered_ms": 2037.43517578125
+    },
+    {
+      "name": "nvjet_sm103_tss_128x192_64x6_2x2_2cta_h_badd_NTT",
+      "family": "matrix_kernel_name",
+      "events": 723,
+      "cumulative_ms": 9.7195849609375,
+      "union_ms": 9.6501767578125,
+      "overlap_ms": 0.069408203125,
+      "window_uncovered_ms": 2038.8433701171875
+    },
+    {
+      "name": "nvjet_sm103_tss_128x96_64x9_2x2_2cta_h_badd_NTT",
+      "family": "matrix_kernel_name",
+      "events": 1404,
+      "cumulative_ms": 9.0445419921875,
+      "union_ms": 9.0391337890625,
+      "overlap_ms": 0.005408203125,
+      "window_uncovered_ms": 2039.4544130859374
+    },
+    {
+      "name": "_make_chunk_sort_map_kernel",
+      "family": "other_name",
+      "events": 192,
+      "cumulative_ms": 7.0509990234375,
+      "union_ms": 7.0509990234375,
+      "overlap_ms": 0.0,
+      "window_uncovered_ms": 2041.4425478515625
+    },
+    {
+      "name": "kernel_cutlass_kernel_flash_attncuteflash_bwd_sm100FlashAttentionBackwardSm100_object_at__tensor000o111012_tensor000_o_101112_tensor000o111012_tensor000_o_101112_tensor000o111012_tensorpt_0",
+      "family": "attention_name",
+      "events": 48,
+      "cumulative_ms": 6.598994140625,
+      "union_ms": 6.598994140625,
+      "overlap_ms": 0.0,
+      "window_uncovered_ms": 2041.894552734375
+    },
+    {
+      "name": "nvjet_sm103_tst_128x256_64x6_2x2_2cta_h_bz_TNT",
+      "family": "matrix_kernel_name",
+      "events": 105,
+      "cumulative_ms": 6.2507431640625,
+      "union_ms": 6.2507431640625,
+      "overlap_ms": 0.0,
+      "window_uncovered_ms": 2042.2428037109376
+    },
+    {
+      "name": "void at::native::unrolled_elementwise_kernel<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#7}::operator()() const::{lambda(float)#1}, std::array<char*, 2ul>, 4, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1> >(int, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#7}::operator()() const::{lambda(float)#1}, std::array<char*, 2ul>, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1>)",
+      "family": "elementwise_norm_or_reduction_name",
+      "events": 312,
+      "cumulative_ms": 6.113751953125,
+      "union_ms": 6.113751953125,
+      "overlap_ms": 0.0,
+      "window_uncovered_ms": 2042.379794921875
+    },
+    {
+      "name": "nvjet_sm103_tss_192x128_64x6_2x2_2cta_h_badd_NTT",
+      "family": "matrix_kernel_name",
+      "events": 713,
+      "cumulative_ms": 5.14366015625,
+      "union_ms": 5.126541015625,
+      "overlap_ms": 0.017119140625,
+      "window_uncovered_ms": 2043.367005859375
+    },
+    {
+      "name": "cutlass3x_sm100_simt_sgemm_f32_f32_f32_f32_f32_64x32x16_1x1x1_3_tnn_align1_bias_f32_relu",
+      "family": "matrix_kernel_name",
+      "events": 96,
+      "cumulative_ms": 5.052564453125,
+      "union_ms": 5.052564453125,
+      "overlap_ms": 0.0,
+      "window_uncovered_ms": 2043.440982421875
+    }
+  ],
+  "kernel_name_count": 334,
+  "cpu_cuda_api_calls": {
+    "cuda_runtime:cudaEventQuery": 2644,
+    "cuda_runtime:cudaLaunchKernel": 4592,
+    "cuda_runtime:cudaStreamIsCapturing": 6133,
+    "cuda_runtime:cudaMemcpyAsync": 616,
+    "cuda_runtime:cudaStreamSynchronize": 13,
+    "cuda_runtime:cudaStreamGetCaptureInfo": 1488,
+    "cuda_driver:cuLaunchKernelEx": 13651,
+    "cuda_runtime:cudaLaunchKernelExC": 384,
+    "cuda_driver:cuLaunchKernel": 509,
+    "cuda_runtime:cudaDeviceGetAttribute": 435,
+    "cuda_runtime:cudaFuncGetAttributes": 96,
+    "cuda_runtime:cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags": 770,
+    "cuda_runtime:cudaMemsetAsync": 101,
+    "cuda_runtime:cudaEventRecordWithFlags": 1120,
+    "cuda_runtime:cudaEventRecord": 7606,
+    "cuda_runtime:cudaStreamWaitEvent": 7684,
+    "cuda_runtime:cudaGetFuncBySymbol": 528,
+    "cuda_runtime:cudaEventSynchronize": 96,
+    "cuda_runtime:cudaPointerGetAttributes": 8664,
+    "cuda_runtime:cudaDeviceSynchronize": 1,
+    "cuda_runtime:cudaPeekAtLastError": 12,
+    "cuda_runtime:cudaThreadExchangeStreamCaptureMode": 1064
+  },
+  "limitations": [
+    "One forward/backward microbatch (index1 within update1), rank0; optimizer is outside this capture and remains null. This is not a full-update trace.",
+    "CPU ranges are inclusive. Forward/backward, MoE, recomputation and communication categories overlap and must not be summed.",
+    "Pure recompute remains null without an explicit actor.recompute_forward annotation; checkpoint backward includes recompute plus backward.",
+    "CPU communication enqueue duration is not GPU collective completion time or a directly measured network wait.",
+    "GPU attribution uses unique External id/runtime correlation and same-thread CPU containment; missing or conflicting links remain unassigned.",
+    "GPU kernels may execute after their CPU annotation ends; they are clipped only to the selected capture window, not the enqueue span.",
+    "Kernel cumulative time double-counts overlapping streams; union coverage and uncovered time are not physical GPU utilization, occupancy or idle time.",
+    "Name-based kernel families are heuristics and do not prove call sites or distinguish every GEMM/attention/MoE implementation.",
+    "Capture-boundary CUDA synchronization and profiler instrumentation perturb this sample; compare separate unprofiled update timings."
+  ],
+  "source": {
+    "path": "/run-output/actor-profile/rank0/actor-update.json.gz",
+    "sha256": "db4fa4de886985e968e0311dd2cf828235359e0446bfddb5e910603d9138c7c7",
+    "bytes": 6258737,
+    "receipt": "/run-output/actor-profile/rank0/receipt.json",
+    "receipt_sha256": "fa188687d3a64276a2786dcbeacf78845e05aa469a8de03cf21846fa1bf597f7",
+    "analyzer_sha256": "5c8e3157bff64e917b8c46706172d6808de4bf70b41c34abb2aa26f31b830715"
+  },
+  "capture": {
+    "rank": 0,
+    "target": [
+      0,
+      1,
+      0
+    ],
+    "packing_fingerprint": "b93f369c8db0f889c4fd957c3883607453aeccc4fdf19cd0bf147eafab3ee7a5",
+    "capture_window": "single_forward_backward_microbatch",
+    "microbatch_index": 1,
+    "options": {
+      "profile_memory": false,
+      "record_shapes": false,
+      "with_stack": false
+    },
+    "scope": "one sequential forward/backward microbatch including recompute/MoE enqueue; optimizer and final gradient synchronization excluded"
+  },
+  "summary_of_retained_analysis": {
+    "full_analysis_sha256": "02111cbac712eff07ef803c556b083b924d763879ae842c2aa2b2ec91c77764c",
+    "omitted": "Dense timeline interval arrays; kernel listing limited to top10. Full analysis and source trace remain in offline slide evidence and durable phase."
+  }
+}

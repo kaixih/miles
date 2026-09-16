@@ -1,8 +1,8 @@
 {
-  "actor-analysis.json": "02111cbac712eff07ef803c556b083b924d763879ae842c2aa2b2ec91c77764c",
   "actor-timeline.png": "6c042849e2727137493f937fe54015ba758d9753c3bd4fcbaf1f1ad7d2ca5382",
   "capture-receipt.json": "fa188687d3a64276a2786dcbeacf78845e05aa469a8de03cf21846fa1bf597f7",
   "capture-audit.json": "c8d3df70e829d0426b01afa95ee1b0e3c3a4dde8f2de88dc62e5ade97833cc11",
   "independent-trace-qc.json": "10f79fc5fe130ebb29680b2a6273a4e8a3c793a26cb7b618a16e1eb7b931b44f",
-  "main-workload-audit.json": "4ef34a62fef57eb0686633afb17ff9a7cb5d762d1eb1402fe1f6fdbe319b0890"
+  "main-workload-audit.json": "4ef34a62fef57eb0686633afb17ff9a7cb5d762d1eb1402fe1f6fdbe319b0890",
+  "actor-analysis-summary.json": "aee13bd826c0e20d0da7b8293f6fbb3984d2f0fcb0a3c96f77dcc4dd3c099bc3"
 }

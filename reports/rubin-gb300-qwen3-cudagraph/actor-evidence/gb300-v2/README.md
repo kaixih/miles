@@ -37,3 +37,5 @@ queued as job 2208878; no paired actor-window ratio is claimed.
 
 See the source [capture audit](capture-audit.json), [independent trace QC](independent-trace-qc.json),
 [main workload audit](main-workload-audit.json) and [file checksums](sha256.json).
+
+The [compact analysis](actor-analysis-summary.json) omits dense timeline arrays and lists the top ten kernels; the complete analysis is preserved in the offline evidence.
