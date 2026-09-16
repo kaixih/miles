@@ -107,17 +107,9 @@ const evidenceChecks=await page.evaluate(()=>{
   }
   if(document.querySelectorAll('.profile-layout').length!==input.experiment.requested.platforms.length*2||document.querySelectorAll('.slide').length!==16)failures.push('Expected four distinct stage slides in the 16-slide deck');
   const actor=report.derived.actor_profile,actorPanel=document.querySelector('.actor-panel');
+  const stageChart=document.getElementById('stage-chart');
+  if(actorPanel||stageChart.classList.contains('actor-stage')||!stageChart.classList.contains('short'))failures.push('Main stage slide must retain its original chart without actor microbatch values');
   if(actor?.status==='available'&&(actor.runs||[]).length){
-    if(!actorPanel||actorPanel.dataset.actorStatus!==actor.matching_status||!actorPanel.textContent.includes(actor.scope))failures.push('Actor diagnostic scope/status missing');
-    for(const platform of input.experiment.requested.platforms){
-      const expected=actor.runs.find(r=>r.run_label===platform),row=actorPanel?.querySelector(`[data-actor-platform="${platform}"]`);
-      if(!row){failures.push('Actor platform row missing');continue;}
-      for(const category of actor.categories){
-        const cell=row.querySelector(`[data-category="${category}"]`),value=expected?.mean_ms?.[category];
-        if(Number.isFinite(value)?Number(cell?.dataset.value)!==value:cell?.dataset.value!=='unknown')failures.push('Actor raw-derived value or unknown changed');
-      }
-    }
-    if(!document.getElementById('stage-chart').classList.contains('actor-stage'))failures.push('Actor panel did not use compact existing slide');
     const final=document.getElementById('slide-16');
     for(const platform of input.experiment.requested.platforms){
       const record=(input.actor_profile.runs||[]).find(r=>r.run_label===platform&&r.verified===true);
@@ -129,6 +121,7 @@ const evidenceChecks=await page.evaluate(()=>{
         if(img?.getAttribute('src')!==wanted.url||!img.complete||img.naturalWidth===0)failures.push('Actor final actual timeline image missing/wrong');
       }else if(img||!slot.textContent.includes('pending'))failures.push('Actor missing timeline evidence not pending');
       if(record&&!slot.querySelector(`a[href="${record.attachments.trace.url}"]`))failures.push('Actor final source trace link missing');
+      if(record&&(slot.dataset.actorRanks!==record.rank_ids.join(',')||slot.dataset.actorUpdates!==record.samples.map(s=>s.update_id).join(',')))failures.push('Actor retained rank/update identity mismatch');
     }
     const findings=actor.findings||[],rendered=final.querySelectorAll('[data-actor-finding]');
     if(rendered.length!==findings.length)failures.push('Actor audited findings count mismatch');
@@ -139,16 +132,18 @@ const evidenceChecks=await page.evaluate(()=>{
     if(actor.interpretation_limits&&!final.textContent.includes(actor.interpretation_limits))failures.push('Actor interpretation limit omitted');
     if(!final.querySelector('a[href="report-data.json"]')||!final.querySelector('a[href="asset-manifest.json"]'))failures.push('Actor final full provenance downloads missing');
     if(actor.capture_window==='single_forward_backward_microbatch'){
-      if(!actorPanel.textContent.includes('/ microbatch')||!document.getElementById('slide-10').textContent.includes('optimizer/final gradient sync unmeasured'))failures.push('Microbatch table mislabeled as whole update');
-      if(!final.textContent.includes('optimizer and final gradient synchronization are outside the trace'))failures.push('Microbatch exclusions absent from final slide');
+      if(final.querySelector('h2')?.textContent!=='One actor microbatch')failures.push('Actor microbatch title changed scope');
+      if(!final.textContent.includes('profiler enabled')||!final.textContent.includes('optimizer/final gradient sync excluded')||!final.textContent.includes('Kernel coverage is not GPU utilization'))failures.push('Microbatch exclusions absent from final slide');
+      if(/unprofiled.*full updates|normalized actor ratio|main token gap/i.test(final.textContent))failures.push('Actor microbatch slide mixes whole-update or main-run comparisons');
       for(const row of actor.runs){
         const slot=final.querySelector(`[data-actor-timeline-platform="${row.run_label}"]`);
-        if(!slot?.textContent.includes('microbatch 1 (0-based)')||row.mean_ms.optimizer!==null)failures.push('Microbatch identity or optimizer scope mismatch');
+        const record=input.actor_profile.runs.find(r=>r.run_label===row.run_label&&r.verified===true);
+        if(!slot?.querySelector('h3')?.textContent.endsWith('one microbatch')||slot.dataset.actorMicrobatch!==String(record.microbatch_index)||row.mean_ms.optimizer!==null||record.final_gradient_sync!==null)failures.push('Microbatch identity or optimizer scope mismatch');
       }
     }
 
 
-  }else if(actorPanel||document.getElementById('stage-chart').classList.contains('actor-stage')||document.querySelector('.actor-timelines'))failures.push('Missing actor input changed existing stage/provenance layout');
+  }else if(document.querySelector('.actor-timelines'))failures.push('Missing actor input changed existing provenance layout');
   const diagnosticPairs=(input.diagnostics?.pairs||[]).filter(pair=>pair.verified===true);
   const diagnosticSlide=document.getElementById('slide-11').textContent;
   if(!diagnosticSlide.includes('prefill + decode')||/mean decode/i.test(diagnosticSlide))failures.push('HTTP generation duration is mislabeled as decode-only');

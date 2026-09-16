@@ -44,7 +44,8 @@ To include it when rebuilding the complete main experiment above, append:
 --actor-profile outputs/rubin-gb300-qwen3-cudagraph/actor-update/actor-profile.gb300-verified-rubin-pending.json
 ```
 
-This changes only the actor evidence in slides 10 and 16. The deck still has
+This changes only slide16. Slide10 retains the original main stage bars; actor
+timelines and two same-microbatch statements appear together on slide16. The deck still has
 16 slides and preserves all main curves, timing values and rollout captures.
 
 ## Update after evidence arrives
@@ -209,8 +210,8 @@ collector, cluster, model, or original-report file is modified by this builder.
 ## Optional actor-update analysis
 
 `--actor-profile /absolute/path/actor-profile.json` adds verified actor evidence
-inside the existing stage-timing slide10 and actual timeline PNGs in existing
-slide16. Optional concise findings need hashed audit receipts; missing partner
+and actual timeline PNGs in existing slide16 only. Slide10 stays dedicated to
+main stage timings. Optional concise findings need hashed audit receipts; missing partner
 captures stay explicit. The deck remains16 slides and all generation
 curves/figures remain unchanged. Missing input preserves the current
 layout. Individually verified unmatched diagnostics are supported; matched
@@ -218,5 +219,8 @@ workload is a separate, explicit attestation. See [ACTOR_PROFILE.md](ACTOR_PROFI
 for raw per-update category fields, timing semantics, identity and attachment
 hash requirements. The current v2 capture is one rank0 forward/backward
 microbatch (update1/index1); optimizer/final gradient sync stay unmeasured.
+Visible actor findings use the same microbatch window and seconds throughout;
+whole-update diagnostic times and main token-normalized ratios stay in the raw
+audits, not on the actor slide. Kernel coverage is not GPU utilization.
 Never substitute a main actor-timer ratio for measured
 forward/backward/recompute or kernel-category evidence.

@@ -165,7 +165,10 @@ because most autograd work runs on another thread; it is not used as total
 backward GPU cost. Pure recompute is not separately resolved. Optimizer and
 final gradient synchronization are outside the selected window.
 
-Slides 10 and 16 now contain the actual GB300 window, source trace and audits.
+Slide 16 contains the actual GB300 microbatch window, its total elapsed time,
+forward/backward timing and source evidence. Every number on that slide refers
+to the same microbatch. Full-update diagnostic timings remain in this audit;
+slide 10 retains the original main-stage chart.
 Rubin's paired capture is pending allocation 2208878; no forward/backward
 platform ratio or explanation of the entire 1.77× gap is claimed yet. The
 original rollout figures and the 16-slide count are preserved.

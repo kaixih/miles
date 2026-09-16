@@ -2,9 +2,8 @@
 
 Pass `generate.py --actor-profile /absolute/path/actor-profile.json` only after
 retaining a bounded actor diagnostic. Nothing is discovered or executed remotely.
-Absent input leaves the stage slide and its main timing values unchanged. Present
-verified input adds a compact table and actual screenshot/trace links **inside
-slide10**. Existing slide16 displays supplied actor timeline PNGs inline for both
+The stage slide and its main timing values always remain unchanged. Present
+verified input affects **slide16 only**, which displays supplied actor timeline PNGs inline for both
 platforms, with explicit pending slots, audited findings and compact provenance. It never adds a slide or changes the
 learning curves, generation figures, original report, or main stage statistics.
 
@@ -16,8 +15,8 @@ the retained provenance; supplied observations must cite hashed audit evidence.
 The builder validates this contract but does not establish causal explanations.
 Do not state that a trace explains the main stage gap without separate evidence.
 
-The actor table is instrumented diagnostic evidence, separate from the main
-unprofiled actor timer. Individually verified captures are useful even when the
+The actor timeline is instrumented diagnostic evidence, separate from the main
+unprofiled actor timer on slide10. Individually verified captures are useful even when the
 other platform is missing or workloads differ. Such data displays as
 **Diagnostic / unmatched**, with no causal ratio. The observed main actor gap
 is never relabeled as a measured forward/backward ratio.
@@ -74,10 +73,11 @@ category mean requires values for every selected update; a missing observation
 leaves the whole category unknown rather than silently shortening its cohort.
 Use actual update IDs and an explicit capture_window; units follow that window. Values from
 multiple ranks are not automatically wall time. Both platforms use the same
-named timing basis; do not mix GPU kernels with CPU enqueue time in one table.
+named timing basis; do not confuse GPU kernels with CPU enqueue time.
 
-Forward/backward/recompute/MoE/communication can be nested or overlap. The table
-does not add them or draw a partition/pie chart. Audit receipts must explain
+Forward/backward/recompute/MoE/communication can be nested or overlap. Raw category
+values stay in the downloadable evidence; the slide does not add them or draw a
+partition/pie chart. Audit receipts must explain
 range attribution, recomputation nesting, communication overlap, profiler
 overhead and any unattributed events. A trace's existence alone does not prove
 an operation-category assignment. Screenshots must render actual retained trace
@@ -92,7 +92,16 @@ Each verified record must have `rank_ids:[0]`, exactly one sample with
 Set `samples[0].durations_ms.optimizer=null` with an explicit
 `unattributed_reasons.optimizer` saying it lies outside the captured window.
 The generator refuses numeric optimizer/final-gradient-sync values for this
-scope and labels table units **ms / microbatch**. Zero would be a false timing.
+scope. Raw category units are **ms / microbatch**. Zero would be a false timing.
+
+Keep slide16 focused on **one actor microbatch**. Its two concise findings may
+state the total forward/backward elapsed window, then recorded kernel-interval
+coverage of that same window. Use seconds consistently in visible statements.
+Do not add unprofiled whole-update timings or a main-run normalized actor ratio
+to this page. Kernel coverage is not GPU utilization; profiler overhead and
+unattributed time remain explicit. Exact rank/update/microbatch indices remain
+in downloadable evidence and DOM identity attributes, while headings use
+"one microbatch". A missing platform stays pending with no inferred ratio.
 
 The `communication` field covers only attributed communication inside this
 selected F/B window (such as MoE dispatch/combine); it is **not** the final
@@ -160,7 +169,7 @@ python3 -B reports/rubin-gb300-qwen3-cudagraph/test_generate.py
 ```
 
 Tests use clearly marked temporary synthetic fixtures, never canonical report
-inputs. Browser QA additionally checks table values/unknowns against the derived
-samples, separate platform states, actual inline images and trace hashes, findings
+inputs. Browser QA additionally checks that slide10 keeps its original chart,
+separate platform states, actual inline images and trace hashes, findings
 and audit links, the fixed16-slide count and overflow. Run it
 on a fresh temporary build before the root task rebuilds the real presentation.
