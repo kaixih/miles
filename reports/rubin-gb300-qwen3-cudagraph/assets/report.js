@@ -6,6 +6,7 @@ const runs=INPUT.comparison?.runs||[], profiles=INPUT.profiles||{}, diagnostics=
 const paired=REPORT.derived.paired_timing;
 const actor=REPORT.derived.actor_profile||{},actorInput=INPUT.actor_profile||{};
 const actorAvailable=actor.status==="available"&&(actor.runs||[]).length>0;
+const actorMicro=actor.capture_window==="single_forward_backward_microbatch";
 const palette=["#087f96","#d4773e"];
 const finite=x=>typeof x==="number"&&Number.isFinite(x);
 const e=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -73,10 +74,10 @@ function actorPanel(){
   const records=actorInput.runs||[];
   return `<div class="actor-panel" data-actor-status="${e(actor.matching_status)}"><h3>Actor diagnostic · ${e(actor.measurement_label)}</h3><p class="actor-scope">${e(actor.scope)}</p><table class="table actor-table"><thead><tr><th>Platform</th>${actor.categories.map(k=>`<th>${e(actorNames[k]||k)}</th>`).join("")}</tr></thead><tbody>${requested.platforms.map(label=>{
     const row=actor.runs.find(r=>r.run_label===label);
-    return `<tr data-actor-platform="${e(label)}"><td>${e(name(label))}</td>${actor.categories.map(k=>`<td data-category="${e(k)}" data-value="${finite(row?.mean_ms?.[k])?row.mean_ms[k]:"unknown"}">${row?finite(row.mean_ms[k])?number(row.mean_ms[k],2):"Unknown":"Pending"}</td>`).join("")}</tr>`;
+    return `<tr data-actor-platform="${e(label)}"><td>${e(name(label))}</td>${actor.categories.map(k=>`<td data-category="${e(k)}" data-value="${finite(row?.mean_ms?.[k])?row.mean_ms[k]:"unknown"}">${row?finite(row.mean_ms[k])?number(row.mean_ms[k],2):actorMicro&&k==="optimizer"?"Not captured":"Unknown":"Pending"}</td>`).join("")}</tr>`;
   }).join("")}</tbody></table><p class="actor-links">${actor.matching_status==="matched_workload"?"Matched workload; post-warmup state equality is not assumed.":"Diagnostic / unmatched; no cross-platform causal ratio."} ${records.filter(r=>r.verified===true).map(r=>`${e(name(r.run_label))} (rank ${e(r.rank_ids.join(","))}; updates ${e(r.samples.map(s=>s.update_id).join(","))}): ${["trace","image"].filter(k=>r.attachments?.[k]?.status==="available").map(k=>`<a href="${e(r.attachments[k].url)}" target="_blank">${k==="image"?"screenshot":"trace"}</a>`).join(" · ")}`).join(" | ")}</p></div>`;
 }
-slide("Stage timing on the same rollout IDs","09 / Paired system measurements",`<p class="subtitle">${paired.count?`Shared eligible observations: N=${paired.count}`:"PENDING / no shared eligible observations"}</p><div id="stage-chart" class="chart ${actorAvailable?"actor-stage":"short"}"></div><p class="chart-note ${actorAvailable?"actor-cohort":""}">${paired.count?`Shared IDs: ${e(paired.rollout_ids.join(", "))}`:"Both new runs must supply complete, explicitly unprofiled timing evidence."}</p>${actorPanel()}`,actorAvailable?"Upper bars are unprofiled main timers; lower values are instrumented actor diagnostics. Nested categories can overlap and are not additive.":"Nested stage timers are not additive. A measured difference alone does not identify its hardware, software or host cause.");
+slide("Stage timing on the same rollout IDs","09 / Paired system measurements",`<p class="subtitle">${paired.count?`Shared eligible observations: N=${paired.count}`:"PENDING / no shared eligible observations"}</p><div id="stage-chart" class="chart ${actorAvailable?"actor-stage":"short"}"></div><p class="chart-note ${actorAvailable?"actor-cohort":""}">${paired.count?`Shared IDs: ${e(paired.rollout_ids.join(", "))}`:"Both new runs must supply complete, explicitly unprofiled timing evidence."}</p>${actorPanel()}`,actorAvailable?actorMicro?"Upper bars: full main stage timers. Lower values: one F/B microbatch; optimizer/final gradient sync unmeasured. Nested ranges are not additive.":"Upper bars are unprofiled main timers; lower values are instrumented actor diagnostics. Nested categories can overlap and are not additive.":"Nested stage timers are not additive. A measured difference alone does not identify its hardware, software or host cause.");
 
 function diagnosticRow(label){
   const pair=(diagnostics.pairs||[]).find(item=>item.platform===label);
@@ -119,8 +120,26 @@ const finalFindings=measuredFinal?`
   ${gapMeasured?`<p class="small">Largest stage gap: ${e(finalStageLabels[finalGap.stage]||finalGap.stage)}, ${e(gapLonger)} ${number(Math.abs(gapDifference),1)} s longer per rollout.</p>`:'<p class="small">Stage gap awaits complete paired timing evidence.</p>'}
   <p class="small">System timers; nested stages are not additive. Software differs, and GPU causality remains unresolved.</p>`:
   `<h3>${allComplete?"Main runs complete":"Conclusions require measurements"}</h3><p class="small">${allComplete?"Paired timing remains pending. Graph verification and diagnostic export have independent evidence states.":"New run completion and performance remain under review. Pending sections carry no measured conclusion."}</p><p class="small">${e(experiment.runtime_note)}</p>`;
+function actorFinalPanel(){
+  const records=actorInput.runs||[];
+  const verified=records.filter(r=>r.verified===true);
+  const findings=actor.findings||[];
+  const proof=REPORT.provenance.find(p=>p.section==="actor_profile");
+  return `<p class="subtitle actor-final-subtitle">${actor.matching_status==="matched_workload"?"Matched workload; post-warmup state equality is not assumed.":"Diagnostic / unmatched · missing paired evidence remains pending."}</p>
+  <div class="actor-timelines">${requested.platforms.map(label=>{
+    const record=verified.find(r=>r.run_label===label), image=record?.attachments?.image;
+    return `<figure class="actor-timeline" data-actor-timeline-platform="${e(label)}" data-actor-verified="${!!record}" data-actor-trace-sha="${e(record?.source_trace_sha256||"")}"><h3>${e(name(label))} · ${record?`rank ${e(record.rank_ids.join(","))}, update ${e(record.samples.map(s=>s.update_id).join(","))}${actorMicro?", microbatch 1 (0-based)":""}`:"capture pending"}</h3><div class="actor-timeline-frame">${image?.status==="available"?`<a href="${e(image.url)}" target="_blank"><img src="${e(image.url)}" alt="${e(name(label))} actual ${actorMicro?"forward/backward microbatch":"actor-update"} trace; click for full resolution"></a>`:pending(record?"Timeline image pending":"Actor capture pending",record?"Verified source trace retained; no image has been supplied.":"No verified actor window is available for this platform.")}</div><figcaption>${record?`<a href="${e(record.attachments.trace.url)}" download>Source trace</a> <span class="hash">${e(record.source_trace_sha256.slice(0,12))}</span> · ${(record.verified_receipts||[]).map(r=>`<a href="${e(r.url)}" download>audit</a>`).join(" · ")}`:"No measured actor breakdown or timing ratio is inferred."}</figcaption></figure>`;
+  }).join("")}</div>
+  <div class="actor-audited-findings">${findings.length?findings.map((f,i)=>`<p data-actor-finding="${i}">${e(f.text)} <a class="actor-finding-receipt" href="${e(actorInput.findings[i].verified_receipts[0].url)}" download>Evidence</a></p>`).join(""):'<p>No audited actor interpretation supplied; the images establish the recorded scope only.</p>'}</div>
+  ${actor.interpretation_limits?`<p class="actor-final-limits">${e(actor.interpretation_limits)}</p>`:""}
+  <p class="actor-final-evidence"><a href="report-data.json" download>Full recipes and evidence</a> · <a href="asset-manifest.json" download>Checksums</a> · actor input <span class="hash">${e(proof?.sha256?.slice(0,12)||"unknown")}</span>${priorHref?` · <a href="${e(priorHref)}">Preserved eager report</a>`:""}</p>`;
+}
+if(actorAvailable){
+  slide("Actor windows, evidence and limits","15 / Actor diagnostic evidence",actorFinalPanel(),actorMicro?"One instrumented F/B microbatch; optimizer and final gradient synchronization are outside the trace. No whole-update or hardware cause is inferred.":"Instrumented actor updates are separate from the main stage timers. Ranges can overlap; rank 0 does not represent every EP rank or isolate a hardware cause.");
+}else{
 slide("Evidence, limits and the preserved baseline","15 / Provenance",`
   <div class="columns content"><div><h3>New experiment inputs</h3>${REPORT.provenance.map(p=>`<div class="input-evidence-row"><span>${e(p.section)}</span><span class="hash">${p.status==="loaded"?e(p.sha256.slice(0,12)):"PENDING"}</span></div>`).join("")}<p class="small" style="margin-top:24px"><a href="report-data.json" download>Complete recipes, raw observations and hashes</a><br><a href="asset-manifest.json" download>Local artifact checksums</a></p></div><div>${finalFindings}${priorHref?`<p class="small"><a href="${e(priorHref)}">Original eager report: preserved separately</a></p>`:""}<p class="small muted">${e(prior?.scope_note||"")}</p></div></div>`,"The previous report remains separate. Downloadable evidence preserves exact run identity and does not merge attempts.");
+}
 
 const plotJobs=[];
 function draw(id,traces,{yTitle="",xTitle="Rollout ID",percent=false,layout={}}={}){

@@ -147,7 +147,12 @@ def actor_evidence(data, experiment_id, identities):
         raise ValueError("Actor profile schema/experiment mismatch")
     basis = data.get("measurement_basis")
     if basis not in ACTOR_BASES: raise ValueError("Explicit actor timing basis required")
-    result["measurement_label"] = ACTOR_BASES[basis]
+    window = data.get("capture_window")
+    if window not in {"whole_optimizer_update", "single_forward_backward_microbatch"}:
+        raise ValueError("Explicit actor capture_window required")
+    micro = window == "single_forward_backward_microbatch"
+    result["capture_window"] = window
+    result["measurement_label"] = ACTOR_BASES[basis].replace(" / update", " / microbatch" if micro else " / update")
     if not isinstance(data.get("scope"), str) or not data["scope"] or len(data["scope"]) > 180:
         raise ValueError("Actor scope must concisely identify the diagnostic workload")
     result["scope"] = data["scope"]
@@ -169,6 +174,11 @@ def actor_evidence(data, experiment_id, identities):
         ids = [v.get("update_id") for v in samples]
         if any(type(v) is not int or v < 0 for v in ids) or len(set(ids)) != len(ids):
             raise ValueError("Actor update IDs must be distinct nonnegative integers")
+        if micro and (ranks != [0] or ids != [1] or record.get("microbatch_index") != 1
+                      or "final_gradient_sync" not in record or record["final_gradient_sync"] is not None):
+            raise ValueError("Microbatch trace requires rank0/update1/microbatch1 and null final_gradient_sync")
+        if micro and any(sample.get("durations_ms", {}).get("optimizer", "missing") is not None for sample in samples):
+            raise ValueError("Optimizer must be null outside the captured microbatch")
         means = {}
         for category in ACTOR_CATEGORIES:
             values = []
@@ -185,14 +195,32 @@ def actor_evidence(data, experiment_id, identities):
             # Unknown observations do not silently shorten a category's cohort.
             means[category] = statistics.mean(values) if all(v is not None for v in values) else None
         result["runs"].append({"run_label": record["run_label"], "capture_run_id": record["capture_run_id"],
-                               "update_ids": ids, "rank_ids": ranks, "mean_ms": means})
+                               "update_ids": ids, "rank_ids": ranks, "microbatch_index": record.get("microbatch_index"), "mean_ms": means})
     if result["runs"]: result["status"] = "available"
+    findings = data.get("findings", [])
+    if not isinstance(findings, list) or len(findings) > 2:
+        raise ValueError("Actor findings allow at most two audited observations")
+    verified_labels = {r["run_label"] for r in result["runs"]}
+    for finding in findings:
+        text, labels = finding.get("text"), finding.get("run_labels")
+        if not isinstance(text, str) or not text.strip() or len(text) > 120 or "\n" in text:
+            raise ValueError("Actor finding text must be one concise line of at most 120 characters")
+        if (finding.get("verified") is not True or not isinstance(labels, list) or not labels or len(set(labels)) != len(labels)
+                or not set(labels) <= verified_labels or not finding.get("evidence_refs")):
+            raise ValueError("Actor findings require verified platform scope and audit references")
+    if sum(len(f["text"]) for f in findings) > 200:
+        raise ValueError("Actor findings combined text must fit 200 characters")
+    limits = data.get("interpretation_limits")
+    if limits is not None and (not isinstance(limits, str) or not limits.strip() or len(limits) > 140 or "\n" in limits):
+        raise ValueError("Actor interpretation limits must be a concise line of at most 140 characters")
+    result["findings"] = [{"text": f["text"], "run_labels": f["run_labels"]} for f in findings]
+    result["interpretation_limits"] = limits
     matched = data.get("matched_workload", {})
     if matched.get("verified") is True:
         verified = [r for r in records if r.get("verified") is True]
         if len(verified) != 2 or len(result["runs"]) != 2 or not matched.get("evidence_refs") or not matched.get("identity_scope"):
             raise ValueError("Matched actor workload requires two verified captures and identity audit")
-        for key in ACTOR_IDENTITIES:
+        for key in (*ACTOR_IDENTITIES, *(("selected_microbatch_sha256",) if micro else ())):
             values = [r.get("input_identity", {}).get(key) for r in verified]
             if any(not isinstance(v, str) or len(v) != 64 or any(c not in "0123456789abcdef" for c in v) for v in values) or values[0] != values[1]:
                 raise ValueError("Claimed matched actor workload differs: " + key)
@@ -206,7 +234,7 @@ def actor_evidence(data, experiment_id, identities):
 def copy_actor_assets(data, source, output):
     if not data: return
     verified = [r for r in data.get("runs", []) if r.get("verified") is True]
-    verify_refs(verified + [data.get("matched_workload", {})], source, output)
+    verify_refs(verified + [data.get("matched_workload", {})] + data.get("findings", []), source, output)
     copy_profile_assets({"profiles": verified}, source, output)
     for record in verified:
         for kind, field in [("trace", "source_trace_sha256"), ("image", "source_image_sha256")]:

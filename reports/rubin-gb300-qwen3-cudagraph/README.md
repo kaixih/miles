@@ -196,10 +196,14 @@ collector, cluster, model, or original-report file is modified by this builder.
 ## Optional actor-update analysis
 
 `--actor-profile /absolute/path/actor-profile.json` adds verified actor evidence
-inside the existing stage-timing slide10; the deck remains16 slides and all
-generation curves/figures remain unchanged. Missing input preserves the current
+inside the existing stage-timing slide10 and actual timeline PNGs in existing
+slide16. Optional concise findings need hashed audit receipts; missing partner
+captures stay explicit. The deck remains16 slides and all generation
+curves/figures remain unchanged. Missing input preserves the current
 layout. Individually verified unmatched diagnostics are supported; matched
 workload is a separate, explicit attestation. See [ACTOR_PROFILE.md](ACTOR_PROFILE.md)
 for raw per-update category fields, timing semantics, identity and attachment
-hash requirements. Never substitute a main actor-timer ratio for measured
+hash requirements. The current v2 capture is one rank0 forward/backward
+microbatch (update1/index1); optimizer/final gradient sync stay unmeasured.
+Never substitute a main actor-timer ratio for measured
 forward/backward/recompute or kernel-category evidence.

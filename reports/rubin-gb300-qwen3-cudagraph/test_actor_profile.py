@@ -29,7 +29,7 @@ def fixture(root):
             'trace':str(trace),'source_trace_sha256':G.sha256(trace),
             'evidence_refs':[{'path':str(receipt),'sha256':G.sha256(receipt)}]})
     actor={'schema':'qwen3-actor-profile-v1','experiment_id':experiment['experiment_id'],
-           'measurement_basis':'gpu_kernel_interval_union_ms','runs':runs,
+           'measurement_basis':'gpu_kernel_interval_union_ms','capture_window':'whole_optimizer_update','runs':runs,
            'scope':'SYNTHETIC QA ONLY: rank0, two updates. Not measured evidence.',
            'matched_workload':{'verified':False}}
     return experiment,actor
@@ -89,6 +89,59 @@ class ActorEvidenceTests(unittest.TestCase):
                     image=self.root/'SYNTHETIC.png';image.write_bytes(b'fixture-not-an-image')
                     row.update(image=str(image),source_image_sha256='0'*64)
                 with self.assertRaisesRegex(ValueError,'hash mismatch|SHA256 mismatched'):self.build()
+
+    def microbatch(self):
+        self.actor['capture_window']='single_forward_backward_microbatch'
+        for row in self.actor['runs']:
+            row['samples']=row['samples'][1:]
+            row['samples'][0]['durations_ms']['optimizer']=None
+            row['unattributed_reasons']={'optimizer':'Outside selected F/B microbatch'}
+            row['microbatch_index']=1;row['final_gradient_sync']=None
+            row['input_identity']['selected_microbatch_sha256']='d'*64
+
+    def test_microbatch_uses_explicit_units_and_rejects_out_of_window_claims(self):
+        self.microbatch();out=self.build()['derived']['actor_profile']
+        self.assertIn('/ microbatch',out['measurement_label'])
+        self.assertIsNone(out['runs'][0]['mean_ms']['optimizer'])
+        for key,value in [('rank_ids',[1]),('microbatch_index',0),('final_gradient_sync',0)]:
+            row=self.actor['runs'][0];old=row[key];row[key]=value
+            with self.assertRaisesRegex(ValueError,'Microbatch trace'):self.build()
+            row[key]=old
+        self.actor['runs'][0]['samples'][0]['durations_ms']['optimizer']=1
+        with self.assertRaisesRegex(ValueError,'Optimizer must be null'):self.build()
+
+    def test_matched_microbatch_requires_selected_packing_identity(self):
+        self.microbatch();self.match()
+        self.assertEqual(self.build()['derived']['actor_profile']['matching_status'],'matched_workload')
+        self.actor['runs'][1]['input_identity']['selected_microbatch_sha256']='e'*64
+        with self.assertRaisesRegex(ValueError,'selected_microbatch_sha256'):self.build()
+        self.actor['matched_workload']={'verified':False}
+        self.assertEqual(self.build()['derived']['actor_profile']['matching_status'],'diagnostic_unmatched')
+
+    def test_findings_require_verified_scope_and_audited_hashes(self):
+        self.actor['findings']=[{'verified':True,'text':'SYNTHETIC QA ONLY: observed window, no causal attribution.',
+            'run_labels':['rubin'],'evidence_refs':copy.deepcopy(self.actor['runs'][0]['evidence_refs'])}]
+        self.actor['interpretation_limits']='SYNTHETIC QA ONLY: one rank; nested ranges overlap.'
+        out=self.build()
+        self.assertEqual(out['derived']['actor_profile']['findings'][0]['text'],self.actor['findings'][0]['text'])
+        self.assertEqual(len(out['inputs']['actor_profile']['findings'][0]['verified_receipts']),1)
+        self.actor['findings'][0]['evidence_refs'][0]['sha256']='0'*64
+        with self.assertRaisesRegex(ValueError,'SHA256 mismatched'):self.build()
+
+    def test_findings_reject_overflow_missing_audit_and_unverified_platform(self):
+        base={'verified':True,'text':'SYNTHETIC observation','run_labels':['rubin'],
+              'evidence_refs':copy.deepcopy(self.actor['runs'][0]['evidence_refs'])}
+        for changed in [{'verified':False},{'text':'x'*151},{'text':'line1\nline2'},{'evidence_refs':[]},{'run_labels':['unknown']}]:
+            self.actor['findings']=[{**base,**changed}]
+            with self.assertRaisesRegex(ValueError,'Actor finding'):self.build()
+        self.actor['findings']=[{**base,'text':'x'*110} for _ in range(2)]
+        with self.assertRaisesRegex(ValueError,'combined text'):self.build()
+        self.actor['findings']=[copy.deepcopy(base) for _ in range(3)]
+        with self.assertRaisesRegex(ValueError,'at most two'):self.build()
+        self.actor['findings']=[base];self.actor['runs'][0]['verified']=False
+        with self.assertRaisesRegex(ValueError,'verified platform'):self.build()
+        self.actor['findings']=[];self.actor['interpretation_limits']='x'*181
+        with self.assertRaisesRegex(ValueError,'interpretation limits'):self.build()
 
     def test_bound_identity_and_update_scope_are_enforced(self):
         self.actor['runs'][0]['source_run_id']='OTHER_MAIN'
