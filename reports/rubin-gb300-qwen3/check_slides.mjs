@@ -57,6 +57,7 @@ const evidenceChecks=await page.evaluate(()=>{
     if (hardware?.engineering_sample===true && !hardwareText.includes('Engineering sample')) failures.push(`${run.label}: engineering sample qualification missing`);
   }
   const timeTraces=document.getElementById('time-chart').data||[];
+  const throughputTraces=document.getElementById('throughput-chart').data||[];
   const evalTraces=document.getElementById('eval-chart').data||[];
   if (evalTraces.some(trace=>/none_reward_ratio|num_training_samples|truncated_ratio/.test(trace.name))) failures.push('Evaluation diagnostics must not appear as score traces');
   for (const run of runs) {
@@ -68,17 +69,19 @@ const evidenceChecks=await page.evaluate(()=>{
     const health=run.metadata?.run_health ? (typeof run.metadata.run_health==='object'?run.metadata.run_health:{issue:run.metadata.issue}) : (report.inputs.run_health?.runs||[]).find(record=>record.label===run.label&&record.run_id===run.metadata?.run_id);
     if (health?.issue && !hardwareText.includes(health.issue)) failures.push(`${run.label}: known run issue is hidden`);
   }
-  const stepSelections=runs.map(run=>{
+  const timingSelections=(traces,key,description)=>runs.map(run=>{
     const name=run.metadata?.display_name||(/rubin/i.test(run.label)?'Rubin':/gb300/i.test(run.label)?'GB300':run.label);
     const expected=(run.rows||[]).filter(row=>row.rollout_id!==0 && row.training_stage_complete===true && row.profiled===false && row.unprofiled_timing_eligible===true && !(run.metadata?.exclude_timing_rollouts||[]).includes(row.rollout_id));
-    const actual=timeTraces.find(trace=>trace.name===name);
-    const expectedX=expected.map(row=>row.rollout_id), expectedY=expected.map(row=>Number.isFinite(row.common?.step_seconds)?row.common.step_seconds:null);
+    const actual=traces.find(trace=>trace.name===name);
+    const expectedX=expected.map(row=>row.rollout_id), expectedY=expected.map(row=>Number.isFinite(row.common?.[key])?row.common[key]:null);
     if (expectedY.some(Number.isFinite)) {
-      if (JSON.stringify(actual?.x)!==JSON.stringify(expectedX) || JSON.stringify(actual?.y)!==JSON.stringify(expectedY)) failures.push(`${run.label}: steady step selection or numeric value mismatch`);
-    } else if (actual) failures.push(`${run.label}: unexpected steady step trace`);
+      if (JSON.stringify(actual?.x)!==JSON.stringify(expectedX) || JSON.stringify(actual?.y)!==JSON.stringify(expectedY)) failures.push(`${run.label}: ${description} selection or numeric value mismatch`);
+    } else if (actual) failures.push(`${run.label}: unexpected ${description} trace`);
     return {run:run.label,plotted_rollouts:actual?.x||[],expected_rollouts:expectedX,rollout_zero_excluded:!(actual?.x||[]).includes(0)};
   });
-  return {failures,step_selections:stepSelections,evaluation_series:evalTraces.map(trace=>trace.name),hardware_visible:!failures.some(x=>/device|engineering/.test(x))};
+  const stepSelections=timingSelections(timeTraces,'step_seconds','steady step');
+  const throughputSelections=timingSelections(throughputTraces,'output_tokens_per_gpu_generation_second','steady generation throughput');
+  return {failures,step_selections:stepSelections,generation_throughput_selections:throughputSelections,evaluation_series:evalTraces.map(trace=>trace.name),hardware_visible:!failures.some(x=>/device|engineering/.test(x))};
 });
 const report={slides:count,errors,external_requests:network,checks,evidence_checks:evidenceChecks,keyboard:{space,end,overview},mobile_horizontal_overflow:mobileOverflow};
 await writeFile(path.join(output,'browser-checks.json'),JSON.stringify(report,null,2)+'\n');

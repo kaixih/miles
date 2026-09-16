@@ -150,14 +150,16 @@ Browser QA for slides (local macOS Chrome and the bundled Playwright runtime):
 
 This captures every slide and checks overflow, browser errors, external requests,
 keyboard navigation, mobile scaling, visible hardware identity, and the exact
-steady-step chart selection against the embedded source rows. Inspect the
+step and generation-throughput chart selections against the embedded source rows. Inspect the
 screenshots as well.
 
-The runtime chart includes only rows explicitly marked completed, unprofiled,
-and timing-eligible; rollout 0 and metadata warmup exclusions are omitted.
-Generation throughput retains raw observations and marks rollout 0 with an open
-circle. The cold-start step total remains visible in the footnote and all raw
-measurements remain unchanged in `report-data.json`.
+The runtime and generation-throughput charts use the same cohort: only rows
+explicitly marked completed, unprofiled, and timing-eligible. Rollout 0 and
+metadata warmup exclusions are omitted from both curves. In particular, GB300's
+first generation includes FD-limit recovery and queued backlog; it is not a
+steady-state baseline. No points are smoothed or filled. The recorded first-step
+total remains visible in the footnote and all raw measurements remain unchanged
+in `report-data.json`.
 
 The scope slide displays `metadata.hardware.name`, `memory_mib_per_gpu`, and the
 engineering-sample qualification. The recipe slide shows recorded parallelism,

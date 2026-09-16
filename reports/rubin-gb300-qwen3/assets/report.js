@@ -141,9 +141,9 @@ slide("Gradient signal and evaluation", "07 / Learning evidence", `
 const coldStartSteps=runs.map(run=>({name:niceName(run),seconds:(run.rows||[]).find(r=>r.rollout_id===0)?.common?.step_seconds})).filter(r=>finite(r.seconds));
 const coldStartNote=coldStartSteps.length ? `Recorded rollout 0 step: ${coldStartSteps.map(r=>`${r.name} ${number(r.seconds,1)} s`).join("; ")}.` : "Cold-start step totals remain in the evidence JSON.";
 slide("Runtime and generation throughput", "08 / Performance curves", `
-  <p class="subtitle">Step timing excludes rollout 0 and uses only completed, eligible unprofiled observations.</p>
-  <div class="chart-columns"><div><h3 class="chart-title">Miles step timer · after warmup</h3><div id="time-chart" class="chart half"></div></div><div><h3 class="chart-title">Generation throughput · raw</h3><div id="throughput-chart" class="chart half"></div></div></div>
-  <p class="chart-note">Step = train wait + train. Generation keeps rollout 0; open circles mark warmup, diamonds mark profiling.</p>`, `${coldStartNote} Throughput = retained output tokens / generation seconds / GPUs. All raw timings remain downloadable.`);
+  <p class="subtitle">Both curves use the same completed, eligible unprofiled observations after warmup.</p>
+  <div class="chart-columns"><div><h3 class="chart-title">Miles step timer · after warmup</h3><div id="time-chart" class="chart half"></div></div><div><h3 class="chart-title">Generation throughput · after warmup</h3><div id="throughput-chart" class="chart half"></div></div></div>
+  <p class="chart-note">Rollout 0 is excluded, including GB300's FD-limit recovery and queued backlog. Step = train wait + train.</p>`, `${coldStartNote} Throughput = retained output tokens / generation seconds / GPUs. All raw timings remain downloadable.`);
 
 slide("Time in each measured stage", "09 / Unprofiled timing", `
   <p class="subtitle">Means use only completed, explicitly unprofiled rollouts after the configured warmup exclusion.</p>
@@ -238,7 +238,7 @@ draw("reward-chart",lines("training_reward_mean"),{percent:true,yTitle:"Reward"}
 draw("truncation-chart",lines("truncated_ratio"),{percent:true,yTitle:"Fraction"});
 draw("length-chart",lines("response_length_mean_tokens"),{yTitle:"Output tokens"});
 draw("time-chart",lines("step_seconds",{steady:true}),{yTitle:"Seconds",emptyMessage:"No completed, eligible unprofiled step after rollout 0 is available yet."});
-draw("throughput-chart",lines("output_tokens_per_gpu_generation_second",{markWarmup:true}),{yTitle:"Output tokens / GPU / s"});
+draw("throughput-chart",lines("output_tokens_per_gpu_generation_second",{steady:true}),{yTitle:"Output tokens / GPU / s",emptyMessage:"No completed, eligible unprofiled generation after rollout 0 is available yet."});
 draw("gradient-chart",runs.map((run,i)=>{
   const events=(run.rows||[]).flatMap(r=>r.train_steps||[]);
   return {name:niceName(run),type:"scatter",mode:"lines+markers",connectgaps:false,x:events.map(x=>x.logged_id),y:events.map(x=>finite(x.metrics?.["train/grad_norm"])?x.metrics["train/grad_norm"]:null),line:{color:palette[i],width:3},marker:{size:6}};

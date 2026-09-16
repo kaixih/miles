@@ -1,18 +1,18 @@
 {
   "schema": "miles-run-health-v1",
-  "observed_at": "2026-09-16T00:47:03+00:00",
-  "comparison_sha256": "babab20bcb0ba51c9259ce3826d589436268c83a04685396c9da0eeb263ebd64",
+  "observed_at": "2026-09-16T01:00:34.143277+00:00",
+  "comparison_sha256": "7d80060c627804306bbd7cf4dac64cc2dd2522245c91c76b2becbe1f3da62f8b",
   "runs": [
     {
       "label": "gb300",
       "run_id": "20260915-j2198810-qwen3-a1",
-      "run_health": "workers_registered_workload_pending",
-      "issue": "All four healthy workers registered at 00:47 UTC; four-engine workload and rollout 0 confirmation pending.",
+      "run_health": "healthy_recovered",
+      "issue": null,
       "source_log": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3/gb300/logs/qwen3_train.log",
-      "source_log_sha256": "18426bed2c37d651e36da0fb3af948833b0753a65f5f24e5cbb6116dc756e0c7",
+      "source_log_sha256": "78c93543a9240b4412b90e7a80e198fb5065b81a634bcc1026c62bf56e408def",
       "evidence_line": 592858,
       "evidence": "\u001b[36m(CommandActor pid=9033)\u001b[0m httpx.ConnectError: All connection attempts failed",
-      "scope": "The snapshot has an initial evaluation but no completed training rollout or optimizer update. Ray RUNNING does not establish workload health.",
+      "scope": "Rollout 0 completed with four optimizer updates. All four engines were verified decoding the next rollout at 01:00:30\u201332 UTC. Eligible steady-state performance still awaits a completed rollout after rollout 0.",
       "recovery": {
         "changed_at": "2026-09-16T00:39:18+00:00",
         "source": "Root task verified live router and parent process limits",
@@ -20,7 +20,7 @@
         "new_soft_nofile": 65535,
         "hard_nofile": 524288,
         "image_changed": false,
-        "successful_training_recovery_verified": false,
+        "successful_training_recovery_verified": true,
         "verified_at": "2026-09-16T00:40:20+00:00",
         "inference_recovery_verified": true,
         "router_pid": 9867,
@@ -29,22 +29,58 @@
         "new_http_200_responses": 276,
         "new_connect_errors": 0,
         "new_tracebacks": 0,
-        "remaining_condition": "Awaiting confirmation of four-engine workload and first completed training rollout",
-        "inference_recovery_scope": "All four healthy workers are registered after exactly three quarantined workers were restored; their model weight version remains 1. This does not establish that all four are busy.",
-        "full_four_engine_recovery_verified": false,
-        "latest_followup_source": "Root task update after the 00:43 UTC snapshot; no additional GPU inference was run by report generation.",
+        "remaining_condition": null,
+        "inference_recovery_scope": "All four healthy workers were registered at 00:47:03 UTC. At 01:00:30\u201332 UTC all four engines were observed decoding the next rollout, independently verified at 01:00:34 UTC.",
+        "full_four_engine_recovery_verified": true,
+        "latest_followup_source": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3/gb300/recovery/four-engine-recovery-20260916.json",
         "workers_registered_at": "2026-09-16T00:47:03+00:00",
         "all_four_workers_health_http_status": 200,
         "all_four_workers_model_weight_version": 1,
         "optimizer_updates_at_registration": 0,
         "reregistered_quarantined_workers": 3,
         "all_four_workers_registered": true,
-        "all_four_busy_verified": false,
-        "full_four_engine_workload_verified": false,
-        "worker_recovery_record": "recovery/router-workers-20260916.json"
+        "all_four_busy_verified": true,
+        "full_four_engine_workload_verified": true,
+        "worker_recovery_record": "recovery/router-workers-20260916.json",
+        "first_training_rollout_completed_at": "2026-09-16T00:58:22.738+00:00",
+        "first_training_rollout": 0,
+        "first_training_optimizer_updates": 4,
+        "workload_verified_at": "2026-09-16T01:00:34.143277+00:00",
+        "next_rollout_workload": {
+          "actor_pids": [
+            9034,
+            9035,
+            9036,
+            9037
+          ],
+          "active_requests_range_each": [
+            127,
+            128
+          ],
+          "queued_requests_range_each": [
+            147,
+            164
+          ],
+          "observed_tokens_per_second_range_each": [
+            1862.14,
+            2214.77
+          ],
+          "sample_times_utc": [
+            "2026-09-16T01:00:30+00:00",
+            "2026-09-16T01:00:32+00:00"
+          ],
+          "source": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3/gb300/recovery/four-engine-recovery-20260916.json"
+        },
+        "four_engine_recovery_record": {
+          "path": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3/gb300/recovery/four-engine-recovery-20260916.json",
+          "sha256": "8e88dae636248992428185e8e747ca854db819b926dea2724f02078d697b3996",
+          "source_excerpt": "/Users/kaixih/Desktop/codex_workspace/miles/outputs/rubin-gb300-qwen3/gb300/recovery/four-engine-recovery-log.txt",
+          "source_excerpt_sha256": "b54d4bea03c9bd74ab25b6e2858a3f1b0adb32fb1ffd678aea77410c3df0cb12"
+        }
       },
-      "evidence_line_sha256_without_lf": "8ae4a40a4039515be252c1777771fa8531ca4b2354e027ab8ed5d4c3a8fc5583"
+      "evidence_line_sha256_without_lf": "8ae4a40a4039515be252c1777771fa8531ca4b2354e027ab8ed5d4c3a8fc5583",
+      "evidence_scope": "Historical first-rollout incident; resolved according to the later operational verification below."
     }
   ],
-  "snapshot_at": "2026-09-16T00:43:12.170917+00:00"
+  "snapshot_at": "2026-09-16T00:59:08.725028+00:00"
 }
