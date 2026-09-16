@@ -1,13 +1,16 @@
 """CPU-only contract tests; never import Torch, start Ray, or launch a process."""
 
 import importlib.util
+import hashlib
 import json
+import os
 import shlex
 import sys
 import tempfile
 import types
 import unittest
 from dataclasses import dataclass, replace
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -102,6 +105,145 @@ class ReplayTests(unittest.TestCase):
         source = json.loads(path.read_text())
         source["argv"] = argv
         path.write_text(json.dumps(source))
+
+    @contextmanager
+    def _initial_mounts(self):
+        # Preserve actual files, symlinks and contents; emulate only normal-UID
+        # read-only container bind mounts that a local CPU fixture cannot create.
+        with patch.object(P, "MODEL_UID", os.getuid()), \
+                patch.object(P.os, "statvfs", return_value=types.SimpleNamespace(f_flag=os.ST_RDONLY)):
+            yield
+
+    def _initial_fixture(self):
+        roots = {name: str((self.root / name).resolve()) for name in P.INITIAL_MODEL_NAMES}
+        models = {}
+        for name, root in roots.items():
+            payload = ({"config.json": b"HF metadata", "model.safetensors": b"HF tensor"}
+                       if name == P.INITIAL_MODEL_NAMES[0] else {
+                           "latest_checkpointed_iteration.txt": b"release\n", "release/common.pt": b"model metadata",
+                           "release/.metadata": b"DCP index", "release/__0_0.distcp": b"reference tensor"})
+            files = {}
+            for relative, data in payload.items():
+                path = Path(root, relative)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+                files[relative] = {"bytes": len(data)}
+                if path.suffix not in (".safetensors", ".distcp"):
+                    files[relative]["sha256"] = hashlib.sha256(data).hexdigest()
+            models[name] = {"source_root": "host-specific-source", "destination_root": "host-specific-RAID",
+                            "files": files, "fingerprint": hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest(),
+                            "file_count": len(files), "total_bytes": sum(x["bytes"] for x in files.values())}
+        manifest = self.root.resolve() / "input-staging.json"
+        manifest.write_text(json.dumps({"schema_version": 1, "status": "complete", "uid": os.getuid(), "gid": 30,
+                                       "verification": "shard_inventory_sizes_and_metadata_sha256", "models": models}))
+        dataset = self.root.resolve() / "train.jsonl"
+        dataset.write_text('{"prompt":"actual fixture","label":"1"}\n')
+        argv = _source_argv()
+        for flag, value in (("--hf-checkpoint", roots[P.INITIAL_MODEL_NAMES[0]]),
+                            ("--ref-load", roots[P.INITIAL_MODEL_NAMES[1]]), ("--prompt-data", str(dataset))):
+            argv[argv.index(flag) + 1] = value
+        argv += ["--megatron-to-hf-mode", "raw", "--seed", "1234", "--rollout-seed", "42", "--rollout-shuffle"]
+        self._write_source_argv(argv)
+        args = replace(self.args, initial_policy=True, initial_model_manifest=str(manifest),
+                       checkpoint_root="", checkpoint_iteration=-1, profile_max_tokens_per_gpu=4096)
+        return args, roots, dataset
+
+    def test_initial_policy_preserves_horizon_fresh_initialization_and_seeded_dataset(self):
+        args, roots, dataset = self._initial_fixture()
+        with self._initial_mounts():
+            plan = P._build_plan(args)
+            P._verify_checkpoint_unchanged(plan)
+        groups = P._flag_groups(shlex.split(plan["entrypoint"])[2:])
+        for flag, value in {"--num-rollout": "50", "--start-rollout-id": "0", "--debug-exit-after-rollout": "2",
+                            "--max-tokens-per-gpu": "4096", "--global-batch-size": "512", "--num-steps-per-rollout": "4",
+                            "--ref-load": roots[P.INITIAL_MODEL_NAMES[1]], "--seed": "1234", "--rollout-seed": "42"}.items():
+            self.assertEqual(P._one_value(groups, flag), value)
+        flags = {g[0] for g in groups}
+        self.assertFalse(flags & {"--load", "--ckpt-step", "--ref-ckpt-step", "--use-checkpoint-opt-param-scheduler"})
+        self.assertFalse(any(flag.startswith(("--save", "--eval-")) for flag in flags))
+        self.assertEqual(plan["initialization"], "initial_policy_fresh_optimizer_rng")
+        self.assertEqual(plan["profiled_rollouts"], [0, 1])
+        self.assertEqual(plan["planned_optimizer_steps"], 8)
+        self.assertIsNone(plan["checkpoint"])
+        self.assertEqual(plan["dataset"]["sha256"], hashlib.sha256(dataset.read_bytes()).hexdigest())
+        self.assertEqual(plan["dataset"]["seeds"]["--rollout-seed"]["value"], 42)
+        self.assertTrue(plan["dataset"]["rollout_shuffle"])
+        self.assertNotIn("private-key", json.dumps(plan))
+        self.assertFalse(Path(args.output_dir).exists())
+
+    def test_initial_common_id_excludes_platform_host_paths_and_never_hashes_tensors(self):
+        args, roots, _ = self._initial_fixture()
+        original_hash = P._hash_file
+        seen = []
+        def hash_metadata(path):
+            self.assertNotIn(Path(path).suffix, (".safetensors", ".distcp"))
+            seen.append(str(path))
+            return original_hash(path)
+        with self._initial_mounts(), patch.object(P, "_hash_file", side_effect=hash_metadata):
+            one = P._initial_models(args.initial_model_manifest, roots)
+            path = Path(args.initial_model_manifest)
+            data = json.loads(path.read_text())
+            for model in data["models"].values():
+                model["source_root"] = "different source alias"
+                model["destination_root"] = "different platform RAID"
+            path.write_text(json.dumps(data))
+            two = P._initial_models(args.initial_model_manifest, roots)
+        self.assertTrue(seen)
+        self.assertEqual(one["id"], two["id"])
+        self.assertEqual(one["id"], hashlib.sha256(json.dumps(one["fingerprints"], sort_keys=True).encode()).hexdigest())
+        self.assertNotEqual(one["manifest_sha256"], two["manifest_sha256"])
+
+    def test_initial_metadata_and_dataset_changes_block_submission_recheck(self):
+        args, roots, dataset = self._initial_fixture()
+        with self._initial_mounts():
+            plan = P._build_plan(args)
+            dataset.write_text('changed input\n')
+            with self.assertRaisesRegex(ValueError, "dataset changed"):
+                P._verify_checkpoint_unchanged(plan)
+            Path(roots[P.INITIAL_MODEL_NAMES[0]], "config.json").write_text("changed model")
+            with self.assertRaisesRegex(ValueError, "inventory/metadata differs"):
+                P._initial_models(args.initial_model_manifest, roots)
+
+    def test_initial_requires_readonly_owned_complete_models_and_release_tracker(self):
+        args, roots, _ = self._initial_fixture()
+        with self._initial_mounts():
+            with patch.object(P.os, "statvfs", return_value=types.SimpleNamespace(f_flag=0)), \
+                    self.assertRaisesRegex(ValueError, "read-only"):
+                P._initial_models(args.initial_model_manifest, roots)
+            with patch.object(P, "MODEL_UID", -1), self.assertRaisesRegex(ValueError, "foreign-owned"):
+                P._initial_models(args.initial_model_manifest, roots)
+            extra = Path(roots[P.INITIAL_MODEL_NAMES[0]], "external")
+            extra.symlink_to(args.source_plan)
+            with self.assertRaisesRegex(ValueError, "symlinked"):
+                P._initial_models(args.initial_model_manifest, roots)
+            extra.unlink()
+            Path(roots[P.INITIAL_MODEL_NAMES[1]], "release/__0_0.distcp").unlink()
+            with self.assertRaisesRegex(ValueError, "inventory/metadata differs"):
+                P._initial_models(args.initial_model_manifest, roots)
+
+    def test_initial_rejects_resume_selection_wrong_expected_id_and_mixed_cli_modes(self):
+        args, _, _ = self._initial_fixture()
+        with self._initial_mounts(), self.assertRaisesRegex(ValueError, "expected shared pair"):
+            P._build_plan(replace(args, expected_initial_model_id="0" * 64))
+        with self.assertRaisesRegex(ValueError, "no checkpoint-resume"):
+            replace(args, checkpoint_iteration=9)
+        with self.assertRaisesRegex(ValueError, "require --initial-policy"):
+            replace(self.args, initial_model_manifest=args.initial_model_manifest)
+        argv = json.loads(Path(args.source_plan).read_text())["argv"]
+        with self.assertRaisesRegex(ValueError, "fresh-run source"):
+            P._replay_arguments(argv + ["--load", "/old/checkpoint"], args)
+
+    def test_initial_seed_defaults_are_read_from_actual_source_not_invented(self):
+        source = self.root / "miles/utils/arguments.py"
+        source.parent.mkdir(parents=True)
+        source.write_text('parser.add_argument("--rollout-seed", default=42)\nreset_arg(parser,"--seed",default=1234)\n')
+        with patch.object(P.U, "repo_base_dir", self.root):
+            actual = P._seed_record([])
+            self.assertEqual([actual[flag]["value"] for flag in ("--seed", "--rollout-seed")], [1234, 42])
+            self.assertEqual(actual["--seed"]["source_sha256"], hashlib.sha256(source.read_bytes()).hexdigest())
+            source.write_text('parser.add_argument("--rollout-seed", default=some_variable)\n')
+            with self.assertRaisesRegex(ValueError, "Cannot establish"):
+                P._seed_record([])
 
     def test_default_preserves_recorded_training_and_logprob_budgets(self):
         self._write_source_argv(_source_argv() + ["--log-probs-max-tokens-per-gpu", "6144"])

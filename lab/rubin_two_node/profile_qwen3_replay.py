@@ -1,7 +1,7 @@
 """Plan or submit a bounded Qwen3 profile replay on an idle external Ray cluster.
 
 Requires the original launcher's print-only JSON (argv plus extra_runtime_env),
-or a Ray job JSON containing entrypoint and runtime_env. Use the same explicit
+or a Ray job JSON containing entrypoint and runtime_env. By default use the same explicit
 full checkpoint and metadata fingerprint on both hardware platforms. Checkpoint
 files are read only; mount their directory read-only as an additional safeguard.
 Two rollouts retain four optimizer updates each (eight updates total). Training profiler counters are
@@ -21,6 +21,11 @@ Args:
       injected, so reference loading retains its own release/numeric tracker.
   --expected-checkpoint-id: Fingerprint printed by the planning invocation; needed
       for execution. It hashes metadata and shard sizes, not full tensor contents.
+  --initial-policy / --initial-model-manifest: Explicit alternative to checkpoint
+      resume. Verify the staged HF + release pair from a read-only manifest and
+      start with fresh optimizer/RNG, preserving the original 50-rollout schedule
+      while stopping after two rollouts. Requires --expected-initial-model-id to
+      execute; never interprets that ID as an optimizer-checkpoint identity.
   --output-dir: New, separate output directory; execution rejects an existing path.
   --ray-address: Dashboard HTTP(S) origin for the already running external cluster.
   --execute-run: Explicitly submit. Default, or --print-only, only prints the plan.
@@ -57,6 +62,7 @@ except ModuleNotFoundError:
     from checkpoint_metadata import checkpoint_metadata
 
 import contextlib
+import ast
 import fcntl
 import hashlib
 import json
@@ -81,6 +87,8 @@ REPLAY_ROLLOUTS = 2
 PROFILE_STEP_START = 1
 PROFILE_STEP_END = 2
 RUN_ID_ENV = "MILES_PROFILE_RUN_ID"
+INITIAL_MODEL_NAMES = ("Qwen3-30B-A3B", "Qwen3-30B-A3B_torch_dist")
+MODEL_UID = 28644
 _REMOVED_FLAGS = {
     "--load", "--ckpt-step", "--start-rollout-id", "--num-rollout", "--debug-exit-after-rollout",
     "--no-load-optim", "--no-load-rng", "--finetune", "--override-opt-param-scheduler",
@@ -103,6 +111,9 @@ class ScriptArgs(U.ExecuteTrainConfig):
     checkpoint_root: str = ""
     checkpoint_iteration: int = -1
     expected_checkpoint_id: str = ""
+    initial_policy: bool = False
+    initial_model_manifest: str = ""
+    expected_initial_model_id: str = ""
     ray_address: str = "http://127.0.0.1:8265"
     megatron_path: str = "/opt/Megatron-LM"
     max_trace_gib: float = 10.0
@@ -117,8 +128,13 @@ class ScriptArgs(U.ExecuteTrainConfig):
     def __post_init__(self):
         if self.guard_plan:
             return
-        if not self.source_plan or not self.checkpoint_root or self.checkpoint_iteration < 0:
-            raise ValueError("Specify source-plan, checkpoint-root and a numeric checkpoint-iteration")
+        if not self.source_plan:
+            raise ValueError("Specify source-plan")
+        if self.initial_policy:
+            if not self.initial_model_manifest or self.checkpoint_root or self.checkpoint_iteration != -1 or self.expected_checkpoint_id:
+                raise ValueError("Initial policy requires its model manifest and no checkpoint-resume arguments")
+        elif not self.checkpoint_root or self.checkpoint_iteration < 0 or self.initial_model_manifest or self.expected_initial_model_id:
+            raise ValueError("Specify checkpoint-root and numeric checkpoint-iteration; initial-model arguments require --initial-policy")
         if self.num_nodes != 1 or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}", self.run_id):
             raise ValueError("Use one node and a simple unique run ID of at most 80 characters")
         if self.max_trace_gib <= 0 or self.max_runtime_seconds <= 0:
@@ -241,6 +257,11 @@ def _replay_arguments(argv, args):
     }
     if any(g[0] in forbidden for g in groups):
         raise ValueError("Expected the real, unfiltered Megatron rollout/training recipe")
+    if args.initial_policy:
+        if _one_value(groups, "--num-rollout") != "50" or _one_value(groups, "--megatron-to-hf-mode") != "raw":
+            raise ValueError("Initial policy expects the original raw, 50-rollout learning plan")
+        if any(g[0] in {"--load", "--ckpt-step", "--ref-ckpt-step", "--start-rollout-id"} for g in groups):
+            raise ValueError("Initial policy requires the original fresh-run source plan, without checkpoint selection")
     removed, kept = [], []
     for group in groups:
         flag = group[0]
@@ -248,12 +269,18 @@ def _replay_arguments(argv, args):
             removed.append(flag)
         else:
             kept.extend(group)
+    if args.initial_policy:
+        # Actual Miles raw-mode validation fills load=ref_load, finetune=True,
+        # no_load_optim=True and no_load_rng=True when --load is absent.
+        kept.extend(["--start-rollout-id", "0", "--num-rollout", _one_value(groups, "--num-rollout")])
+    else:
+        kept.extend(["--load", str(Path(args.checkpoint_root).resolve()),
+                     "--start-rollout-id", str(args.checkpoint_iteration + 1),
+                     "--num-rollout", str(args.checkpoint_iteration + 1 + REPLAY_ROLLOUTS),
+                     "--use-checkpoint-opt-param-scheduler"])
     kept.extend([
-        "--load", str(Path(args.checkpoint_root).resolve()),
-        "--start-rollout-id", str(args.checkpoint_iteration + 1),
-        "--num-rollout", str(args.checkpoint_iteration + 1 + REPLAY_ROLLOUTS),
         "--debug-exit-after-rollout", str(REPLAY_ROLLOUTS),
-        "--use-checkpoint-opt-param-scheduler", "--use-pytorch-profiler", "--profile-target", "train_overall",
+        "--use-pytorch-profiler", "--profile-target", "train_overall",
         "--profile-step-start", str(PROFILE_STEP_START), "--profile-step-end", str(PROFILE_STEP_END), "--tensorboard-dir",
         str(Path(args.output_dir).resolve() / "traces/train"),
     ])
@@ -279,7 +306,102 @@ def _checkpoint_manifest(root, iteration):
     return {"root": str(root), "id": _sha256(json.dumps(identity, sort_keys=True).encode()), **identity}
 
 
+def _owned_readonly(path):
+    path = Path(path)
+    if path.resolve() != path or path.stat().st_uid != MODEL_UID:
+        raise ValueError("Initial-policy input is symlinked or foreign-owned: " + str(path))
+    if not os.statvfs(path).f_flag & os.ST_RDONLY:
+        raise ValueError("Initial-policy inputs must be mounted read-only: " + str(path))
+    return path
+
+
+def _hash_file(path):
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as stream:
+        for block in iter(lambda: stream.read(4 * 1024**2), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _initial_models(manifest_path, model_roots):
+    path = _owned_readonly(manifest_path)
+    if not path.is_file() or not 0 < path.stat().st_size <= 32 * 1024**2:
+        raise ValueError("Missing or oversized initial-model manifest")
+    raw = path.read_bytes()
+    manifest = json.loads(raw)
+    expected = {"schema_version": 1, "status": "complete", "uid": MODEL_UID, "gid": 30,
+                "verification": "shard_inventory_sizes_and_metadata_sha256"}
+    if any(manifest.get(k) != v for k, v in expected.items()) or set(manifest.get("models", {})) != set(INITIAL_MODEL_NAMES):
+        raise ValueError("Require the verified HF and release input-staging manifest")
+    fingerprints = {}
+    for name in INITIAL_MODEL_NAMES:
+        root = _owned_readonly(model_roots[name])
+        if not root.is_dir():
+            raise ValueError("Initial model is not a directory: " + str(root))
+        files = {}
+        for item in root.rglob("*"):
+            _owned_readonly(item)
+            if item.is_dir():
+                continue
+            if not item.is_file():
+                raise ValueError("Nonregular initial-model file: " + str(item))
+            entry = {"bytes": item.stat().st_size}
+            if item.suffix not in (".safetensors", ".distcp"):
+                if entry["bytes"] > 32 * 1024**2:
+                    raise ValueError("Oversized initial-model metadata: " + str(item))
+                entry["sha256"] = _hash_file(item)
+            files[str(item.relative_to(root))] = entry
+        expected_model = manifest["models"][name]
+        fingerprint = _sha256(json.dumps(files, sort_keys=True).encode())
+        if (not files or files != expected_model.get("files") or fingerprint != expected_model.get("fingerprint")
+                or len(files) != expected_model.get("file_count")
+                or sum(item["bytes"] for item in files.values()) != expected_model.get("total_bytes")):
+            raise ValueError("Initial-model inventory/metadata differs: " + name)
+        fingerprints[name] = fingerprint
+    release = Path(model_roots[INITIAL_MODEL_NAMES[1]])
+    if (release / "latest_checkpointed_iteration.txt").read_text().strip() != "release":
+        raise ValueError("Initial reference tracker must select release")
+    if not (release / "release").is_dir() or not any((release / "release").rglob("*.distcp")):
+        raise ValueError("Initial reference has no release checkpoint shards")
+    return {"id": _sha256(json.dumps(fingerprints, sort_keys=True).encode()), "fingerprints": fingerprints,
+            "manifest_path": str(path), "manifest_sha256": _sha256(raw), "model_roots": model_roots,
+            "identity_scope": "Verified shard names/sizes and metadata hashes; not full tensor-content hashes"}
+
+
+def _seed_record(groups):
+    result = {}
+    for flag in ("--seed", "--rollout-seed"):
+        if any(group[0] == flag for group in groups):
+            result[flag] = {"value": int(_one_value(groups, flag)), "source": "recorded argv"}
+            continue
+        path = U.repo_base_dir / "miles/utils/arguments.py"
+        raw = path.read_bytes()
+        values = {kw.value.value for node in ast.walk(ast.parse(raw)) if isinstance(node, ast.Call)
+                  and any(isinstance(arg, ast.Constant) and arg.value == flag for arg in node.args)
+                  for kw in node.keywords if kw.arg == "default" and isinstance(kw.value, ast.Constant)
+                  and type(kw.value.value) is int}
+        if len(values) != 1:
+            raise ValueError("Cannot establish the unchanged source default for " + flag)
+        result[flag] = {"value": values.pop(), "source": str(path), "source_sha256": _sha256(raw)}
+    return result
+
+
+def _initial_dataset(argv):
+    groups = _flag_groups(argv)
+    path = _owned_readonly(_one_value(groups, "--prompt-data"))
+    if not path.is_file() or not 0 < path.stat().st_size <= 128 * 1024**2:
+        raise ValueError("Missing or oversized initial-policy dataset")
+    return {"path": str(path), "bytes": path.stat().st_size, "sha256": _hash_file(path),
+            "seeds": _seed_record(groups), "rollout_shuffle": any(g[0] == "--rollout-shuffle" for g in groups)}
+
+
 def _verify_checkpoint_unchanged(plan):
+    if plan.get("initial_policy"):
+        expected = plan["initial_models"]
+        current = _initial_models(expected["manifest_path"], expected["model_roots"])
+        if current != expected or _initial_dataset(shlex.split(plan["entrypoint"])[2:]) != plan["dataset"]:
+            raise ValueError("Initial model manifest, inputs or dataset changed after planning")
+        return
     expected = plan["checkpoint"]
     current = _checkpoint_manifest(expected["root"], expected["iteration"])
     if current["id"] != expected["id"]:
@@ -342,17 +464,36 @@ def _build_plan(args):
             megatron_model_type=MODEL_TYPE, megatron_path=args.megatron_path, extra_env_vars=env,
         )
     entrypoint, runtime_env = _parse_submission(commands, argv)
-    checkpoint = _checkpoint_manifest(args.checkpoint_root, args.checkpoint_iteration)
-    if args.expected_checkpoint_id and args.expected_checkpoint_id != checkpoint["id"]:
-        raise ValueError("Checkpoint fingerprint differs from the explicitly expected shared checkpoint")
+    checkpoint, initial_models, dataset = None, None, None
+    if args.initial_policy:
+        groups = _flag_groups(source_argv)
+        roots = dict(zip(INITIAL_MODEL_NAMES, (_one_value(groups, "--hf-checkpoint"), _one_value(groups, "--ref-load"))))
+        initial_models = _initial_models(args.initial_model_manifest, roots)
+        if args.expected_initial_model_id and args.expected_initial_model_id != initial_models["id"]:
+            raise ValueError("Initial-model fingerprint differs from the explicitly expected shared pair")
+        dataset = _initial_dataset(source_argv)
+        input_roots = [Path(path) for path in roots.values()]
+        first_rollout = 0
+    else:
+        checkpoint = _checkpoint_manifest(args.checkpoint_root, args.checkpoint_iteration)
+        if args.expected_checkpoint_id and args.expected_checkpoint_id != checkpoint["id"]:
+            raise ValueError("Checkpoint fingerprint differs from the explicitly expected shared checkpoint")
+        input_roots = [Path(checkpoint["root"])]
+        first_rollout = args.checkpoint_iteration + 1
     output = Path(args.output_dir).resolve()
-    if output == Path(checkpoint["root"]) or Path(checkpoint["root"]) in output.parents:
-        raise ValueError("Profile output must be outside the checkpoint directory")
+    if any(output == root or root in output.parents for root in input_roots):
+        raise ValueError("Profile output must be outside the checkpoint/model directories")
     return {
         "schema": 1, "run_id": args.run_id, "submission_id": args.submission_id,
         "ray_address": JobsAPI(args.ray_address).address, "entrypoint": entrypoint,
         "entrypoint_sha256": _sha256(entrypoint.encode()), "runtime_env": runtime_env,
         "checkpoint": checkpoint, "source_plan_sha256": _sha256(Path(args.source_plan).read_bytes()),
+        "initial_policy": args.initial_policy, "initial_models": initial_models,
+        "initial_model_id": initial_models["id"] if initial_models else None, "dataset": dataset,
+        "initialization": "initial_policy_fresh_optimizer_rng" if args.initial_policy else "training_checkpoint_resume",
+        "source_argv_without_wandb": [token for group in _flag_groups(source_argv)
+                                      if not group[0].startswith("--wandb-") for token in group],
+        "resolved_profile_argv": argv,
         "output_dir": str(output), "trace_dir": str(output / "traces"),
         "max_trace_bytes": int(args.max_trace_gib * 1024**3), "max_runtime_seconds": args.max_runtime_seconds,
         "poll_seconds": args.poll_seconds, "submission_grace_seconds": args.submission_grace_seconds,
@@ -363,7 +504,7 @@ def _build_plan(args):
             "step_unit": "completed actor.train call (one rollout, four optimizer updates)",
             "trace_ready_after_replay_rollout": PROFILE_STEP_END,
             "export_boundary": "Second train call: prof.step before CPU actor backup; gzip export is synchronous for the configured default backend"},
-        "profiled_rollouts": [args.checkpoint_iteration + 1, args.checkpoint_iteration + 2],
+        "profiled_rollouts": [first_rollout, first_rollout + 1],
         "profile_scope": "First replay rollout tail through second rollout train end; all four trainer ranks",
         "sglang_manual_payload": {
             "output_dir": str(output / "traces/sglang"), "num_steps": 4,
@@ -373,7 +514,10 @@ def _build_plan(args):
         "sglang_capture_scope": "Four consecutive scheduler forwards on one verified TP1 replay engine; "
         "inspect actual trace contents before labeling prefill/decode coverage. HTTP 200 only arms capture.",
         "checkpoint_identity_scope": "Metadata hashes and shard names/sizes; not a full tensor-content hash",
-        "checkpoint_selection": "Actor tracker must equal the requested iteration; reference keeps its own selection",
+        "checkpoint_selection": ("Initial release weights; optimizer/RNG are not restored; original 50-rollout schedule retained"
+                                 if args.initial_policy else "Actor tracker must equal the requested iteration; reference keeps its own selection"),
+        "interpretation": ("Initial-workload backend/system diagnosis; generated shapes may differ, not late-policy timing "
+                           "or proof of GPU-only speedup" if args.initial_policy else "Resumed-checkpoint backend/system diagnosis"),
         "limit_scope": "Polling limits can overshoot; Ray API availability is required to stop the exact job",
     }
 
@@ -492,8 +636,8 @@ def _submit(args, plan):
 
     if os.environ.get("MILES_SCRIPT_EXTERNAL_RAY") != "1":
         raise ValueError("Execution requires MILES_SCRIPT_EXTERNAL_RAY=1 and an existing idle cluster")
-    if not args.expected_checkpoint_id:
-        raise ValueError("Execution requires the expected checkpoint fingerprint from the reviewed plan")
+    if not (args.expected_initial_model_id if args.initial_policy else args.expected_checkpoint_id):
+        raise ValueError("Execution requires the expected initial-model or checkpoint fingerprint from the reviewed plan")
     _verify_checkpoint_unchanged(plan)
     api = JobsAPI(plan["ray_address"])
     _assert_idle(api, plan["submission_id"])
@@ -528,7 +672,9 @@ def _submit(args, plan):
     _verify_checkpoint_unchanged(plan)
     submission_id = client.submit_job(
         entrypoint=plan["entrypoint"], runtime_env=plan["runtime_env"], submission_id=plan["submission_id"],
-        metadata={"profile_run_id": plan["run_id"], "checkpoint_id": plan["checkpoint"]["id"]},
+        metadata={"profile_run_id": plan["run_id"], "initialization": plan["initialization"],
+                  **({"initial_model_id": plan["initial_model_id"]} if args.initial_policy
+                     else {"checkpoint_id": plan["checkpoint"]["id"]})},
     )
     if submission_id != plan["submission_id"]:
         raise RuntimeError("Ray returned a different submission ID; inspect before taking any action")

@@ -5,12 +5,98 @@
 retention worker and replay helper. Its default prints JSON without SSH, filesystem writes or process
 control. Transfer it to **dl3** and execute only there as **UID28644:GID30**.
 It uses the reviewed `profile_qwen3_replay.py` and preserves images and packages.
-Both replays use the same frozen **iteration-9** checkpoint from local RAID and
-explicitly use `--profile-max-tokens-per-gpu 4096`; this changes only
+Default checkpoint mode uses the same frozen **iteration-9** checkpoint from local RAID.
+The separately selected **initial-policy mode** uses shared staged HF/release inputs,
+fresh optimizer/RNG and no checkpoint9 copy. Both explicitly use `--profile-max-tokens-per-gpu 4096`; this changes only
 the replay token budget, not either main run. Both fresh containers set `nofile=65535:65535`, explicitly
 recording the FD-limit correction found during the GB300 main run.
 
-## Reviewable sequence
+## Selected initial-policy profiling mode
+
+The current intended profiling workload is **initial policy**, because the measured
+GB checkpoint9 copy cannot meet its unchanged cutoff. This does not change either
+learning run or its deadlines. The retained Rubin checkpoint and GB partial copy
+remain separate artifacts. The fallback copy script has not been executed.
+
+Use `--initial-policy` on prepare and submit. A read-only bind exposes each node's
+verified `manifests/input-staging.json` as `/profile-input-manifest.json`; the model
+roots remain read-only. There is no `/profile-checkpoint` bind, frozen9 copy gate,
+or cross-version optimizer restore. The two-model ID is:
+`SHA256(json.dumps({model_name: fingerprint}, sort_keys=True).encode())`, using
+exactly `Qwen3-30B-A3B` and `Qwen3-30B-A3B_torch_dist`. Both nodes must present the
+same ID. The helper verifies actual files/metadata, ownership and read-only mounts
+again before submission; this is inventory/metadata identity, not full shard hashing.
+
+```bash
+# Plan only; no SSH or mutation:
+python3 "$OP" rubin --run-id rubin-initial-profile --initial-policy
+# Only after the main-run gate passes:
+python3 "$OP" rubin --run-id rubin-initial-profile --initial-policy \
+  --action prepare --execute --allow-stop-completed-main
+# Read initial_model_id from the printed helper plan, then use the same ID for GB:
+python3 "$OP" rubin --run-id rubin-initial-profile --initial-policy \
+  --action submit --execute --expected-initial-model-id ACTUAL_COMMON_64_HEX_ID
+```
+
+Repeat for GB only after **its own** main gate passes. Each initial-policy profile
+keeps the original 50-rollout scheduler horizon, starts at rollout0, and exits after
+rollouts0–1/eight optimizer updates with 4096 tokens/GPU. Shared data bytes, source
+seed defaults/flags, model fingerprints and initialization mode are recorded. The
+trace is an **initial-workload backend/system diagnostic**, not late-policy timing,
+not an extension of either learning curve, and not evidence of GPU-only speedup.
+Keep ordinary performance curves separate from these profiled two-rollout traces.
+
+## Explicit original-watchdog saved-STOPPED alternative
+
+Default preparation still requires natural `SUCCEEDED`, both launcher exits0,
+50 complete rollouts/200 updates and that node's native final49. The separate
+`--allow-saved-stopped-main` opt-in permits **only an already terminal `STOPPED`**
+produced by the original watchdog's `soft_deadline_checkpoint_confirmed` path.
+It does not request a Ray stop, stop a running main, alter the watchdog, or extend
+soft/hard/lease deadlines. The separate `--allow-stop-completed-main` permission
+is still required before stopping the exact, already-terminal main container.
+Healthy GB interruption remains prohibited.
+
+For an existing automatic saved stop, add `--allow-saved-stopped-main` to the
+reviewed prepare command above. The operator pins each original arming record,
+PID/armed timestamp, run/submission ID, entrypoint hash, train-launch record and
+watchdog source SHA. It requires matching original deadlines; sentinel creation
+and observation; an advanced numeric checkpoint R; a corroborating stopping and
+terminal watchdog transcript; and fresh absence of the sentinel on the node.
+The live terminal watchdog file must match the retained `node-output/watchdog.json`.
+Checkpoint R must have the native metadata/shards and rollout-state file, using
+the shared legacy/embedded-common verifier. R replaces **only** the main's final49
+prerequisite; the selected initial policy or frozen9 profile input is unchanged.
+
+Successful normal-UID small-artifact retention must occur after the watchdog's
+terminal observation. If the original driver copied before the final watchdog
+poll, preparation fails closed: retain the terminal evidence explicitly first,
+with accurate provenance, rather than reuse a stale `stopping` snapshot.
+All jobs in the selected main cluster must already be terminal. These checks run
+again immediately before the exact container stop and reject changed evidence.
+The saved-stop branch records actual completed rollouts, observed/saved updates,
+`STOPPED`, and `partial: true`; it never relabels a partial run as 50/200 success.
+
+The accepted exit mapping is deliberately narrow: `train_exit=0`,
+`train-driver-exit=0`, and Ray `driver_exit_code=null`. Installed Ray's CLI returns0
+for STOPPED; its supervisor writes STOPPED without an exit-code field. The Miles
+command utility, orchestrator and stage driver propagate that successful CLI exit.
+Nonzero shell/signal/SSH exits, `FAILED`, OOM, invalid/non-finite training steps,
+manual/hard-deadline stops, stale checkpoints, missing provenance, unacknowledged
+stop requests, and changed budgets are rejected rather than explained away.
+
+Read-only source verification on both installed images found identical Ray files:
+
+- `ray/dashboard/modules/job/cli.py`, lines350–358,
+  SHA256 `e46aa8c268da9795a47ddea685ef8ae99528962a04489063c0ea7dbc30304eff`.
+- `ray/dashboard/modules/job/job_supervisor.py`, lines430–465,
+  SHA256 `7e1f730ec5ec62bc132d87180c9cfe7ffd2eb9c79b0d40909213d10e21dc4a83`.
+- Mounted `miles/utils/external_utils/command_utils.py`, lines248–257,
+  SHA256 `ed8d0fec633accffccc5b1c6a66af1ade53d3da4549ea0248c9be4d817573afc`.
+- Watchdog SHA256 `5a2436521b2d19139f836a8bcadb3193907d54c680537023d3f71cbf91ed61a5`;
+  exact platform driver/launch hashes are pinned in `SAVED_STOP_PROVENANCE`.
+
+## Default frozen-checkpoint sequence
 
 The Rubin source is **A2**: `raysubmit_qCmmzUzbwHrBKAiU`, run
 `20260916-j2198331-qwen3-a2-mb4096`, container
@@ -186,9 +272,9 @@ The operator rechecks the complete destination inventory, sizes, metadata hashes
 ownership, source/destination identity and absence of symlinks before mounting.
 It does not reread model shard contents or copy from NFS during preparation.
 
-Only after all these prerequisites **and full natural main completion** pass does
+In frozen-checkpoint mode, only after these prerequisites and the selected main-completion gate pass does
 profiling start from frozen iteration9: rollouts10–11, 8 optimizer updates. Each
-main's native final checkpoint49 remains a separate completion requirement.
+main's native final49 (or strictly verified saved-stop R) remains a separate completion requirement.
 
 ## Time, size and interpretation limits
 

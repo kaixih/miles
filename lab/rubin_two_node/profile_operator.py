@@ -9,8 +9,10 @@ exact completed main container. Never use this to interrupt a main run.
 
 A replay is 2 rollouts/8 updates, not 2 optimizer steps. Both platforms read the
 same frozen Rubin iteration-9 checkpoint from verified local RAID storage, only
-after their main runs naturally finish all 50 rollouts. Cross-version resume is an
-execution check. SGLang profiling is separately triggered on an actual replay
+after their main runs naturally finish all 50 rollouts, or explicitly verified
+original-watchdog saved STOPPED outcomes. --initial-policy instead profiles shared
+HF/release inputs with a fresh optimizer; no checkpoint9 copy is needed. Cross-version
+checkpoint resume remains an execution check. SGLang profiling is separately triggered on an actual replay
 engine URL using the bounded payload printed by profile_qwen3_replay.py.
 """
 try:
@@ -25,6 +27,7 @@ import hashlib
 import importlib.util
 import inspect
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -59,6 +62,25 @@ RUNS = {
         lease='2026-09-16T07:09:02+00:00', megatron='/root/Megatron-LM',
         image='radixark/miles@sha256:226f63d28e4b1482e0a6948ba3d486c1b1635648d079c82c9501640b24657986'),
 }
+# Captured from the original launch records before either watchdog's deadline.
+# These are immutable provenance pins, not configurable deadline extensions.
+SAVED_STOP_PROVENANCE = {
+    'rubin': dict(soft='2026-09-16T05:20:00+00:00', hard='2026-09-16T05:50:00+00:00',
+        pid=4565, armed_at='2026-09-16T01:39:43.839235+00:00',
+        watchdog_launch_sha256='6b2cda01762f412fb8f37c6f02e78e65abc3e781f929eb183c1d099d360b93aa',
+        train_launch_sha256='ccf2d67651ad718547dd9846e8773dd49362368a0cb674fa7138e298d6dffc3b',
+        entrypoint_sha256='a9bb4cf3c8dcba293752503120d58441b299e86f0db0ce4ab185e98f0322e151',
+        driver_file='run_stage.py', driver_sha256='fa433d07599897eec0d93c9b74367b05b9d1a5c6ce11e339ecda4d441a59d741'),
+    'gb300': dict(soft='2026-09-16T06:20:00+00:00', hard='2026-09-16T06:50:00+00:00',
+        pid=4961, armed_at='2026-09-15T23:35:26.871770+00:00',
+        watchdog_launch_sha256='d675073750b2bfec729ce63ff4a67c6335bbd20a213bc17f07a7d391d96f070e',
+        train_launch_sha256='c742eee6f80732f3d7329fa4ffc2e4c7c2f76f60c9f30bbb6440a2e5dff7ef5c',
+        entrypoint_sha256='da50906e2c1cd34d0770f5f0d989fd13e6b3b2f0c24bc70390a1b392a08184e2',
+        driver_file='gb300_run_stage.py', driver_sha256='fe85d9be68708639bc9861cc7c90da0e11491e38a805461b12b180c14d050eaa'),
+}
+WATCHDOG_SOURCE_SHA256 = '5a2436521b2d19139f836a8bcadb3193907d54c680537023d3f71cbf91ed61a5'
+
+
 INPUT_HASHES = {
     'train.jsonl': 'f5ca349cacea3a32998ccd59fae4ecd0007bcec1bd26c9ad16d732fad1a369d8',
     'test-fixed-256.jsonl': '93ed3ccda6ecd09ce0665d0423bf8720b7db97823b0ce2a1c4d20483f410ce99',
@@ -88,11 +110,12 @@ def write_json(path, obj):
 
 def config(args):
     c = dict(RUNS[args.platform])
-    c.update(platform=args.platform, run_id=args.run_id)
+    c.update(platform=args.platform, run_id=args.run_id, initial_policy=getattr(args, 'initial_policy', False))
     c['name'] = 'miles-profile-' + args.run_id
     c['local'] = c['raid_root'] + '/' + c['name']
     c['models'] = c['raid_root'] + '/models'
     c['profile_checkpoint'] = c['raid_root'] + '/profile-checkpoint-9'
+    c['model_manifest'] = c['raid_root'] + '/manifests/input-staging.json'
     c['durable'] = c['root'] + '/profiles/' + args.run_id
     c['input'] = c['runtime_output'] + '/inputs'
     c['source_plan'] = c['root'] + '/original-ray-job.json'
@@ -120,7 +143,8 @@ def docker_command(c):
             '--shm-size', '16g', '--user', '28644:30', '--workdir', '/opt/miles']
     mounts = [(host_input(c, REPO), '/opt/miles', True),
               (c['models'], BASE + '/models', True),
-              (c['profile_checkpoint'], '/profile-checkpoint', True),
+              *(([(c['model_manifest'], '/profile-input-manifest.json', True)]) if c.get('initial_policy')
+                else [(c['profile_checkpoint'], '/profile-checkpoint', True)]),
               (host_input(c, c['source_plan']), '/profile-source/original-ray-job.json', True),
               (c['local'] + '/run', '/run-output', False),
               (c['input'], '/run-output/inputs', True),
@@ -157,14 +181,22 @@ def ray_command(c):
             '--dashboard-host', c['ip'], '--dashboard-port', '29265', '--temp-dir', '/cache/ray']
 
 
-def replay_command(c, seconds, execute=False, checkpoint_id=''):
+def replay_command(c, seconds, execute=False, checkpoint_id='', initial_model_id=''):
     cmd = ['docker', 'exec', c['name'], 'python3', '/opt/miles/lab/rubin_two_node/profile_qwen3_replay.py',
-           '--source-plan', '/profile-source/original-ray-job.json', '--checkpoint-root', '/profile-checkpoint',
-           '--checkpoint-iteration', str(PROFILE_ITERATION), '--output-dir', '/run-output/replay', '--run-id', c['run_id'],
+           '--source-plan', '/profile-source/original-ray-job.json',
+           '--output-dir', '/run-output/replay', '--run-id', c['run_id'],
            '--ray-address', c['dashboard'], '--megatron-path', c['megatron'],
            '--max-runtime-seconds', str(seconds), '--max-trace-gib', '10',
            '--profile-max-tokens-per-gpu', '4096']
-    return cmd + (['--expected-checkpoint-id', checkpoint_id, '--execute-run'] if execute else ['--print-only'])
+    if c.get('initial_policy'):
+        cmd += ['--initial-policy', '--initial-model-manifest', '/profile-input-manifest.json']
+        if execute:
+            cmd += ['--expected-initial-model-id', initial_model_id]
+    else:
+        cmd += ['--checkpoint-root', '/profile-checkpoint', '--checkpoint-iteration', str(PROFILE_ITERATION)]
+        if execute:
+            cmd += ['--expected-checkpoint-id', checkpoint_id]
+    return cmd + (['--execute-run'] if execute else ['--print-only'])
 
 
 class OperationDeadline:
@@ -423,44 +455,190 @@ def _input_staging_summary(raid_root, node, source_roots):
     return {'record_sha256': hashlib.sha256(record_path.read_bytes()).hexdigest(), 'models': summary}
 
 
-def check_node_prerequisites(c, retained_checkpoint):
+def check_node_prerequisites(c, retained_checkpoint, main_iteration=MAIN_FINAL_ITERATION, saved_stop=None):
     sources = {name: host_input(c, BASE + '/models/' + name)
                for name in ('Qwen3-30B-A3B', 'Qwen3-30B-A3B_torch_dist')}
     code = ('import json\n' + inspect.getsource(checkpoint_metadata) + '\n' + inspect.getsource(_checkpoint_inventory) + '\n'
             + inspect.getsource(_input_staging_summary) + '\n'
             + 'result = {"inputs": _input_staging_summary(' + repr(c['raid_root']) + ',' + repr(c['node']) + ',' + repr(sources) + '),'
-            + '"selected_checkpoint": _checkpoint_inventory(' + repr(c['profile_checkpoint']) + ',' + str(PROFILE_ITERATION) + '),'
-            + '"main_final_checkpoint": _checkpoint_inventory(' + repr(c['runtime_output'] + '/checkpoints') + ',' + str(MAIN_FINAL_ITERATION) + ')}\n'
-            + 'print(json.dumps(result))')
-    result = node_python(c, code, 120)
-    if result['selected_checkpoint']['id'] != retained_checkpoint['checkpoint_id']:
+            + '"main_final_checkpoint": _checkpoint_inventory(' + repr(c['runtime_output'] + '/checkpoints') + ',' + str(main_iteration) + ')}\n')
+    if not c.get('initial_policy'):
+        code += 'result["selected_checkpoint"]=_checkpoint_inventory(' + repr(c['profile_checkpoint']) + ',' + str(PROFILE_ITERATION) + ')\n'
+    if saved_stop is not None:
+        code += ('from pathlib import Path\nimport hashlib\n'
+            + 'watch=Path(' + repr(c['runtime_output'] + '/watchdog.json') + ')\n'
+            + 'sentinel=Path(' + repr(c['runtime_output'] + '/checkpoint-now') + ')\n'
+            + 'assert watch.resolve()==watch and watch.stat().st_uid==28644\n'
+            + 'assert hashlib.sha256(watch.read_bytes()).hexdigest()==' + repr(saved_stop['watchdog_sha256']) + '\n'
+            + 'assert not sentinel.exists() and not sentinel.is_symlink(), "Save sentinel still present"\n'
+            + 'result["saved_stop_sentinel_absent"]=True\n')
+    result = node_python(c, code + 'print(json.dumps(result))', 120)
+    if not c.get('initial_policy') and result['selected_checkpoint']['id'] != retained_checkpoint['checkpoint_id']:
         raise RuntimeError('Local selected checkpoint differs from verified durable checkpoint')
-    return {'input_staging': result['inputs'], 'selected_checkpoint_id': result['selected_checkpoint']['id'],
+    initial_id = hashlib.sha256(json.dumps({name: model['fingerprint']
+        for name, model in result['inputs']['models'].items()}, sort_keys=True).encode()).hexdigest()
+    return {'input_staging': result['inputs'], 'initial_model_id': initial_id,
+            'profile_policy': 'initial_policy_fresh_optimizer' if c.get('initial_policy') else 'frozen_checkpoint9',
+            'selected_checkpoint_id': None if c.get('initial_policy') else result['selected_checkpoint']['id'],
             'main_final_checkpoint_id': result['main_final_checkpoint']['id'],
-            'main_final_iteration': MAIN_FINAL_ITERATION, 'profile_iteration': PROFILE_ITERATION}
+            'main_final_iteration': main_iteration, 'profile_iteration': None if c.get('initial_policy') else PROFILE_ITERATION,
+            'saved_stop_sentinel_absent': result.get('saved_stop_sentinel_absent')}
 
 
-def check_main(c):
+def _owned_record(path):
+    path = Path(path)
+    if path.resolve() != path or not path.is_file() or path.stat().st_uid != 28644:
+        raise RuntimeError('Evidence missing, symlinked, or foreign-owned: ' + str(path))
+    if path.stat().st_size > 32 * 1024**2:
+        raise RuntimeError('Oversized evidence JSON: ' + str(path))
+    raw = path.read_bytes()
+    return json.loads(raw), hashlib.sha256(raw).hexdigest()
+
+
+def _timestamp(value):
+    result = dt.datetime.fromisoformat(value.replace('Z', '+00:00'))
+    if result.tzinfo is None:
+        raise RuntimeError('Evidence timestamp lacks timezone')
+    return result.timestamp()
+
+
+def _saved_stop_evidence(c, main, metrics, exits, retained):
+    """Accept evidence of an existing original-watchdog saved stop; never stop it."""
     r = Path(c['root'])
-    for filename in ['train_exit.json', 'train-driver-exit.json']:
-        if json.loads((r / filename).read_text()).get('exit_code') != 0:
+    if main.get('status') != 'STOPPED':
+        raise RuntimeError('Saved-stop evidence requires actual Ray STOPPED')
+    retained_record, retained_sha = _owned_record(r / 'artifact-retention-exit.json')
+    if retained_record != retained or retained.get('exit_code') != 0 or retained.get('uid') != 28644:
+        raise RuntimeError('Small-artifact retention is unsuccessful or changed')
+    exit_hashes = {}
+    for filename, code in exits.items():
+        record, exit_hashes[filename] = _owned_record(r / filename)
+        if record.get('exit_code') != code:
+            raise RuntimeError('Launcher exit record changed during verification')
+    expected = SAVED_STOP_PROVENANCE[c['platform']]
+    watch, watch_sha = _owned_record(r / 'node-output/watchdog.json')
+    launch, launch_sha = _owned_record(r / 'watchdog-launch.json')
+    training, training_sha = _owned_record(r / 'train-launch.json')
+    if (launch_sha != expected['watchdog_launch_sha256'] or training_sha != expected['train_launch_sha256']
+            or training.get('source_sha256', {}).get('lab/rubin_two_node/watch_qwen3_run.py') != WATCHDOG_SOURCE_SHA256):
+        raise RuntimeError('Original watchdog/launch source provenance differs')
+    driver = r / expected['driver_file']
+    if driver.resolve() != driver or driver.stat().st_uid != 28644 or hashlib.sha256(driver.read_bytes()).hexdigest() != expected['driver_sha256']:
+        raise RuntimeError('Audited stage-driver exit mapping changed')
+    if hashlib.sha256(main['entrypoint'].encode()).hexdigest() != expected['entrypoint_sha256']:
+        raise RuntimeError('Original main entrypoint hash differs')
+    required = {'state': 'finished', 'terminal_status': 'STOPPED', 'ray_status': 'STOPPED',
+        'run_id': c['main_run'], 'submission_id': c['main_id'], 'pid': expected['pid'],
+        'armed_at': expected['armed_at'], 'ray_address': 'http://' + c['ip'] + ':28265',
+        'soft_deadline_at': expected['soft'], 'deadline_at': expected['hard'], 'lease_deadline_at': c['lease'],
+        'expected_rollouts': 50, 'stop_reason': 'soft_deadline_checkpoint_confirmed', 'outcome': 'partial',
+        'sentinel': '/run-output/checkpoint-now', 'save_dir': '/run-output/checkpoints',
+        'sentinel_created': True, 'sentinel_seen': True, 'last_stop_response': True,
+        'training_complete_verified': False}
+    if any(watch.get(k) != v for k, v in required.items()) or launch.get('pid') != expected['pid']:
+        raise RuntimeError('Not an original-watchdog checkpoint-confirmed STOPPED outcome')
+    if type(watch.get('stop_request_count')) is not int or watch['stop_request_count'] < 1:
+        raise RuntimeError('No original-watchdog stop request was recorded')
+    if any(watch.get(key) for key in ('checkpoint_error_type', 'final_artifact_read_error', 'last_stop_error_type')):
+        raise RuntimeError('Saved-stop evidence contains unresolved checkpoint/stop errors')
+    baseline, latest = watch.get('checkpoint_baseline'), watch.get('latest_checkpoint')
+    if not isinstance(baseline, dict) or not isinstance(latest, dict):
+        raise RuntimeError('Missing numeric checkpoint baseline/confirmation')
+    before, iteration = baseline.get('iteration'), latest.get('iteration')
+    if (type(before) is not int or type(iteration) is not int or not 0 <= before < iteration < 50
+            or iteration < PROFILE_ITERATION or latest.get('directory_exists') is not True
+            or latest.get('directory') != f'/run-output/checkpoints/iter_{iteration:07d}'
+            or baseline.get('directory_exists') is not True
+            or baseline.get('directory') != f'/run-output/checkpoints/iter_{before:07d}'):
+        raise RuntimeError('Save confirmation did not advance the exact numeric checkpoint')
+    requested, confirmed, finished = (_timestamp(watch[k]) for k in
+                                      ('checkpoint_requested_at', 'checkpoint_confirmed_at', 'completed_at'))
+    soft, hard = _timestamp(expected['soft']), _timestamp(expected['hard'])
+    if not (_timestamp(expected['armed_at']) < _timestamp(training['started_utc']) < soft
+            <= requested <= confirmed <= finished < hard
+            and finished <= _timestamp(retained['retained_at'])):
+        raise RuntimeError('Saved-stop chronology differs from original soft/hard deadlines or retention')
+    ended = main.get('end_time')
+    if not isinstance(ended, (int, float)) or not confirmed <= ended / 1000 <= finished:
+        raise RuntimeError('Ray terminal time is not after the confirmed save')
+    # Source-confirmed mapping is deliberately narrow; signals/SSH failures are not success.
+    if any(type(value) is not int or value != 0 for value in exits.values()):
+        raise RuntimeError('Unexplained saved-stop launcher exit mapping')
+    if main.get('driver_exit_code') is not None or watch.get('driver_exit_code') is not None:
+        raise RuntimeError('Unexpected STOPPED Ray driver_exit_code; needs separate source review')
+    watch_log = r / 'node-output/logs/watchdog.log'
+    if watch_log.resolve() != watch_log or watch_log.stat().st_uid != 28644:
+        raise RuntimeError('Watchdog transcript missing or foreign-owned')
+    stopping_seen = terminal_seen = False
+    with watch_log.open() as stream:
+        for line in stream:
+            try:
+                event = json.loads(line)
+            except (ValueError, TypeError):
+                continue
+            if not isinstance(event, dict):
+                continue
+            terminal_seen |= event == watch
+            stopping_seen |= (event.get('state') == 'stopping' and event.get('submission_id') == c['main_id']
+                and event.get('stop_reason') == required['stop_reason']
+                and (event.get('latest_checkpoint') or {}).get('iteration') == iteration)
+    if not stopping_seen or not terminal_seen:
+        raise RuntimeError('Retained watchdog transcript does not corroborate saved-stop sequence')
+    complete = metrics['completed_training_rollouts']
+    if (metrics.get('parse_errors') or metrics.get('conflicts') or not complete
+            or complete != list(range(len(complete))) or iteration not in complete):
+        raise RuntimeError('Learning log lacks a complete, conflict-free prefix through saved checkpoint')
+    steps = [step for row in metrics['rows'] for step in row['train_steps']]
+    ids = sorted(step['logged_id'] for step in steps)
+    if ids != list(range(len(ids))) or not 4 * len(complete) <= len(ids) <= min(200, 4 * len(complete) + 3):
+        raise RuntimeError('Observed optimizer updates are not a contiguous learning prefix')
+    for step in steps:
+        for key in ('train/loss', 'train/grad_norm'):
+            value = step['metrics'].get(key)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                raise RuntimeError('Non-finite/missing learning metric before saved stop: ' + key)
+    fatal = re.compile(r'(?:torch\.(?:cuda\.)?OutOfMemoryError|CUDA out of memory|outcome=(?:ERROR|FAILED)|valid_step=false)', re.I)
+    with (r / 'logs/qwen3_train.log').open(errors='replace') as stream:
+        if any(fatal.search(line) for line in stream):
+            raise RuntimeError('Training failure/OOM/invalid step is not an eligible saved stop')
+    return {'mode': 'original_watchdog_saved_STOPPED', 'main_status': 'STOPPED', 'partial': True,
+            'checkpoint_iteration': iteration, 'saved_optimizer_updates': (iteration + 1) * 4,
+            'observed_optimizer_updates': len(ids), 'completed_rollouts': complete,
+            'watchdog_sha256': watch_sha, 'watchdog_launch_sha256': launch_sha, 'train_launch_sha256': training_sha,
+            'watchdog_source_sha256': WATCHDOG_SOURCE_SHA256,
+            'original_soft_deadline': expected['soft'], 'original_hard_deadline': expected['hard'],
+            'original_lease_deadline': c['lease'], 'stop_reason': watch['stop_reason'],
+            'launcher_exits': exits, 'launcher_exit_sha256': exit_hashes,
+            'small_artifact_retention_sha256': retained_sha,
+            'watchdog_transcript_sha256': hashlib.sha256(watch_log.read_bytes()).hexdigest(),
+            'driver_source_sha256': expected['driver_sha256'],
+            'ray_driver_exit_code': main.get('driver_exit_code'),
+            'checkpoint_requested_at': watch['checkpoint_requested_at'],
+            'checkpoint_confirmed_at': watch['checkpoint_confirmed_at'], 'terminal_at': watch['completed_at']}
+
+
+def check_main(c, allow_saved_stopped=False):
+    r = Path(c['root'])
+    exits = {filename: json.loads((r / filename).read_text()).get('exit_code')
+             for filename in ('train_exit.json', 'train-driver-exit.json')}
+    for filename, value in exits.items():
+        if value != 0:
             raise RuntimeError('Main launcher did not exit successfully: ' + filename)
     retained = json.loads((r / 'artifact-retention-exit.json').read_text())
     if retained.get('exit_code') != 0 or retained.get('uid') != 28644:
         raise RuntimeError('Main node-local evidence has not been retained by normal UID')
-    spec = importlib.util.spec_from_file_location('qwen3_summary', REPO + '/lab/rubin_two_node/summarize_qwen3_runs.py')
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    metrics = module.summarize_run(c['platform'], r / 'logs/qwen3_train.log', {'status': 'SUCCEEDED'})
-    if metrics['partial'] or metrics['completed_training_rollouts'] != list(range(50)):
-        raise RuntimeError('Main log does not prove all 50 rollouts/200 updates')
     current = jobs(c, 'http://' + c['ip'] + ':28265')
     if any(j.get('type') == 'SUBMISSION' and j.get('status') not in TERMINAL for j in current):
         raise RuntimeError('Main Ray cluster still has an active/unknown job')
     matches = [j for j in current if j.get('submission_id') == c['main_id']]
-    if len(matches) != 1 or matches[0].get('status') != 'SUCCEEDED':
-        raise RuntimeError('Exact main Ray job is not SUCCEEDED')
+    if len(matches) != 1:
+        raise RuntimeError('Exact main Ray identity is missing or duplicated')
     main = matches[0]
+    saved_stop = allow_saved_stopped and main.get('status') == 'STOPPED'
+    if main.get('status') != 'SUCCEEDED' and not saved_stop:
+        raise RuntimeError('Exact main Ray job is not SUCCEEDED')
+    if saved_stop and any(j.get('status') not in TERMINAL for j in current):
+        raise RuntimeError('Saved-stop alternate requires every main-cluster job to be terminal')
     if main.get('runtime_env', {}).get('env_vars', {}).get('RUBIN_RUN_ID') != c['main_run']:
         raise RuntimeError('Main Ray identity mismatch')
     original = json.loads((r / 'original-ray-job.json').read_text())
@@ -470,11 +648,24 @@ def check_main(c):
         raise RuntimeError('Review recorded Ray routing before replay; will not rewrite it: ' + repr(unexpected_routing))
     if main.get('entrypoint') != original.get('entrypoint'):
         raise RuntimeError('Main entrypoint differs from saved source plan')
-    retained_checkpoint = check_checkpoint_retention()
-    node_prerequisites = check_node_prerequisites(c, retained_checkpoint)
-    return {'checked_at': utc(), 'ray_job': main, 'log_sha256': metrics['source_log_sha256'],
-            'completed_rollouts': metrics['completed_training_rollouts'], 'optimizer_updates': 200,
-            'checkpoint_retention_record_sha256': retained_checkpoint['record_sha256'],
+    spec = importlib.util.spec_from_file_location('qwen3_summary', REPO + '/lab/rubin_two_node/summarize_qwen3_runs.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    metrics = module.summarize_run(c['platform'], r / 'logs/qwen3_train.log', {'status': main['status']})
+    alternate = _saved_stop_evidence(c, main, metrics, exits, retained) if saved_stop else None
+    if not saved_stop and (metrics['partial'] or metrics['completed_training_rollouts'] != list(range(50))):
+        raise RuntimeError('Main log does not prove all 50 rollouts/200 updates')
+    retained_checkpoint = None if c.get('initial_policy') else check_checkpoint_retention()
+    if saved_stop:
+        node_prerequisites = check_node_prerequisites(c, retained_checkpoint, alternate['checkpoint_iteration'], alternate)
+    else:
+        node_prerequisites = check_node_prerequisites(c, retained_checkpoint)
+    return {'checked_at': utc(), 'ray_job': main, 'main_status': main['status'], 'partial': bool(saved_stop),
+            'completion_mode': alternate['mode'] if saved_stop else 'natural_SUCCEEDED_50_200',
+            'saved_stop_evidence': alternate, 'log_sha256': metrics['source_log_sha256'],
+            'completed_rollouts': metrics['completed_training_rollouts'],
+            'optimizer_updates': alternate['observed_optimizer_updates'] if saved_stop else 200,
+            'checkpoint_retention_record_sha256': retained_checkpoint['record_sha256'] if retained_checkpoint else None,
             'node_prerequisites': node_prerequisites}
 
 
@@ -490,7 +681,7 @@ def inspect_profile(c, deadline=None):
 def prepare(c, args):
     allocation(c)
     seconds = budget(c, args.max_runtime_seconds, args.retention_margin_seconds)
-    evidence = check_main(c)
+    evidence = check_main(c, allow_saved_stopped=getattr(args, 'allow_saved_stopped_main', False))
     if not args.allow_stop_completed_main:
         raise RuntimeError('prepare requires --allow-stop-completed-main after reviewing exact main evidence')
     durable = Path(c['durable'])
@@ -526,7 +717,9 @@ print(json.dumps({'uid':os.getuid(),'free_bytes':shutil.disk_usage(p).free}))
         if flag not in help_text:
             raise RuntimeError('This Ray CLI lacks planned isolation flag: ' + flag)
     # Recheck immediately before the only main-container mutation.
-    check_main(c)
+    repeated = check_main(c, allow_saved_stopped=getattr(args, 'allow_saved_stopped_main', False))
+    if (repeated['main_status'], repeated['log_sha256'], repeated['node_prerequisites']) != (evidence['main_status'], evidence['log_sha256'], evidence['node_prerequisites']):
+        raise RuntimeError('Main terminal evidence changed during preparation; do not stop container')
     remote(c, ['docker', 'stop', '--time', '30', c['main']], 60)
     remaining_gpu = remote(c, ['nvidia-smi', '--query-compute-apps=pid', '--format=csv,noheader,nounits']).strip()
     if remaining_gpu:
@@ -550,6 +743,8 @@ print(json.dumps({'uid':os.getuid(),'free_bytes':shutil.disk_usage(p).free}))
     (durable / 'replay-plan.txt').write_text(plan_text)
     write_json(durable / 'operator-prepared.json', {'config': c, 'prepared_at': utc(), 'preflight': preflight,
         'max_runtime_seconds_at_prepare': seconds, 'retention_margin_seconds': args.retention_margin_seconds,
+        'main_completion_mode': evidence['completion_mode'],
+        'saved_stop_opt_in_requested': getattr(args, 'allow_saved_stopped_main', False),
         'nofile_soft_hard': [65535, 65535], 'input_hashes': INPUT_HASHES,
         'source_commit': run(['git', '-C', REPO, 'rev-parse', 'HEAD']).strip(),
         'source_plan_sha256': hashlib.sha256(Path(c['source_plan']).read_bytes()).hexdigest()})
@@ -559,12 +754,16 @@ print(json.dumps({'uid':os.getuid(),'free_bytes':shutil.disk_usage(p).free}))
 def submit(c, args):
     allocation(c)
     inspect_profile(c)
-    if not re.fullmatch('[0-9a-f]{64}', args.expected_checkpoint_id):
-        raise RuntimeError('Supply the reviewed 64-hex checkpoint ID; reuse that exact ID for the other platform')
+    identity = args.expected_initial_model_id if c.get('initial_policy') else args.expected_checkpoint_id
+    if not re.fullmatch('[0-9a-f]{64}', identity):
+        raise RuntimeError('Supply the reviewed 64-hex initial-model/checkpoint ID; reuse that exact ID for the other platform')
     if not Path(c['durable'], 'operator-prepared.json').is_file():
         raise RuntimeError('Missing prepare record')
     seconds = budget(c, args.max_runtime_seconds, args.retention_margin_seconds)
-    command = replay_command(c, seconds, True, args.expected_checkpoint_id)
+    prepared = json.loads(Path(c['durable'], 'operator-prepared.json').read_text())
+    if prepared.get('config', {}).get('initial_policy', False) != c.get('initial_policy', False):
+        raise RuntimeError('Profile policy differs from the prepared container')
+    command = replay_command(c, seconds, True, args.expected_checkpoint_id, getattr(args, 'expected_initial_model_id', ''))
     text = remote(c, command, 120)
     (Path(c['durable']) / 'submit-result.txt').write_text(text)
     print(text)
@@ -738,7 +937,11 @@ def main():
     p.add_argument('--run-id', required=True)
     p.add_argument('--execute', action='store_true')
     p.add_argument('--allow-stop-completed-main', action='store_true')
+    p.add_argument('--allow-saved-stopped-main', action='store_true',
+                   help='Opt in only to an already-terminal, original-watchdog checkpoint-confirmed STOPPED main')
     p.add_argument('--expected-checkpoint-id', default='')
+    p.add_argument('--initial-policy', action='store_true', help='Profile initial HF/release policy with fresh optimizer; no checkpoint9 dependency')
+    p.add_argument('--expected-initial-model-id', default='')
     p.add_argument('--max-runtime-seconds', type=int, default=4500)
     p.add_argument('--retention-margin-seconds', type=int, default=1200)
     args = p.parse_args()
@@ -746,12 +949,18 @@ def main():
         p.error('Use a simple unique run ID of at most64 characters')
     if args.max_runtime_seconds < 900 or args.retention_margin_seconds < 600:
         p.error('Require >=900s requested runtime and >=600s retention reserve (default1200s)')
+    if (args.initial_policy and args.expected_checkpoint_id) or (not args.initial_policy and args.expected_initial_model_id):
+        p.error('Use only the identity selector matching the chosen profile policy')
     c = config(args)
     if not args.execute:
         print(json.dumps({'mode': 'PLAN_ONLY_NO_REMOTE_CALLS', 'action': args.action, 'config': c,
+            'saved_stopped_opt_in': args.allow_saved_stopped_main,
+            'saved_stopped_alternate': ('exact original-watchdog saved STOPPED; advanced native checkpointR; actual partial counts; no active jobs'
+                                        if args.allow_saved_stopped_main else None),
             'completion_gates': ['exact main Ray SUCCEEDED', 'both launcher exits0', '50rollouts/200updates',
                                  'main node-local evidence retained', 'own native final checkpoint49',
-                                 'frozen Rubin checkpoint9 retained and local copy fingerprint matches',
+                                 ('shared initial HF/release model fingerprint verified' if args.initial_policy
+                                  else 'frozen Rubin checkpoint9 retained and local copy fingerprint matches'),
                                  'local RAID model staging inventory and metadata verified',
                                  'no active Ray submissions'],
             'docker_argv': docker_command(c), 'ray_start_argv': ray_command(c),
@@ -760,10 +969,14 @@ def main():
             'retention_margin_seconds': args.retention_margin_seconds,
             'retention_deadline': 'min(retain start + requested margin, recorded lease -120s), shared across all stages',
             'stop_deadline': 'min(stop start + requested margin, recorded lease), shared across identity, hashing and scoped commands',
-            'replay_workload': {'rollout_ids': [10, 11], 'rollouts': 2, 'optimizer_updates': 8,
+            'replay_workload': {'policy': 'initial_policy_fresh_optimizer' if args.initial_policy else 'frozen_checkpoint9',
+                'rollout_ids': [0, 1] if args.initial_policy else [10, 11], 'rollouts': 2, 'optimizer_updates': 8,
+                'original_training_horizon': 50 if args.initial_policy else None,
                 'profile_step_start': 1, 'profile_step_end': 2,
                 'trace_export': 'At second train end, before CPU backup; no third rollout required'},
-            'caveats': ['Both runtimes replay frozen checkpoint9 after natural main completion; cross-version resume untested.',
+            'caveats': [('Initial-policy profiling uses shared HF/release inputs and fresh optimizer/RNG; no late-policy performance claim.'
+                         if args.initial_policy else 'Both runtimes replay frozen checkpoint9; cross-version resume untested.'),
+                        'Main must be naturally SUCCEEDED or explicitly verified original-watchdog saved STOPPED; never interrupt a healthy job.',
                         'Both replays explicitly use4096 tokens/GPU; GB main used8192 and Rubin A2 main4096.',
                         'Snapshot capture/retention/local staging are external prerequisites; no automatic copy/overwrite.',
                         '10GiB is a polled trace limit; API failure may delay scoped stopping.',

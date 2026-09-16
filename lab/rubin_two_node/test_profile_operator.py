@@ -414,5 +414,203 @@ class RetentionDeadlineTests(unittest.TestCase):
             operator.main()
 
 
+
+
+class SavedStoppedAndInitialPolicyTests(unittest.TestCase):
+    """Synthetic terminal evidence only; never query or control a real cluster."""
+    owned_files = OperatorTests.owned_files
+
+    def setUp(self):
+        OperatorTests.setUp(self)
+        self.c = {**operator.RUNS['rubin'], 'platform': 'rubin', 'root': str(self.root),
+                  'initial_policy': False, 'run_id': 'fixture-profile'}
+        self.expected = dict(operator.SAVED_STOP_PROVENANCE['rubin'])
+        self.pins = {**operator.SAVED_STOP_PROVENANCE, 'rubin': self.expected}
+        patcher = patch.object(operator, 'SAVED_STOP_PROVENANCE', self.pins)
+        patcher.start(); self.addCleanup(patcher.stop)
+        (self.root / 'node-output/logs').mkdir(parents=True)
+        (self.root / 'logs').mkdir()
+        self.training = {'started_utc': '2026-09-16T01:40:00+00:00',
+                         'source_sha256': {'lab/rubin_two_node/watch_qwen3_run.py': operator.WATCHDOG_SOURCE_SHA256}}
+        self.launch = {'pid': self.expected['pid'], 'command': ['fixture original watchdog']}
+        self.write_record('train-launch.json', self.training)
+        self.write_record('watchdog-launch.json', self.launch)
+        for filename, key in [('train-launch.json', 'train_launch_sha256'), ('watchdog-launch.json', 'watchdog_launch_sha256')]:
+            self.expected[key] = hashlib.sha256((self.root / filename).read_bytes()).hexdigest()
+        (self.root / self.expected['driver_file']).write_text('fixture audited stage source')
+        self.expected['driver_sha256'] = hashlib.sha256((self.root / self.expected['driver_file']).read_bytes()).hexdigest()
+        self.main = {'type': 'SUBMISSION', 'submission_id': self.c['main_id'], 'status': 'STOPPED',
+                     'entrypoint': 'python3 train.py --fixture', 'driver_exit_code': None,
+                     'end_time': operator._timestamp('2026-09-16T05:22:11+00:00') * 1000,
+                     'runtime_env': {'env_vars': {'RUBIN_RUN_ID': self.c['main_run']}}}
+        self.expected['entrypoint_sha256'] = hashlib.sha256(self.main['entrypoint'].encode()).hexdigest()
+        self.write_record('original-ray-job.json', self.main)
+        self.watch = {'state': 'finished', 'terminal_status': 'STOPPED', 'ray_status': 'STOPPED',
+            'run_id': self.c['main_run'], 'submission_id': self.c['main_id'], 'pid': self.expected['pid'],
+            'armed_at': self.expected['armed_at'], 'ray_address': 'http://' + self.c['ip'] + ':28265',
+            'soft_deadline_at': self.expected['soft'], 'deadline_at': self.expected['hard'],
+            'lease_deadline_at': self.c['lease'], 'expected_rollouts': 50,
+            'stop_reason': 'soft_deadline_checkpoint_confirmed', 'outcome': 'partial',
+            'sentinel': '/run-output/checkpoint-now', 'save_dir': '/run-output/checkpoints',
+            'sentinel_created': True, 'sentinel_seen': True, 'last_stop_response': True,
+            'training_complete_verified': False, 'stop_request_count': 1, 'driver_exit_code': None,
+            'checkpoint_baseline': {'iteration': 29, 'directory': '/run-output/checkpoints/iter_0000029', 'directory_exists': True},
+            'latest_checkpoint': {'iteration': 39, 'directory': '/run-output/checkpoints/iter_0000039', 'directory_exists': True},
+            'checkpoint_requested_at': '2026-09-16T05:20:02+00:00',
+            'checkpoint_confirmed_at': '2026-09-16T05:22:10+00:00', 'completed_at': '2026-09-16T05:22:12+00:00'}
+        self.retained = {'exit_code': 0, 'uid': 28644, 'retained_at': '2026-09-16T05:22:20+00:00'}
+        self.exits = {'train_exit.json': 0, 'train-driver-exit.json': 0}
+        self.metrics = {'partial': True, 'parse_errors': [], 'conflicts': [], 'source_log_sha256': 'a' * 64,
+                        'completed_training_rollouts': list(range(40)), 'rows': [
+            {'rollout_id': i, 'train_steps': [{'logged_id': 4*i+j, 'metrics': {'train/loss': .01, 'train/grad_norm': .2}}
+                                             for j in range(4)]} for i in range(40)]}
+        self.write_watch()
+        self.write_record('artifact-retention-exit.json', self.retained)
+        for filename, code in self.exits.items(): self.write_record(filename, {'exit_code': code})
+        (self.root / 'logs/qwen3_train.log').write_text('fixture finite training metrics\n')
+
+    def write_record(self, name, value):
+        (self.root / name).write_text(json.dumps(value))
+
+    def write_watch(self):
+        self.write_record('node-output/watchdog.json', self.watch)
+        stopping = {'state': 'stopping', 'submission_id': self.c['main_id'],
+                    'stop_reason': self.watch['stop_reason'], 'latest_checkpoint': self.watch['latest_checkpoint']}
+        (self.root / 'node-output/logs/watchdog.log').write_text(json.dumps(stopping) + '\n' + json.dumps(self.watch) + '\n')
+
+    def evaluate(self):
+        self.write_record('artifact-retention-exit.json', self.retained)
+        for name, code in self.exits.items(): self.write_record(name, {'exit_code': code})
+        with self.owned_files():
+            return operator._saved_stop_evidence(self.c, self.main, self.metrics, self.exits, self.retained)
+
+    def test_saved_stop_preserves_partial_counts_and_exact_checkpoint(self):
+        result = self.evaluate()
+        self.assertEqual(result['checkpoint_iteration'], 39)
+        self.assertEqual(result['observed_optimizer_updates'], 160)
+        self.assertEqual(result['saved_optimizer_updates'], 160)
+        self.assertEqual(result['main_status'], 'STOPPED')
+        self.assertTrue(result['partial'])
+        self.assertEqual(len(result['completed_rollouts']), 40)
+
+    def test_manual_hard_stale_and_modified_watchdog_refused(self):
+        cases = [('stop_reason', 'manual'), ('stop_reason', 'hard_deadline'), ('pid', 999),
+                 ('armed_at', '2026-09-16T05:19:00+00:00'), ('sentinel_created', False),
+                 ('sentinel_seen', False), ('last_stop_response', False), ('stop_request_count', 0),
+                 ('soft_deadline_at', '2026-09-16T05:30:00+00:00'), ('terminal_status', 'FAILED')]
+        for key, bad in cases:
+            old = self.watch[key]
+            self.watch[key] = bad; self.write_watch()
+            with self.subTest(key=key, bad=bad), self.assertRaises(RuntimeError): self.evaluate()
+            self.watch[key] = old
+        self.watch['latest_checkpoint'] = self.watch['checkpoint_baseline']; self.write_watch()
+        with self.assertRaisesRegex(RuntimeError, 'advance'): self.evaluate()
+
+    def test_missing_provenance_sentinel_transcript_and_retention_rejected(self):
+        original = (self.root / 'watchdog-launch.json').read_text()
+        self.write_record('watchdog-launch.json', {'pid': 999})
+        with self.assertRaisesRegex(RuntimeError, 'provenance'): self.evaluate()
+        (self.root / 'watchdog-launch.json').write_text(original)
+        (self.root / 'node-output/logs/watchdog.log').write_text(json.dumps(self.watch) + '\n')
+        with self.assertRaisesRegex(RuntimeError, 'transcript'): self.evaluate()
+        self.write_watch()
+        self.retained['retained_at'] = '2026-09-16T05:22:00+00:00'
+        with self.assertRaisesRegex(RuntimeError, 'chronology'): self.evaluate()
+
+    def test_unexplained_exits_oom_nonfinite_and_missing_steps_refused(self):
+        self.exits['train_exit.json'] = 143
+        with self.assertRaisesRegex(RuntimeError, 'exit mapping'): self.evaluate()
+        self.exits['train_exit.json'] = 0
+        self.main['driver_exit_code'] = -15
+        with self.assertRaisesRegex(RuntimeError, 'driver_exit_code'): self.evaluate()
+        self.main['driver_exit_code'] = None
+        log = self.root / 'logs/qwen3_train.log'; log.write_text('torch.OutOfMemoryError: allocation failed\n')
+        with self.assertRaisesRegex(RuntimeError, 'OOM'): self.evaluate()
+        log.write_text('normal\n')
+        self.metrics['rows'][0]['train_steps'][0]['metrics']['train/grad_norm'] = float('nan')
+        with self.assertRaisesRegex(RuntimeError, 'Non-finite'): self.evaluate()
+        self.metrics['rows'][0]['train_steps'][0]['metrics']['train/grad_norm'] = .2
+        self.metrics['rows'][0]['train_steps'].pop(0)
+        with self.assertRaisesRegex(RuntimeError, 'contiguous'): self.evaluate()
+
+    def test_opt_in_is_required_and_initial_mode_skips_only_frozen9_gate(self):
+        summary = SimpleNamespace(summarize_run=lambda *a: self.metrics)
+        loader = SimpleNamespace(loader=SimpleNamespace(exec_module=lambda _: None))
+        self.c['initial_policy'] = True
+        with self.owned_files(), patch.object(operator, 'jobs', return_value=[self.main]), \
+                patch.object(operator.importlib.util, 'spec_from_file_location', return_value=loader), \
+                patch.object(operator.importlib.util, 'module_from_spec', return_value=summary), \
+                patch.object(operator, 'check_checkpoint_retention', side_effect=AssertionError('No frozen9 dependency')), \
+                patch.object(operator, 'check_node_prerequisites', return_value={'main_final_iteration': 39}) as node:
+            with self.assertRaisesRegex(RuntimeError, 'not SUCCEEDED'): operator.check_main(self.c)
+            result = operator.check_main(self.c, allow_saved_stopped=True)
+            self.assertEqual(result['optimizer_updates'], 160)
+            self.assertEqual(result['main_status'], 'STOPPED')
+            self.assertIsNone(result['checkpoint_retention_record_sha256'])
+            self.assertEqual(node.call_args.args[2], 39)
+            self.main['status'] = 'FAILED'
+            with self.assertRaisesRegex(RuntimeError, 'not SUCCEEDED'): operator.check_main(self.c, True)
+            self.main['status'] = 'RUNNING'
+            with self.assertRaisesRegex(RuntimeError, 'active/unknown'): operator.check_main(self.c, True)
+
+    def test_initial_plan_is_offline_has_shared_manifest_and_no_checkpoint_mount(self):
+        with patch.object(operator, 'run', side_effect=AssertionError('No remote calls')), \
+                patch('sys.argv', ['operator', 'gb300', '--run-id', 'initial-fixture', '--initial-policy', '--allow-saved-stopped-main']), \
+                contextlib.redirect_stdout(io.StringIO()) as out:
+            operator.main()
+        plan = json.loads(out.getvalue())
+        self.assertEqual(plan['replay_workload']['rollout_ids'], [0, 1])
+        self.assertEqual(plan['replay_workload']['original_training_horizon'], 50)
+        self.assertTrue(plan['saved_stopped_opt_in'])
+        self.assertIn('--initial-policy', plan['replay_plan_argv'])
+        self.assertNotIn('--checkpoint-root', plan['replay_plan_argv'])
+        mounts = ' '.join(plan['docker_argv'])
+        self.assertIn('dst=/profile-input-manifest.json,readonly', mounts)
+        self.assertNotIn('dst=/profile-checkpoint', mounts)
+        command = operator.replay_command(plan['config'], 900, True, initial_model_id='b' * 64)
+        self.assertEqual(command[command.index('--expected-initial-model-id') + 1], 'b' * 64)
+        self.assertNotIn('--expected-checkpoint-id', command)
+
+    def test_initial_input_id_matches_pair_and_native_main_iteration_is_still_required(self):
+        self.c.update(raid_root='/raid/fixture', profile_checkpoint='/raid/fixture/profile-checkpoint-9', initial_policy=True)
+        inputs = {'record_sha256': 'c' * 64, 'models': {
+            'Qwen3-30B-A3B': {'fingerprint': 'a' * 64}, 'Qwen3-30B-A3B_torch_dist': {'fingerprint': 'b' * 64}}}
+        with patch.object(operator, 'node_python', return_value={'inputs': inputs, 'main_final_checkpoint': {'id': 'd' * 64}}) as node:
+            result = operator.check_node_prerequisites(self.c, None, 39, {'watchdog_sha256': 'e' * 64})
+        expected = hashlib.sha256(json.dumps({n: m['fingerprint'] for n, m in inputs['models'].items()}, sort_keys=True).encode()).hexdigest()
+        self.assertEqual(result['initial_model_id'], expected)
+        self.assertEqual(result['main_final_iteration'], 39)
+        code = node.call_args.args[1]
+        self.assertIn('Save sentinel still present', code)
+        self.assertIn('/checkpoints\',39)', code)
+        self.assertNotIn('result["selected_checkpoint"]', code)
+
+
+
+    def test_second_main_gate_prevents_container_stop_if_new_active_job_appears(self):
+        self.c.update(durable=str(self.root / 'profiles/new'), local='/raid/new', input='/tmp/inputs', name='new-profile')
+        args = SimpleNamespace(max_runtime_seconds=900, retention_margin_seconds=600,
+                               allow_stop_completed_main=True, allow_saved_stopped_main=True)
+        evidence = {'main_status': 'STOPPED', 'log_sha256': 'a' * 64,
+                    'node_prerequisites': {'main_final_iteration': 39}, 'completion_mode': 'original_watchdog_saved_STOPPED'}
+        commands = []
+        def remote(c, argv, *unused):
+            commands.append(argv)
+            if argv[:2] == ['docker', 'inspect']:
+                return json.dumps([{'Config': {'Image': c['image'], 'User': '28644:30'}}])
+            if argv[-1] == '--help':
+                return '--dashboard-agent-grpc-port --dashboard-agent-listen-port --metrics-export-port'
+            raise AssertionError('Unexpected process/container operation: ' + repr(argv))
+        with self.owned_files(), patch.object(operator, 'allocation'), patch.object(operator, 'budget', return_value=900), \
+                patch.object(operator, 'check_main', side_effect=[evidence, RuntimeError('Main Ray cluster still has an active/unknown job')]) as guard, \
+                patch.object(operator, 'node_python', return_value={'uid': 28644}), \
+                patch.object(operator, 'remote', side_effect=remote), \
+                self.assertRaisesRegex(RuntimeError, 'active/unknown'):
+            operator.prepare(self.c, args)
+        self.assertEqual(guard.call_count, 2)
+        self.assertTrue(all(call.kwargs['allow_saved_stopped'] for call in guard.call_args_list))
+        self.assertFalse(any(argv[:2] == ['docker', 'stop'] for argv in commands))
+
+
 if __name__ == "__main__":
     unittest.main()
