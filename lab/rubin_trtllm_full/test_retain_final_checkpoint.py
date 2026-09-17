@@ -40,12 +40,54 @@ class RetentionTests(unittest.TestCase):
                    {'run_dir': c['run_dir'] + '/other'}, {'node': 'node;touch bad'},
                    {'node_run_dir': '/mnt/cifs/home/scratch.kaixih_ent/run'},
                    {'node_run_dir': '/raid/tmp/j2212643/run'},
+                   {'node_run_dir': '/raid/tmp/j22126440/run'},
+                   {'node_run_dir': '/raid/tmp/notj2212644/run'},
                    {'node_run_dir': '/raid/tmp/j2212644/../run'},
                    {'save_optimizer': True}, {'save_optimizer': 0}, {'uid': 0},
                    {'sglang_moe_runner_backend': 'triton'}]
         for change in changes:
             with self.subTest(change=change), self.assertRaises(ValueError):
                 R.validate_config({**c, **change})
+
+    def test_replacement_requires_explicit_job_and_exact_campaign_paths(self):
+        c = config()
+        replacement = json.loads(json.dumps(c).replace('gb300', 'rubin').replace('2212644', '2212999'))
+        replacement['node'] = 'vr-nvl72-ts2-l11-038-c05'
+        self.assertEqual(R.validate_config(replacement, job_id='2212999'), replacement)
+        self.assertEqual(R.validate_config(replacement, job_id=2212999), replacement)
+        with self.assertRaises(ValueError): R.validate_config(replacement)
+        for job in ('', '0', '-1', '02212999', '2212999_0', '2212999;false', ' 2212999', '2212643'):
+            with self.subTest(job=job), self.assertRaises(ValueError):
+                R.validate_config(replacement, job_id=job)
+        for field in ('job_id', 'run_id', 'run_dir', 'node_run_dir'):
+            changed = {**replacement, field: replacement[field].replace('2212999', '2212643')}
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                R.validate_config(changed, job_id='2212999')
+
+    def test_default_original_campaigns_and_load_config_remain_compatible(self):
+        for platform, job in R.JOBS.items():
+            c = json.loads(json.dumps(config()).replace('gb300', platform).replace('2212644', job))
+            with self.subTest(platform=platform):
+                self.assertEqual(R.validate_config(c), c)
+                with tempfile.TemporaryDirectory() as d:
+                    path = Path(d) / 'driver-config.json'; path.write_text(json.dumps(c))
+                    self.assertEqual(R.load_config(path), c)
+                    self.assertEqual(R.load_config(path, job_id=job), c)
+
+    def test_cli_passes_explicit_job_to_config_and_preserves_no_job_default(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / 'driver-config.json'
+            for job in (None, '2212999'):
+                c = config()
+                if job:
+                    c = json.loads(json.dumps(c).replace('gb300', 'rubin').replace('2212644', job))
+                path.write_text(json.dumps(c))
+                argv = ['retain_final_checkpoint.py', '--config', str(path), '--execute']
+                if job: argv.extend(['--job-id', job])
+                with self.subTest(job=job), patch.object(sys, 'argv', argv), \
+                        patch.object(R, 'execute', return_value=0) as execute:
+                    self.assertEqual(R.main(), 0)
+                    execute.assert_called_once_with(c)
 
     def test_allocation_owner_node_state_and_original_end_are_required(self):
         c = config(); now = R.timestamp('2026-09-17T05:00:00Z')

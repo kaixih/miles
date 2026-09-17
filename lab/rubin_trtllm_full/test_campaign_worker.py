@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import sys
 import tempfile
+import types
 import unittest
 from unittest.mock import patch
 
@@ -24,7 +25,82 @@ def inputs():
         'selected_row_indices': list(range(128)), 'chat_template_kwargs': {}}}
 
 
+def replacement_options(**changes):
+    return argparse.Namespace(platform='rubin', prepared_only=False, job_id='2213753',
+        campaign_root=worker.BASE / '20260917-campaign-rubin-rerun-j2213753',
+        source_manifest=worker.MANIFEST,
+        prepare_helper=Path('/home/scratch.kaixih_ent/repo/miles-rubin-cu134/lab/rubin_trtllm_full/prepare_platform.py'),
+        reuse_frozen_input_from=worker.CAMPAIGN, wait_until='2026-09-17T08:00:00Z', **changes)
+
+
 class DurableController(unittest.TestCase):
+    def test_replacement_allocation_uses_host_guard_and_actual_rounded_deadline(self):
+        import prepare_platform
+        instance = worker.Worker(replacement_options())
+        instance.host_prepare = prepare_platform
+        instance.prepare = types.SimpleNamespace(allocation_guard=lambda *a: self.fail('Frozen guard selected'))
+        text = ('JobId=2213753 UserId=kaixih(28644) GroupId=dip(30) JobState=RUNNING '
+                'NumNodes=1 AllocTRES=cpu=352,gres/gpu=4 NodeList=vr-nvl72-ts2-l11-038-c15 '
+                'TimeLimit=08:00:00 StartTime=2026-09-17T04:23:10 EndTime=2026-09-17T12:23:11')
+        with patch.object(worker.subprocess, 'check_output', return_value=text) as command, \
+                patch.object(worker.time, 'time', return_value=worker.stamp('2026-09-17T04:30:00Z')):
+            decision, original = instance.allocation()
+            self.assertEqual(decision, 'ready')
+            self.assertEqual(original['EndTime'], '2026-09-17T12:23:11')
+            self.assertEqual(command.call_args.args[0][-1], '2213753')
+            instance.original = original
+            command.return_value = text.replace('12:23:11', '12:23:12')
+            with self.assertRaisesRegex(ValueError, 'lease changed'): instance.allocation()
+
+    def test_replacement_identity_is_separate_and_original_defaults_survive(self):
+        new = worker.Worker(replacement_options())
+        old = worker.Worker(argparse.Namespace(platform='gb300', prepared_only=True))
+        self.assertEqual(new.job, '2213753')
+        self.assertEqual(new.run_id, '20260917-rubin-j2213753-trtllm')
+        self.assertEqual(new.manifest, worker.MANIFEST)
+        self.assertNotEqual(new.work.parent.parent, old.work.parent.parent)
+        self.assertEqual(old.job, '2212644')
+        self.assertEqual(old.campaign, worker.CAMPAIGN)
+        self.assertIsNone(old.prepare_helper)
+        self.assertIsNone(old.reuse_inputs)
+        for field, value in [('job_id', '../2213753'), ('campaign_root', worker.CAMPAIGN),
+                             ('prepare_helper', None), ('reuse_frozen_input_from', None),
+                             ('source_manifest', worker.BASE / 'unrelated/source-manifest.json')]:
+            args = replacement_options(); setattr(args, field, value)
+            with self.subTest(field=field), self.assertRaises(ValueError): worker.Worker(args)
+
+    def test_frozen_input_copy_preserves_original_receipt_bytes_and_rejects_mutation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            origin = Path(directory) / 'old'; target = Path(directory) / 'new'
+            origin.mkdir(); target.mkdir()
+            input_path = origin / 'frozen-token-input.json'
+            input_path.write_text(json.dumps(inputs(), indent=1) + '\n')
+            request = capture.generation_request(inputs(), 'fixture')
+            record = {'status': 'PASS', 'source_run_id': 'original-gb300', 'bytes': input_path.stat().st_size,
+                      'sha256': worker.sha(input_path), 'input_ids_sha256': request['input_ids_sha256'],
+                      'workload_sha256': request['workload_sha256']}
+            receipt = origin / 'frozen-token-input-receipt.json'
+            receipt.write_text(json.dumps(record, indent=3) + '\n\n')
+            result, proof = worker.copy_frozen_inputs(origin, target, capture)
+            self.assertEqual(result, record)
+            self.assertTrue(proof['byte_exact'])
+            for name in proof['files']: self.assertEqual((origin / name).read_bytes(), (target / name).read_bytes())
+            self.assertEqual(worker.copy_frozen_inputs(origin, target, capture)[0], record)
+            (target / receipt.name).write_text(json.dumps(record))
+            with self.assertRaisesRegex(ValueError, 'differs from original bytes'):
+                worker.copy_frozen_inputs(origin, target, capture)
+
+    def test_replacement_plan_makes_no_remote_calls(self):
+        stream = io.StringIO(); args = replacement_options()
+        argv = ['campaign_worker.py', '--job-id', args.job_id, '--campaign-root', str(args.campaign_root),
+                '--source-manifest', str(args.source_manifest), '--prepare-helper', str(args.prepare_helper),
+                '--reuse-frozen-input-from', str(args.reuse_frozen_input_from)]
+        with patch.object(sys, 'argv', argv), contextlib.redirect_stdout(stream), \
+                patch.object(worker.subprocess, 'run', side_effect=AssertionError('execution')), \
+                patch.object(worker.subprocess, 'check_output', side_effect=AssertionError('remote')):
+            worker.main()
+        self.assertEqual(json.loads(stream.getvalue())['job_id'], '2213753')
+
     def test_plan_makes_no_subprocess_calls(self):
         stream = io.StringIO()
         with patch.object(sys, 'argv', ['campaign_worker.py', '--platform', 'gb300', '--prepared-only']), \

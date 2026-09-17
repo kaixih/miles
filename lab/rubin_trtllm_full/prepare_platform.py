@@ -71,7 +71,8 @@ def node_view(platform, path):
 
 
 def validate_options(args):
-    job = JOBS[args.platform]
+    job = str(getattr(args, 'job_id', None) or JOBS[args.platform])
+    require(re.fullmatch(r'[1-9][0-9]*', job), 'Job ID must be a positive decimal allocation ID')
     image = args.image or (RUBIN_IMAGE if args.platform == 'rubin' else '')
     require(re.fullmatch(r'[^\s]+@sha256:[0-9a-f]{64}', image), 'An immutable registry image digest is required')
     if args.platform == 'rubin':
@@ -109,7 +110,10 @@ def allocation_guard(config, record, now, original=None):
     require(re.fullmatch(r'[A-Za-z0-9.-]+', node) and node not in ('None', 'null'), 'An actual single NodeList is required')
     require(record.get('TimeLimit') == '08:00:00', 'The actual allocation must have its original eight-hour lease')
     start, end = [timestamp(record[name] + 'Z') for name in ('StartTime', 'EndTime')]
-    require(end - start == 8 * 3600 and end - now > 120, 'Unexpected or expiring actual lease')
+    # Slurm can round the independently recorded start/end to adjacent seconds.
+    # Always retain and enforce the actual EndTime; this does not extend a lease.
+    require(8 * 3600 <= end - start <= 8 * 3600 + 1 and end - now > 120,
+            'Unexpected or expiring actual lease')
     return 'ready'
 
 
@@ -592,6 +596,7 @@ print(json.dumps({'uid':os.getuid(),'gid':os.getgid(),'versions':versions,'cuda'
 def parser():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--platform', choices=sorted(JOBS), required=True)
+    p.add_argument('--job-id', help='Explicit existing allocation; omitted keeps the original campaign job')
     p.add_argument('--source', type=Path, required=True)
     p.add_argument('--source-commit', required=True)
     p.add_argument('--source-manifest', type=Path, required=True)

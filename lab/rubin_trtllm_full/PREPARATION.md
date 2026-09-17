@@ -1,7 +1,9 @@
 # Prepare the two full TRTLLM runs
 
-`prepare_platform.py` is scoped to Rubin allocation **2212643** and GB300
-allocation **2212644**. Run it on `dl3` as UID 28644:GID 30. Allocation and image
+`prepare_platform.py` defaults to Rubin allocation **2212643** and GB300
+allocation **2212644**. An explicit `--job-id` selects a replacement allocation
+and derives a separate run directory and container identity. Omitting this flag
+preserves the original jobs. Run it on `dl3` as UID 28644:GID 30. Allocation and image
 build/pull are done externally. The image must already be locally addressable by
 its registry digest. The worker never allocates, builds an image, removes a
 container, releases a node, or deletes model/checkpoint data.
@@ -30,9 +32,11 @@ image. GB300 takes the externally built upstream derivative's immutable digest.
 `--execute-main` is optional: without it the worker finishes in
 `READY_NOT_TRAINING` after preflight.
 
-The worker waits only for its fixed job. Every remote operation rechecks the
+The worker waits only for its explicitly selected job. Every remote operation rechecks the
 normal-user owner, one actual allocated node, four GPUs, original start/end
-times, and exact eight-hour lease. Pending allocations never permit node
+times, and `TimeLimit=08:00:00`. Slurm start/end timestamps may differ by eight
+hours plus one second due to rounding; the helper accepts that one-second
+difference and always enforces the actual, unchanged `EndTime`. Pending allocations never permit node
 access. Preparation refuses to begin with fewer than four hours remaining.
 
 Storage is verified local ext4/XFS/btrfs with at least 400 GiB initially free;
@@ -60,6 +64,7 @@ Preparation receipts live under each exact campaign run directory:
 /home/scratch.kaixih_ent/repro/miles-qwen3-trtllm-full/
   20260917-gb300-j2212644-trtllm/
   20260917-rubin-j2212643-trtllm/
+  20260917-rubin-j2213753-trtllm/  # replacement run, separate history
 ```
 
 Each attempt has separate logs and failure receipts under `prep-attempts/`;
@@ -77,3 +82,43 @@ worker is not a claim of successful training: validate Ray SUCCEEDED, all
 caller retains logs, profile results, and the final model checkpoint on durable
 storage, verifies the copy, and only then releases the allocation. The worker
 does not start a background checkpoint copy during training.
+
+## Replacement Rubin run on September 17
+
+The first Rubin run ended after 32 completed rollouts following a GPU hardware
+fault. Its failed state and results remain separate. Replacement job **2213753**
+uses node `vr-nvl72-ts2-l11-038-c15`, with recorded start **04:23:10 UTC** and end
+**12:23:11 UTC**. It starts a fresh 50-rollout run from the original model;
+there is no checkpoint resume or concatenation with the failed run.
+
+The replacement controller uses a separate campaign directory but references
+the original, unchanged `20260917-campaign/source-manifest.json` and its
+`source-v2` directory. It requires frozen runtime commit
+`1ce18e4e1930bfbdaaa4a776c3a82dcebed5fa0d` and the same Rubin image `405315ba…`.
+The mutable host preparation helper is selected explicitly and its SHA256 is
+recorded separately; the main driver and profiling executable remain frozen.
+
+Plan-only invocation (add `--execute` only when ready to launch):
+
+```bash
+python3 -u lab/rubin_trtllm_full/campaign_worker.py \
+  --platform rubin --job-id 2213753 \
+  --campaign-root /home/scratch.kaixih_ent/repro/miles-qwen3-trtllm-full/20260917-campaign-rubin-rerun-j2213753 \
+  --source-manifest /home/scratch.kaixih_ent/repro/miles-qwen3-trtllm-full/20260917-campaign/source-manifest.json \
+  --prepare-helper /home/scratch.kaixih_ent/repo/miles-rubin-cu134/lab/rubin_trtllm_full/prepare_platform.py \
+  --reuse-frozen-input-from /home/scratch.kaixih_ent/repro/miles-qwen3-trtllm-full/20260917-campaign \
+  --wait-until 2026-09-17T08:00:00Z
+```
+
+The controller consumes the new campaign's image READY receipt, prepares only
+job 2213753, and copies both `frozen-token-input.json` and its receipt from the
+original campaign **byte-for-byte**. It validates file/workload hashes and
+records the reuse proof before training. It neither re-tokenizes the inputs nor
+changes the original GB300 worker, its job 2212644, or its receipts.
+
+For a separately prepared allocation, `--prepared-only` requires its existing
+image READY receipt, verified `READY_NOT_TRAINING` state, and exact driver
+configuration. The replacement still requires the explicit host helper for
+allocation checks. Do not edit that helper after the controller records its
+SHA256. A preexisting controller claim or main-launch evidence prevents an
+automatic resubmission.

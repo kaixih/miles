@@ -29,6 +29,29 @@ def allocation():
 
 
 class PreparationTests(unittest.TestCase):
+    def test_explicit_replacement_job_binds_paths_and_preserves_recipe(self):
+        a = options('rubin'); a.job_id = '2213753'
+        c = P.validate_options(a)
+        self.assertEqual(c['job_id'], '2213753')
+        self.assertEqual(c['run_id'], '20260917-rubin-j2213753-trtllm')
+        self.assertTrue(c['run_dir'].endswith(c['run_id']))
+        w = P.Worker(c, a); w.original = {**allocation(), 'JobId': '2213753', 'NodeList': 'vr-nvl72-ts2-l11-038-c15',
+                'StartTime': '2026-09-17T04:23:10', 'EndTime': '2026-09-17T12:23:11'}
+        driver = w.driver_config({'node_ip': '10.0.0.1', 'local_root': '/tmp/miles-kaixih-j2213753-trtllm', 'nic': 'mp0'}, {'root': '/tmp/models'})
+        self.assertEqual(driver['container_prefix'], 'miles-rubin-qwen3-trtllm-j2213753')
+        self.assertEqual(driver['lease_deadline'], '2026-09-17T12:23:11Z')
+        self.assertEqual(driver['image'], P.RUBIN_IMAGE)
+        self.assertFalse(driver['save_optimizer'])
+        now = P.timestamp('2026-09-17T04:30:00Z')
+        self.assertEqual(P.allocation_guard(c, w.original, now), 'ready')
+        with self.assertRaisesRegex(ValueError, 'Unexpected'):
+            P.allocation_guard(c, {**w.original, 'EndTime': '2026-09-17T12:23:12'}, now)
+        with self.assertRaisesRegex(ValueError, 'lease changed'):
+            P.allocation_guard(c, {**w.original, 'EndTime': '2026-09-17T12:23:10'}, now, w.original)
+        for job in ('0', '-1', '22/13', '2213753;true'):
+            a.job_id = job
+            with self.subTest(job=job), self.assertRaises(ValueError): P.validate_options(a)
+
     def test_exact_campaign_and_image_selection(self):
         for platform, job in [('rubin', '2212643'), ('gb300', '2212644')]:
             c = P.validate_options(options(platform))

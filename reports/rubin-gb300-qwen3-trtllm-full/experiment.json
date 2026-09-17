@@ -5,7 +5,7 @@
   "run_bindings": [
     {
       "label": "rubin",
-      "run_id": "20260917-rubin-j2212643-trtllm"
+      "run_id": "20260917-rubin-j2213753-trtllm"
     },
     {
       "label": "gb300",
@@ -18,6 +18,13 @@
   "dataset": "GSM8K",
   "decode_cuda_graph": true,
   "prefill_cuda_graph": false,
+  "excluded_attempts": [
+    {
+      "run_id": "20260917-rubin-j2212643-trtllm",
+      "completed_rollouts": 32,
+      "reason": "GPU0 uncorrectable ECC; Slurm drained the node and requested reboot. Archived separately; the replacement restarts from the initial policy."
+    }
+  ],
   "software_note": "GB300 uses an upstream Miles base with the scoped TRTLLM weight-refit fixes. Rubin uses the CUDA13.4/TE2.19 adaptation. Software stacks differ; these are comparisons of the recorded systems.",
   "planned_te_versions": {
     "rubin": "2.19",

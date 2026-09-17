@@ -50,23 +50,29 @@ def timestamp(value):
     return parsed.timestamp()
 
 
-def validate_config(raw):
+def validate_config(raw, job_id=None):
     platform = raw.get('platform')
     require(platform in JOBS, 'Unknown platform')
-    job = JOBS[platform]
+    job = JOBS[platform] if job_id is None else str(job_id)
+    require(re.fullmatch(r'[1-9][0-9]*', job), 'Explicit job ID must be a positive decimal allocation ID')
     expected_run = f'20260917-{platform}-j{job}-trtllm'
-    require(str(raw.get('job_id')) == job and raw.get('run_id') == expected_run, 'Wrong fixed campaign/job identity')
+    require(str(raw.get('job_id')) == job and raw.get('run_id') == expected_run, 'Wrong selected campaign/job identity')
     require(raw.get('run_dir') == str(BASE / expected_run), 'Wrong durable campaign root')
     require(re.fullmatch(r'[A-Za-z0-9.-]+', raw.get('node', '')), 'Unsafe node name')
     p = Path(raw['node_run_dir'])
     require(p.is_absolute() and '..' not in p.parts and str(p) == raw['node_run_dir']
             and str(p).startswith(('/tmp/', '/raid/')) and p.name == 'run'
-            and ('j' + job) in str(p), 'Unbound node-local checkpoint path')
+            and re.search(r'(?:^|[-/])j' + re.escape(job) + r'(?=$|[-/])', str(p)),
+            'Unbound node-local checkpoint path')
     require(raw.get('uid', UID) == UID and raw.get('gid', GID) == GID, 'Normal writer identity mismatch')
     require(raw.get('sglang_moe_runner_backend') == 'flashinfer_trtllm'
             and raw.get('save_optimizer') is False, 'Require the model-only TRTLLM main run')
     timestamp(raw['lease_deadline'])
     return dict(raw)
+
+
+def load_config(path, job_id=None):
+    return validate_config(json.loads(Path(path).read_text()), job_id=job_id)
 
 
 def allocation_guard(c, raw, now):
@@ -294,8 +300,9 @@ def execute(c):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--config', required=True, type=Path)
+    p.add_argument('--job-id', help='Explicit replacement allocation; config/run/paths must match exactly')
     p.add_argument('--execute', action='store_true')
-    args = p.parse_args(); c = validate_config(json.loads(args.config.read_text()))
+    args = p.parse_args(); c = load_config(args.config, job_id=args.job_id)
     if args.execute:
         return execute(c)
     print(json.dumps({'mode': 'PLAN_ONLY_NO_REMOTE_CALLS', 'run_id': c['run_id'], 'iteration': 49,

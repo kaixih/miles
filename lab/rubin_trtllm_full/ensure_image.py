@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import subprocess
 import time
@@ -37,12 +38,23 @@ def allocation(job):
     return rec
 
 
+def identity(platform, job_id=None, campaign_root=BASE):
+    job = str(job_id or JOBS[platform])
+    root = Path(campaign_root)
+    assert re.fullmatch(r'[1-9][0-9]*', job), 'Require a positive decimal job ID'
+    assert root.is_absolute() and root.parent == BASE.parent and '..' not in root.parts, 'Invalid campaign root'
+    assert job == JOBS[platform] or root != BASE, 'Replacement allocation requires a separate campaign root'
+    assert platform == 'rubin' or job == JOBS[platform], 'GB300 image build remains bound to the original job'
+    return job, root
+
+
 class Image:
-    def __init__(self, platform):
+    def __init__(self, platform, job_id=None, campaign_root=BASE):
         self.platform = platform
-        self.job = JOBS[platform]
+        self.job, self.campaign = identity(platform, job_id, campaign_root)
         self.lease = allocation(self.job)
-        self.root = BASE / (platform + '-image')
+        assert self.campaign.is_dir() and self.campaign.stat().st_uid == 28644 and not self.campaign.is_symlink()
+        self.root = self.campaign / (platform + '-image')
         self.root.mkdir(exist_ok=True)
 
     def remote(self, argv, timeout=60, log=None):
@@ -68,7 +80,7 @@ class Image:
             self.remote(['docker', 'pull', RUBIN], timeout=1800, log='pull.log')
             ref = RUBIN
         else:
-            context = BASE / 'gb300-image-context'
+            context = self.campaign / 'gb300-image-context'
             receipt['build_context_sha256'] = {
                 str(p.relative_to(context)): hashlib.sha256(p.read_bytes()).hexdigest()
                 for p in sorted(context.rglob('*')) if p.is_file()}
@@ -119,14 +131,17 @@ class Image:
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('platform', choices=JOBS)
+    p.add_argument('--job-id', help='Explicit existing allocation; omitted keeps the original job')
+    p.add_argument('--campaign-root', type=Path, default=BASE)
     p.add_argument('--execute', action='store_true')
     p.add_argument('--verify-existing', action='store_true', help='Verify the already-built target without a new build')
     args = p.parse_args()
+    job, campaign = identity(args.platform, args.job_id, args.campaign_root)
     if not args.execute:
-        print(json.dumps({'platform': args.platform, 'job': JOBS[args.platform], 'mode': 'PLAN_ONLY'}))
+        print(json.dumps({'platform': args.platform, 'job': job, 'campaign_root': str(campaign), 'mode': 'PLAN_ONLY'}))
         return
     assert (os.getuid(), os.getgid()) == (28644, 30)
-    image = Image(args.platform)
+    image = Image(args.platform, job, campaign)
     try:
         image.run(args.verify_existing)
     except BaseException as exc:

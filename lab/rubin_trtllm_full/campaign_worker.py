@@ -32,6 +32,7 @@ SOURCE = CAMPAIGN / 'source'
 MANIFEST = CAMPAIGN / 'source-manifest.json'
 JOBS = {'rubin': '2212643', 'gb300': '2212644'}
 WAIT_UNTIL = '2026-09-17T08:00:00Z'
+REPLACEMENT_SOURCE_COMMIT = '1ce18e4e1930bfbdaaa4a776c3a82dcebed5fa0d'
 RETENTION = Path('/home/scratch.kaixih_ent/repo/miles-rubin-cu134/lab/rubin_trtllm_full/retain_final_checkpoint.py')
 MAIN_MARKERS = ('main-worker-launch.json', 'train-launch.json', 'train_exit.json',
                 'train-driver-exit.json', 'cudagraph-main.claim', 'cudagraph-main-plan.json',
@@ -106,31 +107,89 @@ def frozen_record(path, receipt, capture):
     return record
 
 
+def campaign_path(value):
+    path = Path(value)
+    require(path.is_absolute() and path.parent == BASE and '..' not in path.parts,
+            'Campaign root must be a normalized direct child of the experiment root')
+    return path
+
+
+def copy_frozen_inputs(origin, destination, capture):
+    """Publish the existing immutable workload and its original receipt verbatim."""
+    names = ('frozen-token-input.json', 'frozen-token-input-receipt.json')
+    record = frozen_record(origin / names[0], origin / names[1], capture)
+    require(record is not None, 'Original campaign has no verified frozen input')
+    raw = [(origin / name).read_bytes() for name in names]
+    require(hashlib.sha256(raw[0]).hexdigest() == record['sha256'] and json.loads(raw[1]) == record,
+            'Original frozen input changed while copying')
+    prior = frozen_record(destination / names[0], destination / names[1], capture)
+    if prior:
+        require(all((destination / name).read_bytes() == data for name, data in zip(names, raw)),
+                'Replacement shared input or receipt differs from original bytes')
+    else:
+        for name, data in zip(names, raw):
+            with (destination / name).open('xb') as stream:
+                stream.write(data); stream.flush(); os.fsync(stream.fileno())
+    require(all((origin / name).read_bytes() == data for name, data in zip(names, raw)),
+            'Original frozen publication changed during copy')
+    frozen_record(destination / names[0], destination / names[1], capture)
+    return record, {'origin': str(origin), 'files': {
+        name: {'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)}
+        for name, data in zip(names, raw)}, 'byte_exact': True}
+
+
 class Worker:
     def __init__(self, args):
         self.args = args
-        self.platform, self.job = args.platform, JOBS[args.platform]
+        self.platform = args.platform
+        self.job = str(getattr(args, 'job_id', None) or JOBS[args.platform])
+        require(re.fullmatch(r'[1-9][0-9]*', self.job), 'Job ID must be a positive decimal allocation ID')
+        self.campaign = campaign_path(getattr(args, 'campaign_root', None) or CAMPAIGN)
+        self.manifest = Path(getattr(args, 'source_manifest', None) or self.campaign / 'source-manifest.json')
+        require(self.manifest.name == 'source-manifest.json' and self.manifest.parent in (self.campaign, CAMPAIGN),
+                'Use the campaign or original campaign source manifest')
+        self.wait_until = getattr(args, 'wait_until', None) or WAIT_UNTIL
+        stamp(self.wait_until)
+        helper = getattr(args, 'prepare_helper', None)
+        self.prepare_helper = Path(helper) if helper else None
+        if self.prepare_helper:
+            require(self.prepare_helper.is_absolute() and '..' not in self.prepare_helper.parts
+                    and str(self.prepare_helper).startswith('/home/scratch.kaixih_ent/'),
+                    'Host preparation helper must be an absolute normalized scratch path')
+        reuse = getattr(args, 'reuse_frozen_input_from', None)
+        self.reuse_inputs = campaign_path(reuse) if reuse else None
+        self.replacement = self.job != JOBS[self.platform]
+        if self.replacement:
+            require(self.platform == 'rubin' and self.campaign != CAMPAIGN,
+                    'Replacement Rubin allocation requires a separate campaign root')
+            require(self.manifest == MANIFEST and self.prepare_helper is not None
+                    and self.reuse_inputs == CAMPAIGN,
+                    'Replacement requires original manifest/input and an explicit host preparation helper')
+        require(self.reuse_inputs is None or self.reuse_inputs != self.campaign, 'Frozen input origin must differ from destination')
         self.run_id = f'20260917-{self.platform}-j{self.job}-trtllm'
         self.root = BASE / self.run_id
-        self.work = CAMPAIGN / 'workers' / self.platform
+        self.work = self.campaign / 'workers' / self.platform
         self.config_path = self.root / 'driver-config.json'
         self.original = None
         self.c = None
-        self.source, self.commit, self.manifest_sha = SOURCE, None, None
+        self.source, self.commit, self.manifest_sha = self.manifest.parent / 'source', None, None
+        self.prepare_helper_sha = None
 
     def state(self, stage, **extra):
         write(self.work / 'state.json', {'at': utc(), 'platform': self.platform, 'run_id': self.run_id,
               'stage': stage, 'original_allocation': self.original, **extra})
 
     def verify_source(self):
-        manifest = read(MANIFEST)
+        manifest = read(self.manifest)
         commit = manifest.get('git_commit', '')
-        source = Path(manifest.get('source_root', str(SOURCE)))
+        source = Path(manifest.get('source_root', str(self.manifest.parent / 'source')))
         require(re.fullmatch(r'[0-9a-f]{40}', commit), 'Exact frozen source commit required')
-        require(source.is_absolute() and source.parent == CAMPAIGN and source.name.startswith('source')
+        require(source.is_absolute() and source.parent == self.manifest.parent and source.name.startswith('source')
                 and '..' not in source.parts and source.is_dir() and not source.is_symlink()
                 and source.stat().st_uid == 28644, 'Frozen source must be a campaign-owned source directory')
-        digest = sha(MANIFEST)
+        require(not self.replacement or commit == REPLACEMENT_SOURCE_COMMIT,
+                'Replacement must reuse the original exact frozen learning runtime')
+        digest = sha(self.manifest)
         require(self.manifest_sha is None or (self.manifest_sha == digest and self.source == source and self.commit == commit),
                 'Frozen source manifest changed after controller start')
         self.source, self.commit, self.manifest_sha = source, commit, digest
@@ -147,18 +206,29 @@ class Worker:
             require(not any(p.is_symlink() for p in [path, *path.parents]) and sha(path) == expected,
                     'Frozen campaign source changed: ' + name)
         self.prepare = module('_frozen_campaign_preparation', self.source / required[0])
+        self.host_prepare = self.prepare
+        if self.prepare_helper:
+            require(self.prepare_helper.is_file() and not any(p.is_symlink() for p in [self.prepare_helper, *self.prepare_helper.parents]),
+                    'Host preparation helper is missing or symlinked')
+            helper_sha = sha(self.prepare_helper)
+            require(self.prepare_helper_sha is None or self.prepare_helper_sha == helper_sha,
+                    'Host preparation helper changed after controller start')
+            self.prepare_helper_sha = helper_sha
+            self.host_prepare = module('_campaign_host_preparation', self.prepare_helper)
         sys.path.insert(0, str(self.source / 'lab/rubin_two_node'))
         self.driver = module('_frozen_campaign_main', self.source / required[3])
         self.capture = module('_frozen_campaign_capture', self.source / 'lab/rubin_two_node/sglang_graph_capture.py')
         self.collector = module('_frozen_campaign_collector', self.source / 'lab/rubin_two_node/collect_cudagraph_snapshot.py')
         self.diag = module('_frozen_campaign_diagnostic_checks', self.source / 'lab/rubin_two_node/run_cudagraph_diagnostic_operator.py')
-        return {'git_commit': self.commit, 'manifest_sha256': sha(MANIFEST), 'files_checked': len(hashes)}
+        return {'git_commit': self.commit, 'manifest_sha256': sha(self.manifest), 'files_checked': len(hashes),
+                'host_prepare_helper': str(self.prepare_helper) if self.prepare_helper else None,
+                'host_prepare_sha256': self.prepare_helper_sha}
 
     def allocation(self):
         raw = subprocess.check_output(['env', 'TZ=UTC', 'scontrol', 'show', 'job', '-o', self.job],
                                       text=True, timeout=25)
         values = dict(re.findall(r'(\w+)=([^\s]+)', raw))
-        decision = self.prepare.allocation_guard({'job_id': self.job}, values, time.time(), self.original)
+        decision = self.host_prepare.allocation_guard({'job_id': self.job}, values, time.time(), self.original)
         return decision, values
 
     def wait_allocation(self):
@@ -168,9 +238,9 @@ class Worker:
                 self.original = values
                 write(self.work / 'allocation.json', values, exclusive=True)
                 return
-            require(time.time() < stamp(WAIT_UNTIL), 'Fixed queue deadline expired; no allocation was changed')
-            self.state('WAITING_FOR_OWN_ALLOCATION', job_id=self.job, wait_until=WAIT_UNTIL)
-            time.sleep(min(60, max(1, stamp(WAIT_UNTIL) - time.time())))
+            require(time.time() < stamp(self.wait_until), 'Fixed queue deadline expired; no allocation was changed')
+            self.state('WAITING_FOR_OWN_ALLOCATION', job_id=self.job, wait_until=self.wait_until)
+            time.sleep(min(60, max(1, stamp(self.wait_until) - time.time())))
 
     def remaining(self, reserve=120):
         self.allocation()
@@ -208,12 +278,15 @@ class Worker:
         return subprocess.check_output(command, timeout=seconds + 20)
 
     def image_ready(self):
-        path = CAMPAIGN / (self.platform + '-image/ready.json')
+        path = self.campaign / (self.platform + '-image/ready.json')
         if not path.exists():
             require(not self.args.prepared_only, 'Prepared-only requires the existing image READY receipt')
-            helper = CAMPAIGN / 'ensure_image.py'
+            helper = self.campaign / 'ensure_image.py'
             write(self.work / 'image-helper.json', {'path': str(helper), 'sha256': sha(helper)}, exclusive=True)
-            self.command('image', ['python3', '-u', str(helper), self.platform, '--execute'], 3600)
+            command = ['python3', '-u', str(helper), self.platform, '--execute']
+            if self.campaign != CAMPAIGN or self.replacement:
+                command += ['--job-id', self.job, '--campaign-root', str(self.campaign)]
+            self.command('image', command, 3600)
         receipt = read(path)
         require(receipt.get('status') == 'READY' and receipt.get('platform') == self.platform
                 and str(receipt.get('job')) == self.job and receipt.get('architecture') == 'arm64',
@@ -221,16 +294,23 @@ class Worker:
         require(all(receipt.get('allocation', {}).get(k) == self.original[k] for k in ('NodeList', 'StartTime', 'EndTime')),
                 'Image was prepared under a different allocation/lease')
         require(re.fullmatch(r'[^\s]+@sha256:[0-9a-f]{64}', receipt.get('image', '')), 'Image is not immutable')
+        require(not self.replacement or receipt['image'] == self.prepare.RUBIN_IMAGE,
+                'Replacement image differs from the original tested Rubin image')
         return receipt
 
     def prepare_main(self):
         image = self.image_ready()
         if not self.args.prepared_only:
             no_main_evidence(self.root)
-            command = ['python3', '-u', str(self.source / 'lab/rubin_trtllm_full/prepare_platform.py'),
+            helper = self.prepare_helper or self.source / 'lab/rubin_trtllm_full/prepare_platform.py'
+            require(self.prepare_helper is None or sha(helper) == self.prepare_helper_sha,
+                    'Host preparation helper changed before execution')
+            command = ['python3', '-u', str(helper),
                        '--platform', self.platform, '--source', str(self.source), '--source-commit', self.commit,
-                       '--source-manifest', str(MANIFEST), '--image', image['image'],
-                       '--wait-until', WAIT_UNTIL, '--execute']
+                       '--source-manifest', str(self.manifest), '--image', image['image'],
+                       '--wait-until', self.wait_until, '--execute']
+            if self.replacement:
+                command += ['--job-id', self.job]
             self.command('preparation', command, max(1, self.remaining() - 4 * 3600))
         ready = read(self.root / 'prep-state.json')
         require(ready.get('state') == 'READY_NOT_TRAINING' and ready.get('run_id') == self.run_id
@@ -258,15 +338,19 @@ class Worker:
               'image_id': image['image_id']}, exclusive=True)
 
     def freeze_inputs(self):
-        target, receipt = CAMPAIGN / 'frozen-token-input.json', CAMPAIGN / 'frozen-token-input-receipt.json'
+        target, receipt = self.campaign / 'frozen-token-input.json', self.campaign / 'frozen-token-input-receipt.json'
         self.state('FREEZING_SHARED_PROFILE_INPUT')
-        with (CAMPAIGN / 'frozen-token-input.lock').open('a') as lock:
+        with (self.campaign / 'frozen-token-input.lock').open('a') as lock:
             while True:
                 try:
                     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB); break
                 except BlockingIOError:
                     require(self.remaining() > 4 * 3600, 'Insufficient lease while awaiting the shared input lock')
                     time.sleep(10)
+            if self.reuse_inputs:
+                record, proof = copy_frozen_inputs(self.reuse_inputs, self.campaign, self.capture)
+                write(self.work / 'frozen-input-reuse.json', {'at': utc(), **proof}, exclusive=True)
+                return record
             existing = frozen_record(target, receipt, self.capture)
             if existing:
                 return existing
@@ -341,7 +425,10 @@ class Worker:
             time.sleep(30)
         require(not helper.is_symlink(), 'Retention helper must be a regular reviewed file')
         write(self.work / 'retention-helper.json', {'at': utc(), 'path': str(helper), 'sha256': sha(helper)}, exclusive=True)
-        self.command('checkpoint-retention', ['python3', '-u', str(helper), '--config', str(self.config_path), '--execute'], 1900)
+        command = ['python3', '-u', str(helper), '--config', str(self.config_path), '--execute']
+        if self.replacement:
+            command += ['--job-id', self.job]
+        self.command('checkpoint-retention', command, 1900)
         retained = read(self.root / 'final-checkpoint-retention.json')
         require(retained.get('status') == 'PASS' and retained.get('run_id') == self.run_id
                 and retained.get('iteration') == 49 and retained.get('source_stable_before_after') is True
@@ -351,11 +438,11 @@ class Worker:
                 and not (self.root / 'final-checkpoint/_INCOMPLETE.json').exists()
                 and retained.get('rsync_exit_code') == 0, 'Final checkpoint retention was not verified')
         self.verify_source()
-        frozen_record(CAMPAIGN / 'frozen-token-input.json', CAMPAIGN / 'frozen-token-input-receipt.json', self.capture)
+        frozen_record(self.campaign / 'frozen-token-input.json', self.campaign / 'frozen-token-input-receipt.json', self.capture)
         profile_id = f'{self.platform}-j{self.job}-trtllm-profile-v1'
         self.command('profile', ['python3', '-u', str(self.source / 'lab/rubin_trtllm_full/profile_operator.py'),
                      '--config', str(self.config_path), '--run-id', profile_id,
-                     '--frozen-input', str(CAMPAIGN / 'frozen-token-input.json'),
+                     '--frozen-input', str(self.campaign / 'frozen-token-input.json'),
                      '--frozen-sha256', frozen['sha256'], '--execute'], 2400)
         directory = self.root / 'diagnostics' / profile_id
         retention = read(directory / 'diagnostic-retention.json')
@@ -366,14 +453,15 @@ class Worker:
 
     def execute(self):
         require((os.getuid(), os.getgid()) == (28644, 30), 'Execute only as UID28644:GID30 on dl3')
-        require(CAMPAIGN.is_dir() and CAMPAIGN.stat().st_uid == 28644, 'Existing campaign root required')
+        require(self.campaign.is_dir() and self.campaign.stat().st_uid == 28644, 'Existing campaign root required')
         self.work.mkdir(parents=True, exist_ok=True)
         require(not any(p.is_symlink() for p in [self.work, *self.work.parents]), 'Symlink in controller output path')
         with (self.work / 'worker.lock').open('a') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             write(self.work / 'worker-claim.json', {'at': utc(), 'pid': os.getpid(), 'platform': self.platform,
-                  'prepared_only': self.args.prepared_only, 'source_manifest': str(MANIFEST),
-                  'controller_sha256': sha(Path(__file__)), 'wait_until': WAIT_UNTIL}, exclusive=True)
+                  'prepared_only': self.args.prepared_only, 'source_manifest': str(self.manifest),
+                  'job_id': self.job, 'campaign_root': str(self.campaign),
+                  'controller_sha256': sha(Path(__file__)), 'wait_until': self.wait_until}, exclusive=True)
             signal.signal(signal.SIGHUP, signal.SIG_IGN)
             try:
                 proof = self.verify_source()
@@ -396,18 +484,27 @@ class Worker:
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--platform', choices=JOBS, default='rubin')
+    p.add_argument('--job-id', help='Explicit replacement Rubin allocation; original defaults are unchanged')
+    p.add_argument('--campaign-root', type=Path, default=CAMPAIGN)
+    p.add_argument('--source-manifest', type=Path, help='Replacement uses the original frozen campaign manifest')
+    p.add_argument('--prepare-helper', type=Path, help='Reviewed host-only preparation helper; SHA recorded separately')
+    p.add_argument('--reuse-frozen-input-from', type=Path, help='Copy verified original input and receipt byte-for-byte')
+    p.add_argument('--wait-until', default=WAIT_UNTIL)
     p.add_argument('--prepared-only', action='store_true')
     p.add_argument('--execute', action='store_true')
     args = p.parse_args()
+    instance = Worker(args)
     if not args.execute:
-        print(json.dumps({'mode': 'PLAN_ONLY_NO_REMOTE_CALLS', 'platform': args.platform, 'job_id': JOBS[args.platform],
-              'campaign_root': str(CAMPAIGN), 'source_commit': 'resolved_and_pinned_from_manifest', 'source_manifest': str(MANIFEST),
-              'prepared_only': args.prepared_only, 'queue_wait_until': WAIT_UNTIL,
+        print(json.dumps({'mode': 'PLAN_ONLY_NO_REMOTE_CALLS', 'platform': args.platform, 'job_id': instance.job,
+              'campaign_root': str(instance.campaign), 'source_commit': 'resolved_and_pinned_from_manifest', 'source_manifest': str(instance.manifest),
+              'prepare_helper': str(instance.prepare_helper) if instance.prepare_helper else None,
+              'reuse_frozen_input_from': str(instance.reuse_inputs) if instance.reuse_inputs else None,
+              'prepared_only': args.prepared_only, 'queue_wait_until': instance.wait_until,
               'stages': ['verify_source', 'wait_existing_allocation', 'verify_ready' if args.prepared_only else 'image_and_prepare',
                          'freeze_shared_inputs_once', 'main_once', 'validate_50_200_800', 'retain_checkpoint49', 'profile'],
               'automatic_release': False, 'automatic_resume_or_resubmit': False}, indent=2))
         return
-    Worker(args).execute()
+    instance.execute()
 
 
 if __name__ == '__main__':

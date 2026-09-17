@@ -6,8 +6,14 @@ pending: no old trace, curve or timing value is presented as a new measurement.
 
 Bound run IDs:
 
-- Rubin: `20260917-rubin-j2212643-trtllm`
+- Rubin: `20260917-rubin-j2213753-trtllm`
 - GB300: `20260917-gb300-j2212644-trtllm`
+
+The original Rubin attempt (`20260917-rubin-j2212643-trtllm`) stopped after 32
+rollouts when GPU0 reported uncorrectable ECC. Slurm drained the node and
+requested a reboot. Its logs and hardware evidence are archived separately.
+The replacement runs all 50 rollouts from the initial policy with the same
+image, source and learning recipe; trajectories are never concatenated.
 
 ## Build after collecting new evidence
 
