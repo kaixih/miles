@@ -141,7 +141,8 @@ def node_read(c):
             if isinstance(env, str):
                 env = json.loads(env)
             run_id = (env.get('env_vars') or {}).get('RUBIN_RUN_ID')
-            if watchdog and job.get('submission_id') == watchdog.get('submission_id') and run_id != c['run_id']:
+            if (watchdog and watchdog.get('submission_id')
+                    and job.get('submission_id') == watchdog['submission_id'] and run_id != c['run_id']):
                 raise ValueError('Ray submission has a different run identity')
             if run_id == c['run_id']:
                 matches.append({k: job.get(k) for k in ('status', 'entrypoint', 'submission_id', 'job_id',

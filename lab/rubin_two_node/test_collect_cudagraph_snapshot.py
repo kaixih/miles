@@ -1,5 +1,6 @@
 """CPU-only tests: no SSH, no live jobs, no GPU operations."""
 import base64
+from contextlib import ExitStack
 from copy import deepcopy
 import datetime as dt
 import importlib.util
@@ -9,6 +10,7 @@ import signal
 import tempfile
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 import zlib
 
 SPEC = importlib.util.spec_from_file_location('cg_collector', Path(__file__).with_name('collect_cudagraph_snapshot.py'))
@@ -68,6 +70,20 @@ def evidence(c):
     return files, p
 
 
+def mocked_node_watchdog_jobs(c, watchdog, jobs):
+    import io, socket, urllib.request
+    with ExitStack() as stack:
+        stack.enter_context(patch.object(socket, 'gethostname', return_value=c['node']))
+        stack.enter_context(patch.object(C.subprocess, 'check_output', return_value=b'[{"addr_info":[{"local":"10.0.0.1"}]}]'))
+        stack.enter_context(patch.object(Path, 'is_symlink', return_value=False))
+        stack.enter_context(patch.object(Path, 'exists', return_value=True))
+        stack.enter_context(patch.object(Path, 'stat', return_value=SimpleNamespace(st_uid=28644, st_size=1024)))
+        stack.enter_context(patch.object(Path, 'read_bytes', return_value=C.encoded(watchdog)))
+        opener = stack.enter_context(patch.object(urllib.request, 'build_opener'))
+        opener.return_value.open.return_value = io.BytesIO(json.dumps(jobs).encode())
+        return C.node_read(c)
+
+
 class CollectorTests(unittest.TestCase):
     def test_configuration_refuses_old_run_wrong_platform_job_and_path(self):
         good = config(); C.validate_config('gb300', good)
@@ -125,6 +141,28 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(opener.return_value.open.call_args.args[0],'http://10.0.0.1:28265/api/jobs/')
         self.assertEqual(result['ray']['submission_id'],'job123')
         self.assertNotIn('SECRET',json.dumps(result)); self.assertNotIn('unrelated',json.dumps(result))
+
+    def test_unbound_startup_watchdog_ignores_resource_job_without_submission(self):
+        c = trtllm_config('rubin'); c['lease_deadline'] = '2099-09-16T14:50:55Z'
+        resource = {'submission_id': None, 'status': 'RUNNING', 'runtime_env': {}}
+        target = {'submission_id': 'real-main', 'status': 'RUNNING', 'entrypoint': 'python3 train.py',
+                  'runtime_env': {'env_vars': {'RUBIN_RUN_ID': c['run_id']}}}
+        for unbound in (None, ''):
+            watchdog = {'run_id': c['run_id'], 'submission_id': unbound, 'state': 'armed'}
+            with self.subTest(submission=unbound):
+                result = mocked_node_watchdog_jobs(c, watchdog, [resource])
+                self.assertIsNone(result['ray']); self.assertIsNone(result['ray_error'])
+                self.assertEqual(result['watchdog'], watchdog)
+                result = mocked_node_watchdog_jobs(c, watchdog, [resource, target])
+                self.assertEqual(result['ray']['submission_id'], 'real-main')
+
+    def test_bound_watchdog_submission_still_rejects_wrong_run(self):
+        c = trtllm_config('rubin'); c['lease_deadline'] = '2099-09-16T14:50:55Z'
+        watchdog = {'run_id': c['run_id'], 'submission_id': 'real-main', 'state': 'watching'}
+        other = {'submission_id': 'real-main', 'status': 'RUNNING',
+                 'runtime_env': {'env_vars': {'RUBIN_RUN_ID': 'different-run'}}}
+        with self.assertRaisesRegex(ValueError, 'Ray submission has a different run identity'):
+            mocked_node_watchdog_jobs(c, watchdog, [other])
 
     def test_incremental_transfer_preserves_unicode_and_partial_lines(self):
         c = config(); old = 'text\u2028not a newline\npar'.encode(); tail = b'tial\n'
