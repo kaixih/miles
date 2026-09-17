@@ -46,6 +46,17 @@ const evidence=await page.evaluate(()=>{
    if(expected.some(Number.isFinite)&&(JSON.stringify(actual?.x)!==JSON.stringify(ids)||JSON.stringify(actual?.y)!==JSON.stringify(expected)||actual.connectgaps!==false))failures.push(chart+': source values/cohort/gaps changed');
   }
  }
+ for(const platform of ['rubin','gb300'])if(!runs.some(r=>r.label===platform)){
+  const name=platform==='rubin'?'Rubin ES':'GB300';
+  for(const el of document.querySelectorAll('.chart'))if((el.data||[]).some(t=>t.name===name))failures.push('Unmeasured partner trace: '+el.id);
+  if(report.status==='PENDING_OR_INTERIM'&&!document.querySelector('#slide-3 .interim-badge')?.textContent.includes(name))failures.push('Missing partner-pending label');
+ }
+ for(const id of ['reward-chart','length-chart','truncation-chart','eval-chart','logprob-chart','gradient-chart','time-chart','generation-chart']){
+  const el=document.getElementById(id);if(!el.data?.length)continue;
+  const ticks=[...el.querySelectorAll('.xtick text')].map(t=>Number(t.textContent.replace('−','-')));
+  if(ticks.some(t=>!Number.isInteger(t)||t<0))failures.push(id+': fractional or negative ID tick');
+ }
+ if(runs.length<2&&Object.values(p.ratios).some(v=>v!==null))failures.push('Unmeasured comparison ratio');
  if(!runs.length){
   if(!document.getElementById('slide-1').textContent.includes('PENDING'))failures.push('Missing pending cover');
   for(const id of ['reward-chart','eval-chart','length-chart','truncation-chart','logprob-chart','gradient-chart','time-chart','generation-chart','stage-chart']){

@@ -11,11 +11,14 @@ const name=p=>p==="rubin"?"Rubin ES":"GB300";
 const run=p=>runs.find(r=>r.label===p);
 const mean=(p,k)=>P.paired.statistics?.[p]?.[k]?.mean_seconds;
 const pending=(message="Awaiting measurements from this new TRTLLM experiment.")=>`<div class="pending-box"><strong>PENDING / UNMEASURED</strong><p>${e(message)}</p></div>`;
+const missingPlatforms=platforms.filter(p=>!run(p)?.rows?.length);
+const interimLabel=missingPlatforms.length?`IN PROGRESS · ${missingPlatforms.map(name).join(" / ")} data pending`:"IN PROGRESS · Partial results";
+const performancePending=missingPlatforms.length?`Awaiting ${missingPlatforms.map(name).join(" / ")} measurements and steady training rounds. Startup is excluded.`:"Awaiting paired steady training rounds; startup and checkpoint-related rounds are excluded.";
 const rateText=k=>{const v=P.ratios[k]?.rubin_time_reduction;return finite(v)?`${pct(Math.abs(v))} ${v>=0?"less":"more"} time on Rubin`:"Comparison pending";};
 const slides=[];
 function slide(title,kicker,body,footnote="",dark=false){
  const id=slides.length+1;slides.push({id,title});
- document.getElementById("deck").insertAdjacentHTML("beforeend",`<section class="slide${dark?" dark":""}" id="slide-${id}" aria-label="${e(title)}"><p class="kicker">${e(kicker)}</p>${dark?"":`<h2>${e(title)}</h2>`}${body}<div class="footnote">${e(footnote)}</div><div class="page-number">${id}</div></section>`);
+ document.getElementById("deck").insertAdjacentHTML("beforeend",`<section class="slide${dark?" dark":""}" id="slide-${id}" aria-label="${e(title)}"><p class="kicker">${e(kicker)}</p>${!dark&&REPORT.status==="PENDING_OR_INTERIM"?`<span class="interim-badge">${e(interimLabel)}</span>`:""}${dark?"":`<h2>${e(title)}</h2>`}${body}<div class="footnote">${e(footnote)}</div><div class="page-number">${id}</div></section>`);
 }
 const coverStatus=REPORT.status==="FINAL"?"FULL RUN + MATCHED PROFILES":REPORT.status==="READY_FOR_REVIEW"?"COMPLETE / READY FOR REVIEW":"PENDING / NEW EXPERIMENT";
 const progress=platforms.map(p=>`${name(p)}: ${V.runs[p]?.completed_rollouts||0}/50 rollouts`).join(" · ");
@@ -95,10 +98,12 @@ slide("What the measured evidence supports","Results and scope",`
  <p class="source-link"><a href="report-data.json" download>All measurements and provenance</a> · <a href="asset-manifest.json" download>Artifact hashes</a></p>`,"Software stacks differ. One run per system and short profiles support observation, not a hardware-only causal claim.");
 
 const plotJobs=[];
-function draw(id,traces,{xTitle="Rollout ID",yTitle="",percent=false,layout={}}={}){
+function draw(id,traces,{xTitle="Rollout ID",yTitle="",percent=false,layout={},pendingMessage}={}){
  const el=document.getElementById(id),valid=traces.filter(t=>t.y.some(finite));
- if(!valid.length){el.innerHTML=pending();return;}
- const options={paper_bgcolor:"rgba(0,0,0,0)",plot_bgcolor:"rgba(0,0,0,0)",font:{family:"Inter,Segoe UI,sans-serif",size:22,color:"#183043"},margin:{l:83,r:20,t:35,b:70},legend:{orientation:"h",x:0,y:1.15,font:{size:21}},showlegend:true,hovermode:"closest",xaxis:{title:{text:xTitle,font:{size:22}},gridcolor:"#e3e9ed",automargin:true},yaxis:{title:{text:yTitle,font:{size:22}},gridcolor:"#e3e9ed",automargin:true,...(percent?{tickformat:".0%",range:[0,1.04]}:{rangemode:"tozero"})},...layout};
+ if(!valid.length){el.innerHTML=pending(pendingMessage);return;}
+ const maxId=Math.max(0,...valid.flatMap(t=>t.x.filter(finite)));
+ const idAxis=xTitle.endsWith("ID")?(maxId<=8?{range:[-.15,Math.max(1,maxId)+.15],tickmode:"linear",tick0:0,dtick:1}:{rangemode:"nonnegative"}):{};
+ const options={paper_bgcolor:"rgba(0,0,0,0)",plot_bgcolor:"rgba(0,0,0,0)",font:{family:"Inter,Segoe UI,sans-serif",size:22,color:"#183043"},margin:{l:83,r:20,t:35,b:70},legend:{orientation:"h",x:0,y:1.15,font:{size:21}},showlegend:true,hovermode:"closest",xaxis:{title:{text:xTitle,font:{size:22}},gridcolor:"#e3e9ed",automargin:true,...idAxis},yaxis:{title:{text:yTitle,font:{size:22}},gridcolor:"#e3e9ed",automargin:true,...(percent?{tickformat:".0%",range:[0,1.04]}:{rangemode:"tozero"})},...layout};
  plotJobs.push(Plotly.newPlot(el,valid,options,{responsive:true,displaylogo:false,modeBarButtonsToRemove:["select2d","lasso2d"]}));
 }
 const lineStyle=p=>({name:name(p),type:"scatter",mode:"lines+markers",connectgaps:false,line:{color:palette[p],width:3},marker:{size:5}});
@@ -111,11 +116,11 @@ function curves(key,timing=false){return runs.map(r=>{
 draw("reward-chart",curves("training_reward_mean"),{yTitle:"Training reward",percent:true});
 draw("length-chart",curves("response_length_mean_tokens"),{yTitle:"Mean output tokens"});
 draw("truncation-chart",curves("truncated_ratio"),{yTitle:"Fraction",percent:true});
-draw("time-chart",curves("step_seconds",true),{yTitle:"Seconds"});
-draw("generation-chart",curves("rollout_seconds",true),{yTitle:"Seconds"});
+draw("time-chart",curves("step_seconds",true),{yTitle:"Seconds",pendingMessage:performancePending});
+draw("generation-chart",curves("rollout_seconds",true),{yTitle:"Seconds",pendingMessage:performancePending});
 draw("eval-chart",runs.map(r=>{const es=r.rows.flatMap(row=>row.eval.map(v=>({...v,rollout_id:row.rollout_id}))).filter(v=>finite(v.metrics["eval/gsm8k"]));return {...lineStyle(r.label),mode:"markers",x:es.map(v=>v.rollout_id),y:es.map(v=>v.metrics["eval/gsm8k"]),customdata:es.map(v=>v.weight_phase),marker:{color:palette[r.label],size:11,symbol:"diamond"},hovertemplate:"Rollout %{x}<br>%{y:.2%}<br>%{customdata}<extra>%{fullData.name}</extra>"};}),{yTitle:"Held-out accuracy",percent:true});
 for(const [id,key,title]of [["gradient-chart","train/grad_norm","Gradient norm"],["logprob-chart","train/train_rollout_logprob_abs_diff","Mean absolute difference"]]){
  draw(id,runs.map(r=>{const values=new Map(r.rows.flatMap(row=>row.train_steps).map(s=>[s.logged_id,s.metrics[key]]));const ids=values.size?Array.from({length:Math.max(...values.keys())+1},(_,i)=>i):[];return {...lineStyle(r.label),x:ids,y:ids.map(i=>finite(values.get(i))?values.get(i):null)};}),{xTitle:"Optimizer update ID",yTitle:title});
 }
 const stageNames=[["rollout","Generation"],["actor_train","Actor update"],["log_probs","Old log prob"],["ref_log_probs","Reference"],["update_weights","Weight sync"]];
-draw("stage-chart",runs.map(r=>({name:name(r.label),type:"bar",x:stageNames.map(x=>x[1]),y:stageNames.map(x=>mean(r.label,x[0])??null),marker:{color:palette[r.label]}})),{xTitle:"",yTitle:"Mean seconds",layout:{barmode:"group"}});
+draw("stage-chart",runs.map(r=>({name:name(r.label),type:"bar",x:stageNames.map(x=>x[1]),y:stageNames.map(x=>mean(r.label,x[0])??null),marker:{color:palette[r.label]}})),{xTitle:"",yTitle:"Mean seconds",layout:{barmode:"group"},pendingMessage:performancePending});

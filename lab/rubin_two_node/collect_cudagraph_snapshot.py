@@ -18,6 +18,8 @@ import sys
 import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'rubin_trtllm_full'))
+import terminal_evidence
 from collect_qwen3_snapshot import (actual_recipe_and_save_events, scalar_flag, sha,
                                    decode_packet, collection_lock, commit_files)
 from summarize_qwen3_runs import summarize_run, report, json_safe
@@ -29,6 +31,10 @@ FILES = ('driver-config.json', 'preparation.json', 'source-manifest.json', 'trai
          'train_exit.json', 'train-driver-exit.json', 'watchdog.json', 'ray-job.json',
          'preflight/runtime-provenance.json', 'preflight/complete.json', 'single-node-allreduce-summary.json')
 LIMIT = 1024**3
+
+
+def evidence_files(c):
+    return FILES + terminal_evidence.artifact_paths(c)
 
 
 def encoded(value):
@@ -219,7 +225,7 @@ def decode(c, payload, previous):
     raw = previous[:offset] + decode_packet(log['tail'], LIMIT)
     if len(raw) != log['bytes'] or len(raw) > LIMIT or sha(raw) != log['sha256']:
         raise ValueError('Full log digest mismatch')
-    if set(payload['files']) - set(FILES):
+    if set(payload['files']) - set(evidence_files(c)):
         raise ValueError('Unexpected auxiliary path')
     return {LOG: raw, **{n: decode_packet(v, 8 * 1024**2) for n, v in payload['files'].items()}}
 
@@ -238,6 +244,17 @@ def metadata(platform, c, payload, files):
     live = payload.get('live') or {}
     watch = live.get('watchdog') or parsed.get('watchdog.json')
     ray = live.get('ray') or parsed.get('ray-job.json')
+    terminal = terminal_evidence.validate(c, files)
+    if terminal:
+        for value, name in [(live.get('watchdog'), 'watchdog'), (live.get('ray'), 'Ray')]:
+            if value and (value.get('run_id') != c['run_id']
+                          or value.get('submission_id') != terminal['ray']['submission_id']
+                          or (name == 'watchdog' and value != terminal['watchdog'])
+                          or (name == 'Ray' and (value.get('status') != 'SUCCEEDED'
+                              or shlex.split(value.get('entrypoint', '')) != shlex.split(terminal['ray']['entrypoint'])))):
+                raise ValueError('Live ' + name + ' contradicts verified retained terminal evidence')
+        watch, ray = terminal['watchdog'], terminal['ray']
+        files['terminal-evidence-import.json'] = encoded(terminal['receipt'])
     for name, value in [('watchdog', watch), ('ray-job', ray)]:
         if value and value.get('run_id') != c['run_id']:
             raise ValueError(name + ' identity mismatch')
@@ -294,10 +311,12 @@ def metadata(platform, c, payload, files):
                       sglang_moe_runner_backend=actual_backend,
                       save_optimizer='--no-save-optim' not in flags)
     runtime = parsed.get('preflight/runtime-provenance.json', {})
-    terminal = {'SUCCEEDED', 'FAILED', 'STOPPED'}
-    status = (live.get('ray') or {}).get('status')
+    terminal_statuses = {'SUCCEEDED', 'FAILED', 'STOPPED'}
+    status = terminal['ray']['status'] if terminal else (live.get('ray') or {}).get('status')
     if not status:
-        status = (watch or {}).get('terminal_status') or ((ray or {}).get('status') if (ray or {}).get('status') in terminal else None)
+        status = (watch or {}).get('terminal_status') or ((ray or {}).get('status') if (ray or {}).get('status') in terminal_statuses else None)
+    if selected['requires_trtllm'] and status == 'SUCCEEDED' and (ray or {}).get('status') != 'SUCCEEDED':
+        status = 'UNKNOWN'  # Terminal watchdog/curves alone do not replace an actual Ray success observation.
     status = status or ('PENDING' if not launch else 'UNKNOWN')
     for name, value in [('watchdog.json', watch), ('ray-job.json', ray)]:
         if value: files[name] = encoded(value)
@@ -321,6 +340,7 @@ def metadata(platform, c, payload, files):
             'startup_gc_error_samples': [line[-1000:] for line in log.split('\n') if 'freeze_gc' in line and any(t in line for t in ('Error', 'error', 'failed'))][:6],
             'input_preparation': {k: prep.get(k) for k in ('prepared_at', 'inputs_staged', 'background_bulk_io', 'data')},
             'status_evidence': {'observed_at': payload['observed_at'], 'live_ray_observed': bool(live.get('ray')), 'allocation': payload['allocation'],
+                                'retained_terminal': terminal['receipt'] if terminal else None,
                                 'watchdog_host_path': live.get('watchdog_host_path'), 'ray_error': live.get('ray_error'), 'ray_observed_at': (ray or {}).get('observed_at'),
                                 'limitation': 'RUNNING is lifecycle status, not a claim that training is healthy; retained evidence may be stale.'}}
 
@@ -330,7 +350,7 @@ def collect_one(platform, c, output):
     previous = old.read_bytes() if old.exists() else b''
     if len(previous) > LIMIT: raise ValueError('Local log exceeds limit')
     source = inspect.getsource(allocation_guard) + '\n' + inspect.getsource(remote_read)
-    code = 'import json\n' + source + '\nprint(json.dumps(remote_read(' + repr(c) + ',' + repr({'bytes': len(previous), 'sha256': sha(previous)}) + ',' + repr(FILES) + ',' + repr(inspect.getsource(node_read)) + ')))'
+    code = 'import json\n' + source + '\nprint(json.dumps(remote_read(' + repr(c) + ',' + repr({'bytes': len(previous), 'sha256': sha(previous)}) + ',' + repr(evidence_files(c)) + ',' + repr(inspect.getsource(node_read)) + ')))'
     raw = subprocess.check_output(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', 'dl3',
                                    shlex.join(['python3', '-c', code])], timeout=90)
     payload = json.loads(raw); files = decode(c, payload, previous)
@@ -338,11 +358,16 @@ def collect_one(platform, c, output):
         prior = output / platform / name
         if name not in files and prior.exists(): files[name] = prior.read_bytes()
     meta = metadata(platform, c, payload, files)
+    terminal = meta['status_evidence']['retained_terminal']
     receipt = {k: v for k, v in payload.items() if k not in ('files', 'log', 'live')}
     receipt.update(log={k: v for k, v in payload['log'].items() if k != 'tail'}, transferred_log_bytes=payload['log']['tail']['bytes'],
-                   watchdog_source={'host': c['node'], 'path': c['node_run_dir'] + '/watchdog.json', 'method': 'host_ssh_after_allocation_guard', 'sha256': sha(files['watchdog.json']) if 'watchdog.json' in files else None},
+                   watchdog_source={'host': 'dl3' if terminal else c['node'],
+                                    'path': c['run_dir'] + '/' + terminal['watchdog_path'] if terminal else c['node_run_dir'] + '/watchdog.json',
+                                    'method': 'verified_retained_terminal' if terminal else 'host_ssh_after_allocation_guard' if (payload.get('live') or {}).get('watchdog') else 'retained_snapshot',
+                                    'sha256': sha(files['watchdog.json']) if 'watchdog.json' in files else None},
                    driver_config_sha256=sha(encoded(c)), collector_sha256=sha(Path(__file__).read_bytes()),
-                   helper_sha256={name: sha(Path(__file__).with_name(name).read_bytes()) for name in ('collect_qwen3_snapshot.py', 'summarize_qwen3_runs.py')})
+                   helper_sha256={**{name: sha(Path(__file__).with_name(name).read_bytes()) for name in ('collect_qwen3_snapshot.py', 'summarize_qwen3_runs.py')},
+                                  'terminal_evidence.py': sha(Path(terminal_evidence.__file__).read_bytes())})
     files['collection-receipt.json'] = encoded(receipt)
     return platform, meta, files
 
