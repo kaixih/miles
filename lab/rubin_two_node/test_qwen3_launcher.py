@@ -62,6 +62,14 @@ class CheckpointLauncherTests(unittest.TestCase):
             with self.subTest(values=values), self.assertRaises(ValueError):
                 launcher.ScriptArgs(**values)
 
+    def test_model_only_save_changes_only_optimizer_checkpoint_flag(self):
+        full = launcher.ScriptArgs()
+        model_only = replace(full, save_optimizer=False)
+        before = shlex.split(launcher._build_train_args(full))
+        after = shlex.split(launcher._build_train_args(model_only))
+        self.assertEqual(before, [v for v in after if v != "--no-save-optim"])
+        self.assertEqual(after.count("--no-save-optim"), 1)
+
     def test_saving_disabled_emits_no_retention_or_save_flags(self):
         argv = shlex.split(launcher._checkpoint_args(launcher.ScriptArgs(save_interval=0)))
         self.assertNotIn("--save", argv)

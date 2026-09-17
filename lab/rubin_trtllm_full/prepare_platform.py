@@ -290,15 +290,16 @@ class Worker:
 
     def storage_probe(self, storage):
         local = storage['local_root']
+        parents = ['/run-output'] if self.c['platform'] == 'gb300' else ['/run-output', '/durable-output']
         code = """import json,os,tempfile
 from pathlib import Path
 assert (os.getuid(),os.getgid())==(28644,30)
 result=[]
-for parent in ['/run-output','/durable-output']:
+for parent in PARENTS:
  p=Path(tempfile.mkdtemp(prefix='writer-probe-',dir=parent));(p/'nested').mkdir();f=p/'nested/ok';f.write_text('ok')
  result.append({'path':str(p),'uid':f.stat().st_uid,'gid':f.stat().st_gid})
 print(json.dumps(result))
-"""
+""".replace('PARENTS', repr(parents))
         text = self.remote(['docker', 'run', '--rm', '--name', 'miles-trtllm-probe-j' + self.c['job_id'], '--user', '28644:30',
                             '--mount', f'type=bind,src={local}/run,dst=/run-output',
                             '--mount', f'type=bind,src={node_view(self.c["platform"], self.root)},dst=/durable-output',
@@ -316,8 +317,21 @@ print(json.dumps(result))
             else:
                 require(path.parent == Path('/run-output'), 'Probe escapes intended mount')
                 node_path = local + '/run/' + path.name
+                if self.c['platform'] == 'gb300':
+                    # The CIFS service identity cannot write normal-user NFS
+                    # directories. Main outputs use local storage; actual durable
+                    # retention is SSH -> login NFS, owned by this normal UID.
+                    target = self.root / ('retention-' + path.name)
+                    self.guard()
+                    subprocess.run(['scp', '-q', '-o', 'BatchMode=yes',
+                                    self.original['NodeList'] + ':' + node_path + '/nested/ok', str(target)],
+                                   check=True, timeout=30)
+                    require(target.read_text() == 'ok' and target.stat().st_uid == 28644,
+                            'Actual node-local to login-NFS retention probe failed')
+                    target.unlink()
                 self.remote(['python3', '-c', 'from pathlib import Path;p=Path(' + repr(node_path) + ");f=p/'nested/ok';assert f.read_text()=='ok' and f.stat().st_uid==28644;f.unlink();(p/'nested').rmdir();p.rmdir();assert not p.exists()"], label='local-probe-removed')
-        return {'status': 'PASS', 'writer_uid': 28644, 'writer_gid': 30, 'removed_probes': probes}
+        return {'status': 'PASS', 'writer_uid': 28644, 'writer_gid': 30, 'removed_probes': probes,
+                'durable_route': 'SSH to login direct NFS' if self.c['platform'] == 'gb300' else 'container direct NFS'}
 
     def models(self, storage, expected):
         candidates = (['/raid/tmp/miles-kaixih-j2198810-profile/models'] if self.c['platform'] == 'gb300' else [])
@@ -546,6 +560,8 @@ print(json.dumps({'uid':os.getuid(),'gid':os.getgid(),'versions':versions,'cuda'
                 require(not (self.root / name).exists(), 'Main run was already submitted; inspect rather than repeat preparation')
             self.attempt = self.root / 'prep-attempts' / (dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ') + '-' + str(os.getpid()))
             self.attempt.mkdir()
+            self.record(str(self.attempt.relative_to(self.root) / 'worker-source.json'),
+                        {'path': str(Path(__file__).resolve()), 'sha256': file_hash(Path(__file__))})
             with tempfile.TemporaryDirectory(prefix='login-probe-', dir=self.root) as tmp:
                 p = Path(tmp) / 'ok'; p.write_text('ok')
                 require(p.read_text() == 'ok' and p.stat().st_uid == 28644, 'Normal-user durable write/read probe failed')

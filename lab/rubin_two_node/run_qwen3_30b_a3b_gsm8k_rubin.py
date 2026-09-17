@@ -15,6 +15,8 @@ Args:
   --global-batch-size: Responses per optimizer step, default 512 (four steps/rollout).
   --save-interval: Default 50; retain optimizer state in the final checkpoint.
       Positive intervals also save the final rollout; 0 disables checkpoints.
+  --no-save-optimizer: Save model weights without optimizer checkpoint state.
+      Training still uses the same optimizer; this only changes saved artifacts.
   --save-retain-interval: Default 0 leaves native retention disabled. A positive
       value retains checkpoints at multiples of that interval plus the latest;
       1000000 keeps only the latest nonzero checkpoint in this 50-rollout run.
@@ -104,6 +106,7 @@ class ScriptArgs(U.ExecuteTrainConfig):
     eval_top_k: int = -1
     n_samples_per_eval_prompt: int = 1
     save_interval: int = 50
+    save_optimizer: bool = True
     save_retain_interval: int = 0
     save_trigger_sentinel: str = ""
     save_debug_event_data: str = ""
@@ -200,6 +203,8 @@ def _checkpoint_args(args: ScriptArgs) -> str:
     if args.save_interval:
         # train.py also saves the final rollout when an interval is configured.
         result += f"--save {shlex.quote(str(args.checkpoint_output))} --save-interval {args.save_interval} "
+        if not args.save_optimizer:
+            result += "--no-save-optim "
     if args.save_retain_interval:
         result += f"--save-retain-interval {args.save_retain_interval} "
     if args.save_trigger_sentinel:

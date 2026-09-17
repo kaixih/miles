@@ -140,7 +140,7 @@ def _launcher_args(c):
         "--rollout-max-prompt-len", "512", "--rollout-max-response-len", "1024",
         "--save-interval", "50", "--save-retain-interval", "1000000",
         "--save-trigger-sentinel", "/run-output/checkpoint-now",
-    ] + ([] if c["save_optimizer"] else ["--no-save-optim"])
+    ] + ([] if c["save_optimizer"] else ["--no-save-optimizer"])
 
 
 def _plan(c):

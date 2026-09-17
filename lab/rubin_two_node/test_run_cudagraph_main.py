@@ -108,7 +108,7 @@ class DriverTests(unittest.TestCase):
     def test_model_only_checkpoint_changes_only_the_save_flag(self):
         self.assertTrue(self.c["save_optimizer"])
         c = D._config({**self.raw, "save_optimizer": False})
-        self.assertEqual(D._launcher_args(c), D._launcher_args(self.c) + ["--no-save-optim"])
+        self.assertEqual(D._launcher_args(c), D._launcher_args(self.c) + ["--no-save-optimizer"])
         plan = D._plan(c)
         self.assertFalse(plan["recipe"]["save_optimizer"])
         self.assertEqual(plan["recipe"]["save_interval"], 50)
