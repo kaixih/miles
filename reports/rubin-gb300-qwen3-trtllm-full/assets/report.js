@@ -28,7 +28,7 @@ slide("Miles with TRTLLM BF16","Rubin ES vs GB300 · Preliminary results",`
  <div class="cover-bottom"><div><p class="status ${V.complete?"complete":"pending"}">${e(coverStatus)}</p><p class="small">${e(progress)}</p></div><p class="small">One four-GPU node per platform.<br>Decode CUDA Graph ON throughout.</p></div>`,"",true);
 
 const version=(p,k)=>run(p)?.metadata?.versions?.[k]||`planned ${experiment.planned_te_versions[p]}`;
-slide("One recipe, two recorded systems","Experiment",`
+slide("Experiment configuration","Experiment",`
  <div class="columns content"><div class="numbered">
  <article><div><h3>Qwen3-30B-A3B standard</h3><p>GSM8K with the same prompt set and strict answer scorer. Fifty rollouts; four optimizer updates per rollout.</p></div></article>
  <article><div><h3>Matched batches and token limits</h3><p>256 prompts × 8 responses; training batch 512. Prompt limit 512; response limit 1,024 tokens.</p></div></article>
@@ -59,7 +59,7 @@ slide("Whole-step and generation performance","Performance",`
 const actorRatio=P.ratios.actor_train?.gb300_over_rubin;
 const actorText=finite(actorRatio)?`Actor training (all 4 updates): Rubin takes ${fmt(mean("rubin","actor_train"))} s versus ${fmt(mean("gb300","actor_train"))} s on GB300 (${fmt(actorRatio,2)}× GB300/Rubin time ratio).`:"Actor training covers all four optimizer updates per rollout; comparison pending.";
 const tokenRate=p=>P.weighted_output_tokens_per_gpu_generation_second[p];
-slide("Keep the full performance breakdown visible","Performance",`
+slide("Performance breakdown","Performance",`
  <div id="stage-chart" class="chart stage-chart"></div>
  <p class="stage-finding">${e(actorText)}</p>
  <p class="small muted">Generation throughput: ${fmt(tokenRate("gb300"),0)} → ${fmt(tokenRate("rubin"),0)} output tokens/GPU/s (GB300 → Rubin).</p>`,"Mean seconds per rollout. Actor training includes all four optimizer updates. Independent stage timers do not sum to the Miles step.");
@@ -91,7 +91,7 @@ function profileTable(){
  return `<table class="table"><thead><tr><th>GPU window</th><th>Rubin ES</th><th>GB300</th><th>GB300 / Rubin</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 const finalReward=platforms.map(p=>`${name(p)} ${pct(N[p]?.last10_reward_mean)}`).join(" · ");
-slide("What the measured evidence supports","Results and scope",`
+slide("Results","Results and scope",`
  <div class="content">${profileTable()}</div>
  <div class="conclusion-grid"><div><h3>Correctness evidence</h3><p>${numericComplete?`Both 50-rollout runs passed the update and rollout weight-version checks. Last ten training rewards: ${e(finalReward)}.`:"Awaiting both complete learning trajectories and clean rollout weight-version/update checks."}</p></div><div><h3>Whole-run result</h3><p>${V.complete?`${e(rateText("step"))}. Generation: ${e(rateText("rollout"))}.` : "Whole-step, generation and actor comparisons remain preliminary until both runs finish."}</p></div></div>
  <p class="small muted">${profiles.matched?"Profiles use matched frozen requests and token counts. Their short initial-policy windows do not directly explain the full-run speedup.":e(profiles.reason)}</p>
