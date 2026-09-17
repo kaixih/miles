@@ -86,14 +86,14 @@ function profileTable(){
  if(!profiles.complete)return pending("Both platforms' prefill and decode captures are required for this comparison.");
  const rows=["prefill","decode"].map(stage=>{
   const a=profiles.runs.rubin.profiles[stage].selected_forward,b=profiles.runs.gb300.profiles[stage].selected_forward;
-  return `<tr><td>${stage==="prefill"?"Prefill":"Decode graph replay"}</td><td>${fmt(a.gpu_duration_ms,3)} ms</td><td>${fmt(b.gpu_duration_ms,3)} ms</td><td>${profiles.matched?`${fmt(b.gpu_duration_ms/a.gpu_duration_ms,2)}×`:"Unmatched"}</td></tr>`;
+  return `<tr><td>${stage==="prefill"?"Prefill":"Decode (graph ON)"}</td><td>${fmt(a.gpu_duration_ms,3)} ms</td><td>${fmt(b.gpu_duration_ms,3)} ms</td><td>${profiles.matched?`${fmt(b.gpu_duration_ms/a.gpu_duration_ms,2)}×`:"Unmatched"}</td></tr>`;
  }).join("");
  return `<table class="table"><thead><tr><th>GPU window</th><th>Rubin ES</th><th>GB300</th><th>GB300 / Rubin</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 const finalReward=platforms.map(p=>`${name(p)} ${pct(N[p]?.last10_reward_mean)}`).join(" · ");
 slide("Results","Results and scope",`
  <div class="content">${profileTable()}</div>
- <div class="conclusion-grid"><div><h3>Correctness evidence</h3><p>${numericComplete?`Both 50-rollout runs passed the update and rollout weight-version checks. Last ten training rewards: ${e(finalReward)}.`:"Awaiting both complete learning trajectories and clean rollout weight-version/update checks."}</p></div><div><h3>Whole-run result</h3><p>${V.complete?`${e(rateText("step"))}. Generation: ${e(rateText("rollout"))}.` : "Whole-step, generation and actor comparisons remain preliminary until both runs finish."}</p></div></div>
+ <div class="conclusion-grid"><div><h3>Correctness evidence</h3><p>${numericComplete?`Both 50-rollout runs passed the update and rollout weight-version checks. Last ten training rewards: ${e(finalReward)}.`:"Awaiting both complete learning trajectories and clean rollout weight-version/update checks."}</p></div><div><h3>Whole-step result</h3><p>${V.complete?`${e(rateText("step"))}. Generation: ${e(rateText("rollout"))}.` : "Whole-step, generation and actor comparisons remain preliminary until both runs finish."}</p></div></div>
  <p class="small muted">${profiles.matched?"Profiles use matched frozen requests and token counts. Their short initial-policy windows do not directly explain the full-run speedup.":e(profiles.reason)}</p>
  <p class="source-link"><a href="report-data.json" download>All measurements and provenance</a> · <a href="asset-manifest.json" download>Artifact hashes</a></p>`,"Software stacks differ. One run per system and short profiles support observation, not a hardware-only causal claim.");
 
