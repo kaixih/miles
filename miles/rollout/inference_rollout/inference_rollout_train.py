@@ -57,10 +57,18 @@ async def abort(state: GenerateState, pendings: set, rollout_id: int) -> list[li
 
 async def get_worker_urls(args: Namespace):
     if parse(sglang_router.__version__) <= parse("0.2.1") or args.use_miles_router:
-        response = await get(f"http://{args.sglang_router_ip}:{args.sglang_router_port}/list_workers")
+        response = await get(
+            f"http://{args.sglang_router_ip}:{args.sglang_router_port}/list_workers",
+            transport_retries=2,
+            request_timeout=10.0,
+        )
         urls = response["urls"]
     else:
-        response = await get(f"http://{args.sglang_router_ip}:{args.sglang_router_port}/workers")
+        response = await get(
+            f"http://{args.sglang_router_ip}:{args.sglang_router_port}/workers",
+            transport_retries=2,
+            request_timeout=10.0,
+        )
         urls = [worker["url"] for worker in response["workers"]]
     return router_worker_base_urls(urls)
 

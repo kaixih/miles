@@ -420,9 +420,19 @@ async def post(url, payload, max_retries=60, action="post", headers=None):
     return await _post(_http_client, url, payload, max_retries, action=action, headers=headers)
 
 
-# TODO unify w/ `post` to add retries and remote-execution
-async def get(url):
-    response = await _http_client.get(url)
-    response.raise_for_status()
-    output = response.json()
-    return output
+async def get(url, *, transport_retries=0, request_timeout=None):
+    """GET with opt-in, bounded transport retries for idempotent control reads."""
+    if type(transport_retries) is not int or not 0 <= transport_retries <= 2:
+        raise ValueError("transport_retries must be an integer between 0 and 2")
+    options = {} if request_timeout is None else {"timeout": request_timeout}
+    for attempt in range(transport_retries + 1):
+        try:
+            response = await _http_client.get(url, **options)
+        except httpx.TransportError:
+            if attempt == transport_retries:
+                raise
+            logger.warning("GET transport failure; retry %d/%d: %s", attempt + 1, transport_retries, url)
+            await asyncio.sleep(0.2 * (attempt + 1))
+            continue
+        response.raise_for_status()
+        return response.json()
