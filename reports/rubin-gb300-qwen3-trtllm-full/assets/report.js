@@ -47,10 +47,10 @@ slide("Output behavior alongside reward","Correctness",`
  <div class="chart-columns content"><div><h3>Response length</h3><div id="length-chart" class="chart half"></div></div><div><h3>Truncation rate</h3><div id="truncation-chart" class="chart half"></div></div></div>
  <p class="chart-note">These curves show whether reward changes coincide with shorter responses or the 1,024-token output cap.</p>`,"Actual per-rollout observations; no smoothing or interpolation across missing data.");
 
-const numericComplete=V.complete&&platforms.every(p=>N[p]?.all_gradients_finite_positive);
+const numericComplete=D.numerical_checks_complete===true;
 slide("Numerical behavior through all updates","Correctness",`
  <div class="chart-columns content"><div><h3>Training / rollout log-prob difference</h3><div id="logprob-chart" class="chart half"></div></div><div><h3>Gradient norm</h3><div id="gradient-chart" class="chart half"></div></div></div>
- <p class="chart-note">${numericComplete?"Both runs completed 200 updates with finite losses, positive finite gradient norms and normal outcomes on all four ranks.":"Full-update validation is pending; the plots show only recorded observations."}</p>`,"Finite gradients and learning curves are checks for this workload, not a general proof of correctness.");
+ <p class="chart-note">${numericComplete?"Both runs completed 200 updates with finite losses/gradients, normal rank outcomes and clean advancing rollout weight versions.":"Full-update and rollout weight-version validation is pending; the plots show only recorded observations."}</p>`,"Finite gradients and learning curves are checks for this workload, not a general proof of correctness.");
 
 slide("Whole-step and generation performance","Performance",`
  <div class="chart-columns content"><div><h3>Miles step (4 optimizer updates)</h3><div id="time-chart" class="chart compact-chart"></div></div><div><h3>Generation per rollout</h3><div id="generation-chart" class="chart compact-chart"></div></div></div>
@@ -93,7 +93,7 @@ function profileTable(){
 const finalReward=platforms.map(p=>`${name(p)} ${pct(N[p]?.last10_reward_mean)}`).join(" · ");
 slide("What the measured evidence supports","Results and scope",`
  <div class="content">${profileTable()}</div>
- <div class="conclusion-grid"><div><h3>Correctness evidence</h3><p>${V.complete?`Both 50-rollout runs passed the update checks. Last ten training rewards: ${e(finalReward)}.`:"Awaiting both complete learning trajectories and all update checks."}</p></div><div><h3>Whole-run result</h3><p>${V.complete?`${e(rateText("step"))}. Generation: ${e(rateText("rollout"))}.` : "Whole-step, generation and actor comparisons remain preliminary until both runs finish."}</p></div></div>
+ <div class="conclusion-grid"><div><h3>Correctness evidence</h3><p>${numericComplete?`Both 50-rollout runs passed the update and rollout weight-version checks. Last ten training rewards: ${e(finalReward)}.`:"Awaiting both complete learning trajectories and clean rollout weight-version/update checks."}</p></div><div><h3>Whole-run result</h3><p>${V.complete?`${e(rateText("step"))}. Generation: ${e(rateText("rollout"))}.` : "Whole-step, generation and actor comparisons remain preliminary until both runs finish."}</p></div></div>
  <p class="small muted">${profiles.matched?"Profiles use matched frozen requests and token counts. Their short initial-policy windows do not directly explain the full-run speedup.":e(profiles.reason)}</p>
  <p class="source-link"><a href="report-data.json" download>All measurements and provenance</a> · <a href="asset-manifest.json" download>Artifact hashes</a></p>`,"Software stacks differ. One run per system and short profiles support observation, not a hardware-only causal claim.");
 

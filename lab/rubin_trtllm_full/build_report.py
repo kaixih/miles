@@ -23,6 +23,7 @@ ROOT = REPO / "reports/rubin-gb300-qwen3-trtllm-full"
 INPUTS = REPO / "outputs/rubin-gb300-qwen3-trtllm-full"
 sys.path.insert(0, str(REPO / "lab/rubin_two_node"))
 from collect_cudagraph_snapshot import completion_validation
+from collect_qwen3_snapshot import scalar_flag
 
 spec = importlib.util.spec_from_file_location("previous_paired_timing_logic", REPO / "reports/rubin-gb300-qwen3-cudagraph/generate.py")
 old_builder = importlib.util.module_from_spec(spec)
@@ -76,6 +77,49 @@ def check_recipe(metadata):
                 "sglang_moe_runner_backend": "flashinfer_trtllm", "save_optimizer": False}
     if any(recipe.get(k) != v for k, v in expected.items()):
         raise ValueError("Actual learning/backend recipe differs from the bound TRTLLM experiment")
+    argv = metadata.get("actual_ray_entrypoint_argv")
+    if not isinstance(argv, list) or not argv or any(not isinstance(v, str) for v in argv):
+        raise ValueError("Actual Ray entrypoint argv is required to verify the displayed recipe")
+    integers = {"--num-rollout": 50, "--num-steps-per-rollout": 4,
+                "--rollout-batch-size": 256, "--n-samples-per-prompt": 8,
+                "--global-batch-size": 512, "--rollout-max-prompt-len": 512,
+                "--rollout-max-response-len": 1024, "--rollout-max-context-len": 1536,
+                "--rollout-top-k": -1, "--tensor-model-parallel-size": 1,
+                "--pipeline-model-parallel-size": 1, "--context-parallel-size": 1,
+                "--expert-model-parallel-size": 4, "--expert-tensor-parallel-size": 1,
+                "--max-tokens-per-gpu": 4096, "--rollout-num-gpus-per-engine": 1,
+                "--sglang-ep-size": 1, "--sglang-context-length": 1536,
+                "--actor-num-nodes": 1, "--actor-num-gpus-per-node": 4, "--num-gpus-per-node": 4,
+                "--n-samples-per-eval-prompt": 1, "--eval-top-k": -1,
+                "--eval-max-prompt-len": 512, "--eval-max-response-len": 1024,
+                "--eval-max-context-len": 1536}
+    defaults = {"--log-probs-max-tokens-per-gpu": 4096, "--sglang-tp-size": 1, "--sglang-dp-size": 1}
+    for flag, expected_value in {**integers, **defaults}.items():
+        if scalar_flag(argv, flag, integer=True, default=defaults.get(flag)) != expected_value:
+            raise ValueError("Actual displayed recipe differs: " + flag)
+    for flag, expected_value in {"--rollout-temperature": 1.0, "--rollout-top-p": 1.0,
+                                 "--eval-temperature": 1.0, "--eval-top-p": 0.7, "--lr": 1e-6}.items():
+        raw = scalar_flag(argv, flag)
+        try:
+            value = float(raw)
+        except (ValueError, TypeError):
+            raise ValueError("Missing or nonnumeric recipe argument: " + flag) from None
+        if not math.isfinite(value) or value != expected_value:
+            raise ValueError("Actual displayed recipe differs: " + flag)
+    for flag, expected_value in {"--sglang-attention-backend": "triton", "--sglang-bf16-gemm-backend": "torch",
+                                 "--sglang-moe-runner-backend": "flashinfer_trtllm", "--sglang-dtype": "bfloat16",
+                                 "--custom-rm-path": expected["reward_function"]}.items():
+        if scalar_flag(argv, flag) != expected_value:
+            raise ValueError("Actual displayed recipe differs: " + flag)
+    if (Path(scalar_flag(argv, "--hf-checkpoint", default="")).name != expected["model"]
+            or not {"--bf16", "--apply-chat-template", "--colocate", "--no-save-optim"} <= set(argv)
+            or any(v == "--dynamic-sampling-filter-path" or v.startswith("--dynamic-sampling-filter-path=") for v in argv)
+            or "--fp16" in argv or "--sglang-disable-cuda-graph" in argv
+            or scalar_flag(argv, "--sglang-cuda-graph-backend-decode", default="full") != "full"
+            or scalar_flag(argv, "--sglang-cuda-graph-backend-prefill") not in (None, "disabled")
+            or ("--sglang-disable-piecewise-cuda-graph" not in argv
+                and scalar_flag(argv, "--sglang-cuda-graph-backend-prefill") != "disabled")):
+        raise ValueError("Actual model/BF16/chat/filter/graph configuration differs from the displayed recipe")
     if (metadata.get("gpus") != 4 or metadata.get("expected_rollouts") != 50
             or metadata.get("optimizer_steps_per_rollout") != 4
             or metadata.get("graph", {}).get("decode_requested") is not True
@@ -243,13 +287,16 @@ def build(args):
     curve_complete = set(numerical) == set(PLATFORMS) and all(
         n["reward_observations"] == n["length_observations"] == n["truncation_observations"] == 50
         and n["logprob_observations"] == 200 and len(n["held_out_events"]) >= 6 for n in numerical.values())
-    complete = validation["complete"] and curve_complete and profile["complete"] and profile["matched"] and perf["paired"]["status"] == "available"
+    numerical_complete = validation["complete"] and curve_complete and all(
+        n["all_rollout_versions_clean"] for n in numerical.values())
+    complete = numerical_complete and profile["complete"] and profile["matched"] and perf["paired"]["status"] == "available"
     if args.final and not complete:
-        raise ValueError("Final report requires both50/200 raw-log audits, all correctness curves/six evaluations, complete main timings and all four new matched profiles")
+        raise ValueError("Final report requires both50/200 raw-log audits, all correctness curves/six evaluations, clean advancing rollout weight versions, complete main timings and all four new matched profiles")
     result = {"schema": "qwen3-trtllm-full-report-v1", "experiment_id": EXPERIMENT,
               "built_at": dt.datetime.now(dt.timezone.utc).isoformat(), "status": "FINAL" if args.final else "READY_FOR_REVIEW" if complete else "PENDING_OR_INTERIM",
               "inputs": {"experiment": experiment, "comparison": comparison, "health": health},
               "derived": {"validation": validation, "correctness_curves_complete": curve_complete,
+                          "numerical_checks_complete": numerical_complete,
                           "numerical": numerical, "performance": perf, "profiles": profile},
               "sources": {"builder_sha256": sha(Path(__file__)), "experiment_sha256": sha(args.experiment),
                           "comparison_sha256": sha(args.inputs / "comparison.json") if comparison else None,
