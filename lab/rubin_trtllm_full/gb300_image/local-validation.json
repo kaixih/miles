@@ -1,0 +1,12 @@
+{
+  "upstream_base_image": "radixark/miles@sha256:226f63d28e4b1482e0a6948ba3d486c1b1635648d079c82c9501640b24657986",
+  "runtime_native_tests": "not run locally: no ARM CUDA image runtime",
+  "patches_sha256": {
+    "pr33743/pr33743-89f25a0.patch": "2137ce6f3ec431e70f0ffd4e7e876070255a3e9f1488ece1c5346b1111fa908d",
+    "followup_idempotent_postload/idempotent-postload.patch": "d137a9e5c3c30078e3727b34a4d0bb01990a42e7e96a68e80dd9caa313ebb040"
+  },
+  "exact_patches_apply_to_sglang_aea7fb9": true,
+  "final_unquant_git_blob": "0ff99553743c61711e28b0dfde2bfd52ddd563fb",
+  "patched_source_ast": true,
+  "helper_python_ast": true
+}

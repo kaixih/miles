@@ -1,0 +1,9 @@
+{
+  "pr_head": "89f25a0b9772576fbd427a495a1144f544c90928",
+  "path": "python/sglang/srt/layers/quantization/unquant.py",
+  "before_git_blob": "1e718f7cd2d18b0122f0c2bb47610d46ec96c4f0",
+  "after_git_blob": "0ff99553743c61711e28b0dfde2bfd52ddd563fb",
+  "patch_sha256": "d137a9e5c3c30078e3727b34a4d0bb01990a42e7e96a68e80dd9caa313ebb040",
+  "upstream_base_image": "radixark/miles@sha256:226f63d28e4b1482e0a6948ba3d486c1b1635648d079c82c9501640b24657986",
+  "parent_stage": "The exact upstream image after applying pinned PR33743 in this Dockerfile"
+}

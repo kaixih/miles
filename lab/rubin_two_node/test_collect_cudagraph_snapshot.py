@@ -25,6 +25,17 @@ def config(platform='gb300'):
             'image': 'image@sha256:' + 'a' * 64, 'source_commit': 'source'}
 
 
+def trtllm_config(platform='gb300'):
+    c = config(platform)
+    job = '2212644' if platform == 'gb300' else '2212643'
+    run = '20260917-' + platform + '-j' + job + '-trtllm'
+    c.update(job_id=job, run_id=run,
+             run_dir='/home/scratch.kaixih_ent/repro/miles-qwen3-trtllm-full/' + run,
+             node_run_dir='/raid/tmp/miles-kaixih-j' + job + '-trtllm/run',
+             sglang_moe_runner_backend='flashinfer_trtllm', save_optimizer=False)
+    return c
+
+
 def packet(raw):
     return {'bytes': len(raw), 'sha256': C.sha(raw), 'data': base64.b64encode(zlib.compress(raw)).decode()}
 
@@ -42,6 +53,10 @@ def evidence(c):
              '--n-samples-per-prompt 8 --global-batch-size 512 --rollout-max-response-len 1024 '
              '--rollout-max-prompt-len 512 --rollout-temperature 1 --rollout-top-p 1 --rollout-top-k -1 '
              '--sglang-disable-piecewise-cuda-graph --sglang-bf16-gemm-backend torch')
+    if 'sglang_moe_runner_backend' in c:
+        entry += ' --sglang-moe-runner-backend ' + c['sglang_moe_runner_backend']
+    if not c.get('save_optimizer', True):
+        entry += ' --no-save-optim'
     source = b'{"source":"hash"}\n'
     files = {'driver-config.json': C.encoded(c), 'source-manifest.json': source,
              'train-launch.json': C.encoded({'git_commit': 'source', 'source_manifest_sha256': C.sha(source)}),
@@ -61,6 +76,25 @@ class CollectorTests(unittest.TestCase):
                          ('node_run_dir', '/raid/tmp/j2203648/run'), ('node', 'host;evil')]:
             c = dict(good, **{key: bad})
             with self.subTest(key=key), self.assertRaises(ValueError): C.validate_config('gb300', c)
+
+    def test_exact_trtllm_campaign_configuration(self):
+        for platform in ('gb300', 'rubin'):
+            c = trtllm_config(platform); C.validate_config(platform, c)
+            self.assertEqual(C.campaign(platform, c['run_id'])['name'], 'qwen3-trtllm-full-v1')
+            changes = [
+                {'run_id': c['run_id'].replace('20260917', '20260918')},
+                {'job_id': '999999'},
+                {'run_dir': c['run_dir'].replace('miles-qwen3-trtllm-full', 'miles-qwen3-cudagraph')},
+                {'run_id': c['run_id'].replace('-trtllm', '-cg')},
+                *({'sglang_moe_runner_backend': value} for value in ('triton', 'flashinfer_cutlass', '', None, [])),
+                {'save_optimizer': 'false'},
+            ]
+            for change in changes:
+                with self.subTest(platform=platform, change=change), self.assertRaises(ValueError):
+                    C.validate_config(platform, {**c, **change})
+            del c['sglang_moe_runner_backend']
+            with self.assertRaisesRegex(ValueError, 'requires flashinfer_trtllm'):
+                C.validate_config(platform, c)
 
     def test_allocation_requires_owner_node_running_and_exact_unexpired_lease(self):
         c = config(); now = dt.datetime(2026,9,16,8,tzinfo=dt.timezone.utc)
@@ -110,6 +144,41 @@ class CollectorTests(unittest.TestCase):
         self.assertTrue(m['graph']['decode_requested']); self.assertFalse(m['graph']['prefill_requested'])
         self.assertFalse(m['graph']['replay_verified']); self.assertTrue(m['profiling_coverage_known'])
         self.assertEqual(m['kernels']['sglang_bf16_gemm'],'torch')
+        self.assertEqual(m['recipe']['sglang_moe_runner_backend'], 'triton')
+
+    def test_trtllm_actual_argv_backend_graph_and_checkpoint_guards(self):
+        c = trtllm_config(); files, p = evidence(c)
+        m = C.metadata('gb300', c, p, files)
+        self.assertEqual(m['kernels']['sglang_moe'], 'flashinfer_trtllm')
+        self.assertEqual(m['recipe']['sglang_moe_runner_backend'], 'flashinfer_trtllm')
+        self.assertFalse(m['recipe']['save_optimizer'])
+        self.assertTrue(m['graph']['decode_requested'])
+        self.assertFalse(m['graph']['prefill_requested'])
+        self.assertEqual(m['expected_rollouts'], 50)
+        self.assertEqual(m['optimizer_steps_per_rollout'], 4)
+        replacements = [
+            ('flashinfer_trtllm', 'triton', 'backend'),
+            (' --sglang-moe-runner-backend flashinfer_trtllm', '', 'backend'),
+            ('--sglang-bf16-gemm-backend torch', '--sglang-bf16-gemm-backend torch --sglang-disable-cuda-graph', 'graph'),
+            ('--sglang-bf16-gemm-backend torch', '--sglang-bf16-gemm-backend torch --sglang-disable-decode-cuda-graph', 'graph'),
+            ('--sglang-bf16-gemm-backend torch', '--sglang-bf16-gemm-backend torch --sglang-cuda-graph-backend-decode disabled', 'graph'),
+            ('--sglang-disable-piecewise-cuda-graph', '', 'graph'),
+            (' --no-save-optim', '', 'optimizer checkpoint'),
+        ]
+        for old, new, error in replacements:
+            files, p = evidence(c)
+            before = p['live']['ray']['entrypoint']; after = before.replace(old, new)
+            p['live']['ray']['entrypoint'] = after
+            files[C.LOG] = files[C.LOG].replace(before.encode(), after.encode())
+            with self.subTest(new=new), self.assertRaisesRegex(ValueError, error):
+                C.metadata('gb300', c, p, files)
+
+    def test_configured_legacy_backend_must_also_match_actual(self):
+        c = config(); files, p = evidence(c)
+        c['sglang_moe_runner_backend'] = 'flashinfer_cutlass'
+        files['driver-config.json'] = C.encoded(c)
+        with self.assertRaisesRegex(ValueError, 'backend'):
+            C.metadata('gb300', c, p, files)
 
     def test_source_job_and_entrypoint_mismatch_rejected(self):
         c = config()
@@ -164,6 +233,22 @@ class CollectorTests(unittest.TestCase):
         self.assertFalse(C.completion_validation(run,raw.replace(b'outcome=NORMAL',b'outcome=SKIPPED',1))['checks']['all_rank_steps_normal'])
         bad=deepcopy(run); bad['metadata']['driver_exits'].pop('train_exit.json')
         self.assertFalse(C.completion_validation(bad,raw)['checks']['driver_exits_zero'])
+
+    def test_campaigns_cannot_be_mixed_and_new_comparison_is_labeled(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d); out = root / 'comparison'; cfg = root / 'config.json'
+            for platform in ('gb300', 'rubin'):
+                (root / (platform + '.json')).write_bytes(C.encoded(trtllm_config(platform)))
+            cfg.write_text(json.dumps({'gb300': 'gb300.json', 'rubin': 'rubin.json'}))
+            def fetch(platform, c, output):
+                files, p = evidence(c)
+                return platform, C.metadata(platform, c, p, files), files
+            C.collect(cfg, out, fetch)
+            self.assertEqual(json.loads((out / 'comparison.json').read_bytes())['experiment_id'],
+                             'qwen3-trtllm-full-v1')
+            (root / 'rubin.json').write_bytes(C.encoded(config('rubin')))
+            with self.assertRaisesRegex(ValueError, 'mix'), patch.object(C, 'collect_one', side_effect=AssertionError):
+                C.collect(cfg, root / 'mixed-comparison', fetch)
 
     def test_old_artifact_roots_refused_before_read(self):
         for path in [C.WORKSPACE/'outputs/rubin-gb300-qwen3', C.WORKSPACE/'reports/rubin-gb300-qwen3/site', C.WORKSPACE]:

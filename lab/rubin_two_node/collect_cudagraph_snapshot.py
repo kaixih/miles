@@ -35,19 +35,37 @@ def encoded(value):
     return (json.dumps(json_safe(value), indent=2, allow_nan=False) + '\n').encode()
 
 
+def campaign(platform, run_id):
+    """Only the two explicitly authorized, separately retained campaigns."""
+    for date, suffix, root, name in (
+            ('20260916', 'cg', 'miles-qwen3-cudagraph', 'qwen3-cudagraph-nightly-v1'),
+            ('20260917', 'trtllm', 'miles-qwen3-trtllm-full', 'qwen3-trtllm-full-v1')):
+        match = re.fullmatch(date + '-' + re.escape(platform) + r'-j(\d+)-' + suffix, run_id)
+        if match:
+            return {'job_id': match[1], 'root': root, 'name': name,
+                    'requires_trtllm': suffix == 'trtllm'}
+    raise ValueError('Run ID is outside the configured graph/TRTLLM experiments')
+
+
 def validate_config(platform, c):
     from pathlib import PurePosixPath
     import ipaddress
     ipaddress.ip_address(c['node_ip'])
     if platform not in ('rubin', 'gb300') or c.get('platform') != platform:
         raise ValueError('Unknown or mismatched platform')
-    if not re.fullmatch(r'20260916-' + platform + r'-j\d+-cg', c.get('run_id', '')):
-        raise ValueError('Run ID is outside the new graph experiment')
-    if not str(c.get('job_id', '')).isdigit() or '-j' + str(c['job_id']) + '-cg' not in c['run_id']:
+    selected = campaign(platform, c.get('run_id', ''))
+    if selected['job_id'] != str(c.get('job_id', '')):
         raise ValueError('Job and run ID differ')
+    backend = c.get('sglang_moe_runner_backend', 'triton')
+    if backend not in ('triton', 'flashinfer_cutlass', 'flashinfer_trtllm'):
+        raise ValueError('Unsupported configured MoE backend')
+    if selected['requires_trtllm'] and backend != 'flashinfer_trtllm':
+        raise ValueError('The TRTLLM campaign requires flashinfer_trtllm')
+    if type(c.get('save_optimizer', True)) is not bool:
+        raise ValueError('save_optimizer must be a boolean')
     if not re.fullmatch(r'[a-zA-Z0-9.-]+', c.get('node', '')):
         raise ValueError('Unsafe node')
-    expected = '/home/scratch.kaixih_ent/repro/miles-qwen3-cudagraph/' + c['run_id']
+    expected = '/home/scratch.kaixih_ent/repro/' + selected['root'] + '/' + c['run_id']
     if c.get('run_dir') != expected:
         raise ValueError('Durable root must exactly match this run')
     p = PurePosixPath(c['node_run_dir'])
@@ -240,6 +258,24 @@ def metadata(platform, c, payload, files):
     argv = shlex.split(entry) if entry else []
     if any(x.split('=')[0] == '--use-pytorch-profiler' for x in argv):
         raise ValueError('Unexpected profiler in this main run')
+    selected = campaign(platform, c['run_id'])
+    configured_backend = c.get('sglang_moe_runner_backend', 'triton')
+    actual_backend = scalar_flag(argv, '--sglang-moe-runner-backend', default='triton') if argv else None
+    flags = {token.split('=')[0] for token in argv}
+    decode_requested = bool(argv) and not flags.intersection({
+        '--sglang-disable-cuda-graph', '--sglang-disable-decode-cuda-graph'}) and (
+            scalar_flag(argv, '--sglang-cuda-graph-backend-decode') != 'disabled')
+    prefill_disabled = bool(flags.intersection({
+        '--sglang-disable-piecewise-cuda-graph', '--sglang-disable-prefill-cuda-graph'})) or (
+            scalar_flag(argv, '--sglang-cuda-graph-backend-prefill') == 'disabled')
+    prefill_requested = bool(argv) and not prefill_disabled
+    if argv and actual_backend != configured_backend:
+        raise ValueError('Actual MoE backend differs from configured backend')
+    if argv and ('--no-save-optim' not in flags) != c.get('save_optimizer', True):
+        raise ValueError('Actual optimizer checkpoint setting differs from configured setting')
+    if argv and selected['requires_trtllm'] and (
+            configured_backend != 'flashinfer_trtllm' or not decode_requested or prefill_requested):
+        raise ValueError('TRTLLM campaign requires actual TRTLLM with decode graph ON and prefill graph OFF')
     recipe, saves, exclusions = actual_recipe_and_save_events(argv, log) if argv else ({}, {}, [0])
     total = scalar_flag(argv, '--num-rollout', integer=True) if argv else None
     steps = scalar_flag(argv, '--num-steps-per-rollout', integer=True) if argv else None
@@ -254,7 +290,9 @@ def metadata(platform, c, payload, files):
                       learning_rate=flag('--lr'), global_batch_size=flag('--global-batch-size'),
                       group_filter=flag('--dynamic-sampling-filter-path'),
                       prompt_data=flag('--prompt-data'), seed=flag('--seed', 'source default'),
-                      rollout_seed=flag('--rollout-seed', 'source default'))
+                      rollout_seed=flag('--rollout-seed', 'source default'),
+                      sglang_moe_runner_backend=actual_backend,
+                      save_optimizer='--no-save-optim' not in flags)
     runtime = parsed.get('preflight/runtime-provenance.json', {})
     terminal = {'SUCCEEDED', 'FAILED', 'STOPPED'}
     status = (live.get('ray') or {}).get('status')
@@ -269,8 +307,8 @@ def metadata(platform, c, payload, files):
             'profiled_rollouts': [], 'exclude_timing_rollouts': exclusions, 'checkpoint_save_evidence': saves,
             'image': c['image'], 'versions': runtime.get('versions', {}), 'hardware': {'name': runtime.get('device', 'UNKNOWN'), 'engineering_sample': platform == 'rubin'},
             'actual_ray_entrypoint_argv': argv, 'actual_recipe_available': bool(argv), 'recipe': recipe,
-            'graph': {'decode_requested': bool(argv) and '--sglang-disable-cuda-graph' not in argv,
-                      'prefill_requested': bool(argv) and '--sglang-disable-piecewise-cuda-graph' not in argv,
+            'graph': {'decode_requested': bool(decode_requested),
+                      'prefill_requested': prefill_requested,
                       'replay_verified': False,
                       'capture_log_samples': [line[-1200:] for line in log.split('\n') if 'Capture target decode CUDA graph' in line][:12],
                       'decode_log_sample_counts': {value: len(re.findall(r'Decode batch[^\n]*cuda graph: ' + value, log)) for value in ('True', 'False')},
@@ -344,6 +382,9 @@ def collect(config_path, output, fetch=collect_one):
         if path is not None:
             path = Path(path); path = path if path.is_absolute() else Path(config_path).parent / path
             configs[platform] = json.loads(path.read_bytes()); validate_config(platform, configs[platform])
+    campaigns = {campaign(platform, c['run_id'])['name'] for platform, c in configs.items()}
+    if len(campaigns) > 1:
+        raise ValueError('Do not mix the graph baseline and TRTLLM campaigns in one comparison')
     output.mkdir(parents=True, exist_ok=True)
     with collection_lock(output):
         with ThreadPoolExecutor(max_workers=2) as pool:
@@ -368,7 +409,7 @@ def collect(config_path, output, fetch=collect_one):
                                'optimizer_updates_observed': sum(r['optimizer_steps_observed'] for r in run['rows']),
                                'completion_validation': completion_validation(run, files[LOG])})
             comparison = report(runs); comparison['pending_platforms'] = sorted({'rubin', 'gb300'} - set(configs))
-            comparison['experiment_id'] = 'qwen3-cudagraph-nightly-v1'
+            comparison['experiment_id'] = next(iter(campaigns), 'qwen3-cudagraph-nightly-v1')
             raw = encoded(comparison)
             write('runs.json', encoded(specs)); write('health.json', encoded({'schema': 'miles-run-health-v1', 'comparison_sha256': sha(raw), 'snapshot_at': comparison['collected_at'], 'runs': health}))
             write('comparison.json', raw)  # Commit last; no previous evidence changes before every source validates.

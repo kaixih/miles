@@ -87,6 +87,36 @@ class DriverTests(unittest.TestCase):
             self.assertEqual(D._plan(c)["watchdog_command"], one)
         self.assertNotIn("--log", one)  # The canonical training log lives on login/NFS.
 
+    def test_moe_backend_selection_changes_only_the_backend_argument(self):
+        default = D._launcher_args(self.c)
+        self.assertEqual(self.c["sglang_moe_runner_backend"], "triton")
+        position = default.index("--sglang-moe-runner-backend") + 1
+        for backend in ("triton", "flashinfer_cutlass", "flashinfer_trtllm"):
+            with self.subTest(backend=backend):
+                c = D._config({**self.raw, "sglang_moe_runner_backend": backend})
+                expected = default.copy(); expected[position] = backend
+                self.assertEqual(D._launcher_args(c), expected)
+                plan = D._plan(c)
+                self.assertEqual(plan["recipe"]["sglang_moe_runner_backend"], backend)
+                self.assertEqual(plan["recipe"]["rollouts"], 50)
+                self.assertEqual(plan["recipe"]["optimizer_updates"], 200)
+                self.assertEqual(plan["recipe"]["global_response_batch"], 512)
+        for backend in (None, "", "auto", "trtllm", [], True):
+            with self.subTest(backend=backend), self.assertRaisesRegex(ValueError, "backend"):
+                D._config({**self.raw, "sglang_moe_runner_backend": backend})
+
+    def test_model_only_checkpoint_changes_only_the_save_flag(self):
+        self.assertTrue(self.c["save_optimizer"])
+        c = D._config({**self.raw, "save_optimizer": False})
+        self.assertEqual(D._launcher_args(c), D._launcher_args(self.c) + ["--no-save-optim"])
+        plan = D._plan(c)
+        self.assertFalse(plan["recipe"]["save_optimizer"])
+        self.assertEqual(plan["recipe"]["save_interval"], 50)
+        self.assertEqual(plan["recipe"]["optimizer_updates"], 200)
+        for value in (None, 0, 1, "false", [], {}):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "boolean"):
+                D._config({**self.raw, "save_optimizer": value})
+
     def test_identifiers_image_ports_and_timezone_fail_closed(self):
         for change in ({"node_ip": "127.0.0.1"}, {"image": "repo:mutable"},
                        {"node": "node; touch bad"}, {"ray_port": 28265},

@@ -15,7 +15,10 @@ cache_dir, container_prefix, ray_port, dashboard_port, megatron_path, nccl_iface
 lease_deadline (timezone required), gate_log, source_commit, train_sha256 and
 eval_sha256. UID/GID default to 28644/30. Optional source_manifest is an absolute
 JSON path with git_commit and source_sha256 (relative path -> SHA256), for a
-frozen source snapshot without .git. All paths must already be prepared.
+frozen source snapshot without .git. Optional sglang_moe_runner_backend selects
+triton (default), flashinfer_cutlass, or flashinfer_trtllm. All paths must already
+be prepared. Optional save_optimizer defaults to true; false retains final
+model weights without optimizer checkpoint state and does not change training.
 The supplied lease must be the allocation's verified absolute expiration time.
 
 The fixed recipe has 50 rollouts, 256 prompts x 8 samples, global batch 512,
@@ -76,9 +79,14 @@ def _timestamp(value):
 
 
 def _config(raw):
-    if REQUIRED - raw.keys() or raw.keys() - REQUIRED - {"uid", "gid", "source_manifest"}:
-        raise ValueError("Supply exactly the documented config fields plus optional uid/gid")
-    c = {"uid": 28644, "gid": 30, **raw}
+    optional = {"uid", "gid", "source_manifest", "sglang_moe_runner_backend", "save_optimizer"}
+    if REQUIRED - raw.keys() or raw.keys() - REQUIRED - optional:
+        raise ValueError("Supply exactly the documented required and optional config fields")
+    c = {"uid": 28644, "gid": 30, "sglang_moe_runner_backend": "triton", "save_optimizer": True, **raw}
+    if c["sglang_moe_runner_backend"] not in ("triton", "flashinfer_cutlass", "flashinfer_trtllm"):
+        raise ValueError("Unsupported sglang_moe_runner_backend")
+    if type(c["save_optimizer"]) is not bool:
+        raise ValueError("save_optimizer must be a boolean")
     if type(c["uid"]) is not int or c["uid"] <= 0 or type(c["gid"]) is not int or c["gid"] < 0:
         raise ValueError("Use a numeric normal-user UID and numeric GID")
     address = ipaddress.ip_address(c["node_ip"])
@@ -126,12 +134,13 @@ def _launcher_args(c):
         "--prompt-data-path", "/run-output/inputs/train.jsonl",
         "--eval-prompt-data-path", "/run-output/inputs/test-fixed-256.jsonl",
         "--extra-env-vars", "RUBIN_RUN_ID=" + c["run_id"],
+        "--sglang-moe-runner-backend", c["sglang_moe_runner_backend"],
         "--sglang-enable-cuda-graph", "--max-tokens-per-gpu", "4096",
         "--rollout-batch-size", "256", "--n-samples-per-prompt", "8", "--global-batch-size", "512",
         "--rollout-max-prompt-len", "512", "--rollout-max-response-len", "1024",
         "--save-interval", "50", "--save-retain-interval", "1000000",
         "--save-trigger-sentinel", "/run-output/checkpoint-now",
-    ]
+    ] + ([] if c["save_optimizer"] else ["--no-save-optim"])
 
 
 def _plan(c):
@@ -160,6 +169,8 @@ def _plan(c):
                        "samples_per_prompt": 8, "global_response_batch": 512,
                        "prompt_limit": 512, "response_limit": 1024, "training_tokens_per_gpu": 4096,
                        "decode_cuda_graph_requested": True, "prefill_cuda_graph_requested": False,
+                       "sglang_moe_runner_backend": c["sglang_moe_runner_backend"],
+                       "save_optimizer": c["save_optimizer"],
                        "save_interval": 50, "save_retain_interval": 1000000},
             "limitations": ["Requires preflighted storage, bootstrap and communication evidence.",
                             "Decode graph use requires actual capture/replay evidence; prefill stays eager.",

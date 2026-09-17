@@ -1,0 +1,49 @@
+{
+  "purpose": "GB300 upstream-only derivative for matched full TRTLLM run",
+  "files": {
+    ".dockerignore": {
+      "bytes": 343,
+      "sha256": "22f0d0f7ee5a04a8a20d179dab1e91b259f38bc520a1969dc74e259cc188f8cb"
+    },
+    "Dockerfile": {
+      "bytes": 806,
+      "sha256": "1c0de7a6db564e9f5b4caeac9b18cb45e5d87888c456bd5fac2ca956814c8432"
+    },
+    "README.md": {
+      "bytes": 2610,
+      "sha256": "6f2a7c25cdc504c20c1a90d549a013992c576e238cc320816d6bbe4dd26ccd9a"
+    },
+    "apply_trtllm_refit.py": {
+      "bytes": 11421,
+      "sha256": "2b3dce27938db0e4111fb34f8ce1ab5cf6e5f58dc91baca2f27ac1f3fd72b2f5"
+    },
+    "followup_idempotent_postload/apply_followup.py": {
+      "bytes": 3470,
+      "sha256": "16e74fbcd825c2bf57d35e242d8109c5abd8548c2067808f3ada2924150153eb"
+    },
+    "followup_idempotent_postload/idempotent-postload.patch": {
+      "bytes": 812,
+      "sha256": "d137a9e5c3c30078e3727b34a4d0bb01990a42e7e96a68e80dd9caa313ebb040"
+    },
+    "followup_idempotent_postload/manifest.json": {
+      "bytes": 547,
+      "sha256": "8b60fea3210f9f8213fcb98b0fbbdafa4e24c202889dea53b3a1a1fcef816cb3"
+    },
+    "followup_idempotent_postload/test_real_flashinfer_postload.py": {
+      "bytes": 5360,
+      "sha256": "0273f7872e20486b4fcbf572282d1c4b06e514916268ff7384ed8d696100b960"
+    },
+    "local-validation.json": {
+      "bytes": 631,
+      "sha256": "d61d4d4fb5cee4a755eb89aef669e316593f67c2d2e72cf9e183f21bc7e7138a"
+    },
+    "pr33743/manifest.json": {
+      "bytes": 3471,
+      "sha256": "4d5aeb0be734b0c270768dd0bd02c0970dab5af20f7b5071087f45520f4e6cf1"
+    },
+    "pr33743/pr33743-89f25a0.patch": {
+      "bytes": 34945,
+      "sha256": "2137ce6f3ec431e70f0ffd4e7e876070255a3e9f1488ece1c5346b1111fa908d"
+    }
+  }
+}
