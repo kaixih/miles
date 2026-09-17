@@ -28,6 +28,8 @@ Args:
       recipe. Piecewise/prefill CUDA Graph stays explicitly disabled in both
       modes; this option does not enable torch.compile or force graph support.
       Confirm actual capture/replay in SGLang logs before claiming graph use.
+  --sglang-moe-runner-backend: BF16 rollout MoE backend: triton (default),
+      flashinfer_cutlass, or flashinfer_trtllm. Other rollout settings are unchanged.
   --custom-rm-path: Async adapter for the original verl GSM8K answer scorer.
   --save-debug-event-data / --save-debug-rollout-data: Optional audit artifacts.
   --save-local-weight-checksum: Optional CPU tensor hashes after every optimizer
@@ -93,6 +95,7 @@ class ScriptArgs(U.ExecuteTrainConfig):
     sglang_mem_fraction_static: float = 0.55
     sglang_max_running_requests: int = 128
     sglang_enable_cuda_graph: bool = False
+    sglang_moe_runner_backend: str = "triton"
     rollout_num_gpus_per_engine: int = 1
     enable_eval: bool = True
     eval_interval: int = 10
@@ -143,6 +146,8 @@ class ScriptArgs(U.ExecuteTrainConfig):
             raise ValueError("Token budget must cover one full context and request concurrency must be positive")
         if not 0 < self.sglang_mem_fraction_static < 1:
             raise ValueError("SGLang memory fraction must be in (0, 1)")
+        if self.sglang_moe_runner_backend not in ("triton", "flashinfer_cutlass", "flashinfer_trtllm"):
+            raise ValueError("MoE backend must be triton, flashinfer_cutlass, or flashinfer_trtllm")
         if self.save_interval < 0 or (self.enable_eval and self.eval_interval < 1):
             raise ValueError("Save interval must be nonnegative; enabled evaluation needs a positive interval")
         if self.save_retain_interval < 0:
@@ -257,7 +262,8 @@ def _build_train_args(args: ScriptArgs) -> str:
     sglang_args = (
         f"--rollout-num-gpus-per-engine {args.rollout_num_gpus_per_engine} "
         "--sglang-ep-size 1 --sglang-dtype bfloat16 "
-        "--sglang-moe-runner-backend triton --sglang-attention-backend triton --sglang-bf16-gemm-backend torch "
+        f"--sglang-moe-runner-backend {args.sglang_moe_runner_backend} "
+        "--sglang-attention-backend triton --sglang-bf16-gemm-backend torch "
         f"{graph_args}--sglang-disable-piecewise-cuda-graph "
         f"--sglang-context-length {args.context_length} "
         f"--sglang-mem-fraction-static {args.sglang_mem_fraction_static} "

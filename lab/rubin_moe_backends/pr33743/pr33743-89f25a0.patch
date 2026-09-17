@@ -1,0 +1,806 @@
+diff --git a/python/sglang/srt/layers/quantization/base_config.py b/python/sglang/srt/layers/quantization/base_config.py
+--- a/python/sglang/srt/layers/quantization/base_config.py
++++ b/python/sglang/srt/layers/quantization/base_config.py
+@@ -46,6 +46,15 @@ def process_weights_after_loading(self, layer: nn.Module) -> None:
+         """
+         return
+ 
++    def repack_weights_after_hot_update(self, layer: nn.Module) -> None:
++        """Re-derive kernel weight layouts a weight loader had to undo.
++
++        Called by the update paths that do not re-run
++        `process_weights_after_loading`. Overrides re-derive only their own
++        layout and must no-op when nothing was undone.
++        """
++        return
++
+ 
+ class LinearMethodBase(QuantizeMethodBase):
+     """Base class for different (maybe quantized) linear methods."""
+diff --git a/python/sglang/srt/layers/quantization/unquant.py b/python/sglang/srt/layers/quantization/unquant.py
+--- a/python/sglang/srt/layers/quantization/unquant.py
++++ b/python/sglang/srt/layers/quantization/unquant.py
+@@ -625,6 +625,21 @@ def _empty_xpu_moe_expert_weight(
+     return torch.empty(num_experts, n_dim, k_dim + pad, dtype=dtype)[:, :, :k_dim]
+ 
+ 
++# The two fused expert weights that the flashinfer TRT-LLM BF16 path rewrites
++# into block layout, and the tile geometry it rewrites them with.
++_FUSED_EXPERT_WEIGHT_NAMES = ("w13_weight", "w2_weight")
++_TRTLLM_BF16_EPILOGUE_TILE_M = 128
++_TRTLLM_BF16_BLOCK_K = 128
++
++
++def _fused_expert_weight_name(weight_name: str) -> Optional[str]:
++    """Map a checkpoint-side weight name to the fused expert parameter it loads."""
++    for param_name in _FUSED_EXPERT_WEIGHT_NAMES:
++        if weight_name.endswith(f".experts.{param_name}"):
++            return param_name
++    return None
++
++
+ class UnquantizedFusedMoEMethod(FusedMoEMethodBase, BaseFusedOp):
+     """MoE method without quantization."""
+ 
+@@ -760,76 +775,8 @@ def process_weights_after_loading(self, layer: torch.nn.Module) -> None:
+         ):
+             layer.dispatcher.set_quant_config({"dispatcher_output_dtype": "bf16"})
+ 
+-        # Reorder rows of W1 for fused gated activation
+-        if self.use_flashinfer_trtllm_moe:
+-            # The cached indices are GPU tensors. Colocated weight offloading
+-            # can release their backing memory between reloads, so rebuild them
+-            # once per post-processing cycle.
+-            self._cache_permute_indices.clear()
+-
+-            from flashinfer.fused_moe.core import (
+-                _maybe_get_cached_w3_w1_permute_indices,
+-                convert_to_block_layout,
+-                get_w2_permute_indices_with_cache,
+-            )
+-
+-            # w1 and w3 have been swapped, so we don't need do that here
+-            epilogue_tile_m = 128
+-            block_k = 128
+-            old_shape_w13 = layer.w13_weight.data[0].shape
+-            old_shape_w2 = layer.w2_weight.data[0].shape
+-            new_shape_w13 = None
+-            new_shape_w2 = None
+-            for i in range(layer.num_local_experts):
+-                permute_indices = _maybe_get_cached_w3_w1_permute_indices(
+-                    self._cache_permute_indices,
+-                    layer.w13_weight.data[i].view(torch.uint8),
+-                    epilogue_tile_m,
+-                    is_gated_act_gemm=layer.moe_runner_config.is_gated,
+-                )
+-                tmp_weights1 = (
+-                    layer.w13_weight.data[i]
+-                    .clone()
+-                    .view(torch.uint8)[permute_indices.to(layer.w13_weight.data.device)]
+-                    .contiguous()
+-                )
+-
+-                permute_indices = get_w2_permute_indices_with_cache(
+-                    self._cache_permute_indices,
+-                    layer.w2_weight.data[i].view(torch.uint8),
+-                    epilogue_tile_m,
+-                )
+-                tmp_weights2 = (
+-                    layer.w2_weight.data[i]
+-                    .clone()
+-                    .view(torch.uint8)[permute_indices.to(layer.w2_weight.data.device)]
+-                    .contiguous()
+-                )
++        self._maybe_apply_flashinfer_trtllm_bf16_block_layout(layer)
+ 
+-                tmp_weights1 = convert_to_block_layout(
+-                    tmp_weights1.view(torch.uint8), block_k
+-                )
+-                tmp_weights2 = convert_to_block_layout(
+-                    tmp_weights2.view(torch.uint8), block_k
+-                )
+-
+-                new_shape_w13 = tmp_weights1.view(torch.bfloat16).shape
+-                new_shape_w2 = tmp_weights2.view(torch.bfloat16).shape
+-                layer.w13_weight.data[i] = (
+-                    tmp_weights1.view(torch.bfloat16)
+-                    .contiguous()
+-                    .reshape(old_shape_w13)
+-                )
+-                layer.w2_weight.data[i] = (
+-                    tmp_weights2.view(torch.bfloat16).contiguous().reshape(old_shape_w2)
+-                )
+-
+-            layer.w13_weight.data = layer.w13_weight.data.reshape(
+-                layer.num_local_experts, *new_shape_w13
+-            )
+-            layer.w2_weight.data = layer.w2_weight.data.reshape(
+-                layer.num_local_experts, *new_shape_w2
+-            )
+         if _is_npu:
+             # The kernels set the dispatcher output dtype themselves -- they are
+             # the ones that know what their gmms expect. NPUUnquantMoEMethod
+@@ -894,37 +841,166 @@ def _maybe_interleave_w13_for_fused_swiglu(self, layer: torch.nn.Module) -> None
+             "Interleaved w13 gate/up: the SwiGLU is applied by the MoE up-GEMM epilogue."
+         )
+ 
+-    def maybe_restore_flashinfer_trtllm_bf16_weight_shape_for_load(
+-        self,
+-        layer: torch.nn.Module,
+-        param: torch.nn.Parameter,
+-        weight_name: str,
++    def _maybe_apply_flashinfer_trtllm_bf16_block_layout(
++        self, layer: torch.nn.Module
+     ) -> None:
+-        """Restore canonical BF16 MoE load shapes before hot weight copy.
++        """Rewrite BF16 expert weights into the flashinfer TRT-LLM block layout.
+ 
+-        The flashinfer TRT-LLM BF16 postprocess reshapes expert weights into
+-        block layout. During weight update, checkpoint tensors are in
+-        canonical layout and need a temporary shape restore for copy.
++        Split out so ``repack_weights_after_hot_update`` can re-derive this one
++        layout without re-running the other, non-idempotent post-load transforms.
+         """
+-        if not get_moe_runner_backend().is_flashinfer_trtllm_routed():
++        if not self.use_flashinfer_trtllm_moe:
+             return
+ 
+-        expected_shape = None
+-        if weight_name.endswith(".experts.w13_weight"):
++        # The cached indices are GPU tensors. Colocated weight offloading
++        # can release their backing memory between reloads, so rebuild them
++        # once per post-processing cycle.
++        self._cache_permute_indices.clear()
++
++        for param_name in _FUSED_EXPERT_WEIGHT_NAMES:
++            self._apply_trtllm_bf16_block_layout(
++                layer, getattr(layer, param_name), param_name
++            )
++
++    def _trtllm_bf16_row_permutation(
++        self, layer: torch.nn.Module, param_name: str, expert_tile: torch.Tensor
++    ) -> torch.Tensor:
++        """flashinfer's row permutation for one expert tile, viewed as uint8."""
++        from flashinfer.fused_moe.core import (
++            _maybe_get_cached_w3_w1_permute_indices,
++            get_w2_permute_indices_with_cache,
++        )
++
++        if param_name == "w13_weight":
++            # w1 and w3 have been swapped, so we don't need do that here
++            return _maybe_get_cached_w3_w1_permute_indices(
++                self._cache_permute_indices,
++                expert_tile,
++                _TRTLLM_BF16_EPILOGUE_TILE_M,
++                is_gated_act_gemm=layer.moe_runner_config.is_gated,
++            )
++        return get_w2_permute_indices_with_cache(
++            self._cache_permute_indices,
++            expert_tile,
++            _TRTLLM_BF16_EPILOGUE_TILE_M,
++        )
++
++    def _apply_trtllm_bf16_block_layout(
++        self, layer: torch.nn.Module, param: torch.nn.Parameter, param_name: str
++    ) -> None:
++        """Canonical -> block layout, in place, for one fused expert weight."""
++        from flashinfer.fused_moe.core import convert_to_block_layout
++
++        canonical_expert_shape = param.data[0].shape
++        blocked_expert_shape = None
++        for i in range(layer.num_local_experts):
++            permute_indices = self._trtllm_bf16_row_permutation(
++                layer, param_name, param.data[i].view(torch.uint8)
++            )
++            tile = (
++                param.data[i]
++                .clone()
++                .view(torch.uint8)[permute_indices.to(param.data.device)]
++                .contiguous()
++            )
++            tile = convert_to_block_layout(tile, _TRTLLM_BF16_BLOCK_K)
++            blocked_expert_shape = tile.view(torch.bfloat16).shape
++            param.data[i] = (
++                tile.view(torch.bfloat16).contiguous().reshape(canonical_expert_shape)
++            )
++
++        param.data = param.data.reshape(layer.num_local_experts, *blocked_expert_shape)
++
++    def _restore_trtllm_bf16_canonical_layout(
++        self, layer: torch.nn.Module, param: torch.nn.Parameter, param_name: str
++    ) -> None:
++        """Block layout -> canonical, in place, for one fused expert weight.
++
++        Exact inverse of ``_apply_trtllm_bf16_block_layout``: the row permutation
++        is a bijection so ``argsort`` inverts it, and ``convert_to_block_layout``'s
++        ``[M, K] -> [K // block_k, M, block_k]`` is undone by moving the block dim
++        back next to K. Inverting the data rather than only the shape is what makes
++        a bucketed update safe -- expert slots this update does not carry keep their
++        real values, so the re-derive blocks each exactly once.
++        """
++        canonical_shape = self._canonical_expert_weight_shape(layer, param_name)
++        blocked_expert_shape = tuple(param.data[0].shape)
++        param.data = param.data.reshape(canonical_shape)
++
++        inverse_indices = None
++        for i in range(layer.num_local_experts):
++            blocked = param.data[i].reshape(blocked_expert_shape).view(torch.uint8)
++            rows = blocked.shape[1]
++            tile = blocked.permute(1, 0, 2).contiguous().reshape(rows, -1)
++            if inverse_indices is None:
++                # Keyed on tile shape, identical for every expert: invert once.
++                permute_indices = self._trtllm_bf16_row_permutation(
++                    layer, param_name, tile
++                ).to(tile.device)
++                # argsort only inverts a bijection. It is one today; fail loudly
++                # rather than silently scrambling rows if that ever changes.
++                if not torch.equal(
++                    permute_indices.sort().values,
++                    torch.arange(permute_indices.numel(), device=tile.device),
++                ):
++                    raise RuntimeError(
++                        f"flashinfer TRT-LLM row permutation for {param_name} is "
++                        "not a bijection, so the block layout cannot be undone "
++                        "for a weight update."
++                    )
++                inverse_indices = torch.argsort(permute_indices)
++            param.data[i] = (
++                tile[inverse_indices]
++                .contiguous()
++                .view(torch.bfloat16)
++                .reshape(canonical_shape[1:])
++            )
++
++    def _canonical_expert_weight_shape(
++        self, layer: torch.nn.Module, param_name: str
++    ) -> Optional[tuple]:
++        """The shape ``create_weights`` allocated for a fused expert weight."""
++        if param_name == "w13_weight":
+             w13_rows = (
+                 2 * layer.intermediate_size_per_partition
+                 if layer.moe_runner_config.is_gated
+                 else layer.intermediate_size_per_partition
+             )
+-            expected_shape = (layer.num_local_experts, w13_rows, layer.hidden_size)
+-        elif weight_name.endswith(".experts.w2_weight"):
+-            expected_shape = (
++            return (layer.num_local_experts, w13_rows, layer.hidden_size)
++        if param_name == "w2_weight":
++            return (
+                 layer.num_local_experts,
+                 layer.hidden_size,
+                 layer.intermediate_size_per_partition,
+             )
++        return None
++
++    def maybe_restore_flashinfer_trtllm_bf16_weight_shape_for_load(
++        self,
++        layer: torch.nn.Module,
++        param: torch.nn.Parameter,
++        weight_name: str,
++    ) -> None:
++        """Restore the canonical BF16 MoE load layout before a hot weight copy.
++
++        Checkpoint tensors are canonical, so the loader needs the parameter back
++        in its load-time layout; ``repack_weights_after_hot_update`` re-derives
++        the block layout once the copies are done.
+ 
+-        if expected_shape is None or tuple(param.data.shape) == expected_shape:
++        Gated on the same ``use_flashinfer_trtllm_moe`` flag as the rewrite so the
++        two cannot drift apart. That flag covers routed and non-routed alike;
++        keying only off ``is_flashinfer_trtllm_routed()`` left the non-routed
++        backend blocked during a hot update and the copy raised (issue #27787).
++        """
++        if not self.use_flashinfer_trtllm_moe:
++            return
++
++        param_name = _fused_expert_weight_name(weight_name)
++        if param_name is None:
++            return
++
++        expected_shape = self._canonical_expert_weight_shape(layer, param_name)
++        if tuple(param.data.shape) == expected_shape:
+             return
+ 
+         expected_numel = expected_shape[0] * expected_shape[1] * expected_shape[2]
+@@ -934,7 +1010,38 @@ def maybe_restore_flashinfer_trtllm_bf16_weight_shape_for_load(
+                 f"current shape={tuple(param.data.shape)}, expected shape={expected_shape}."
+             )
+ 
+-        param.data = param.data.reshape(expected_shape)
++        self._cache_permute_indices.clear()
++        self._restore_trtllm_bf16_canonical_layout(layer, param, param_name)
++
++    def repack_weights_after_hot_update(self, layer: torch.nn.Module) -> None:
++        """Re-derive the TRT-LLM block layout the weight loader had to undo.
++
++        The update paths that call ``model.load_weights()`` directly never re-run
++        ``process_weights_after_loading``, so without this the parameters keep the
++        canonical layout while the kernel reads BlockMajorK.
++
++        Driven by shape rather than a dirty flag, so it no-ops when an update
++        touched no expert weight, and each weight is handled independently -- an
++        update carrying w13 and w2 in separate buckets is still correct.
++        """
++        if not self.use_flashinfer_trtllm_moe:
++            return
++
++        reverted = [
++            name
++            for name in _FUSED_EXPERT_WEIGHT_NAMES
++            if tuple(getattr(layer, name).data.shape)
++            == self._canonical_expert_weight_shape(layer, name)
++        ]
++        if not reverted:
++            # No expert weight was reverted, so the block layout is intact.
++            return
++
++        self._cache_permute_indices.clear()
++        for param_name in reverted:
++            self._apply_trtllm_bf16_block_layout(
++                layer, getattr(layer, param_name), param_name
++            )
+ 
+     def _aiter_ck_moe_supported(self, layer) -> bool:
+         # aiter CK fused-MoE requires intermediate_size_per_partition to be 128-aligned
+diff --git a/python/sglang/srt/model_executor/model_runner_components/weight_updater.py b/python/sglang/srt/model_executor/model_runner_components/weight_updater.py
+--- a/python/sglang/srt/model_executor/model_runner_components/weight_updater.py
++++ b/python/sglang/srt/model_executor/model_runner_components/weight_updater.py
+@@ -8,6 +8,7 @@
+ import torch
+ 
+ from sglang.srt.configs.load_config import LoadConfig
++from sglang.srt.layers.quantization.base_config import QuantizeMethodBase
+ from sglang.srt.model_loader.loader import DefaultModelLoader, get_model_loader
+ from sglang.srt.model_loader.utils import set_default_torch_dtype
+ from sglang.srt.model_loader.weight_utils import default_weight_loader
+@@ -282,6 +283,8 @@ def update_weights_from_distributed(
+             )
+             logger.error(error_msg)
+             return False, error_msg
++        finally:
++            _repack_weights_after_hot_update(self.get_model())
+ 
+     def _update_bucketed_weights_from_distributed(
+         self: WeightUpdater, names, dtypes, shapes, group_name
+@@ -316,6 +319,8 @@ def _update_bucketed_weights_from_distributed(
+             )
+             logger.error(error_msg)
+             return False, error_msg
++        finally:
++            _repack_weights_after_hot_update(self.get_model())
+ 
+     def update_weights_from_tensor(
+         self: WeightUpdater,
+@@ -342,15 +347,18 @@ def update_weights_from_tensor(
+             (name, _unwrap_tensor(tensor, tp_rank=self.tp_rank, device=infered_device))
+             for name, tensor in named_tensors
+         ]
+-        if load_format == "direct":
+-            _model_load_weights_direct(self.get_model(), named_tensors)
+-        elif load_format in self.custom_weight_loaders:
+-            custom_loader = dynamic_import(load_format)
+-            custom_loader(self.get_model(), named_tensors)
+-        elif load_format is None:
+-            self.get_model().load_weights(named_tensors)
+-        else:
+-            raise NotImplementedError(f"Unknown load_format={load_format}")
++        try:
++            if load_format == "direct":
++                _model_load_weights_direct(self.get_model(), named_tensors)
++            elif load_format in self.custom_weight_loaders:
++                custom_loader = dynamic_import(load_format)
++                custom_loader(self.get_model(), named_tensors)
++            elif load_format is None:
++                self.get_model().load_weights(named_tensors)
++            else:
++                raise NotImplementedError(f"Unknown load_format={load_format}")
++        finally:
++            _repack_weights_after_hot_update(self.get_model())
+         return True, "Success"
+ 
+     def _update_weights_from_flattened_bucket(
+@@ -381,7 +389,10 @@ def _update_weights_from_flattened_bucket(
+         reconstructed_tensors = bucket.reconstruct_tensors()
+ 
+         # Load the reconstructed tensors using the standard method
+-        self.get_model().load_weights(reconstructed_tensors)
++        try:
++            self.get_model().load_weights(reconstructed_tensors)
++        finally:
++            _repack_weights_after_hot_update(self.get_model())
+ 
+         return True, "Success"
+ 
+@@ -408,6 +419,25 @@ def update_weights_from_ipc(self: WeightUpdater, recv_req):
+             return False, str(e)
+ 
+ 
++def _repack_weights_after_hot_update(model) -> None:
++    """Re-derive kernel weight layouts after an in-place weight update.
++
++    `update_weights_from_disk` and the checkpoint-engine IPC path re-run
++    `process_weights_after_loading` themselves; the paths that call
++    `model.load_weights()` directly do not, and would leave a parameter in load
++    layout while the kernel reads the transformed one.
++
++    Callers run this from a `finally`: a load that raises part way through has
++    already had layouts undone, and leaving them that way is the silent mismatch
++    this exists to prevent. The weights are then a mix of old and new -- which
++    the caller already reports -- but the layout invariant holds.
++    """
++    for module in model.modules():
++        quant_method = getattr(module, "quant_method", None)
++        if isinstance(quant_method, QuantizeMethodBase):
++            quant_method.repack_weights_after_hot_update(module)
++
++
+ def _model_load_weights_direct(model, named_tensors: List[Tuple[str, torch.Tensor]]):
+     params_dict = dict(model.named_parameters())
+     for name, tensor in named_tensors:
+diff --git a/test/registered/unit/layers/quantization/test_flashinfer_trtllm_bf16_moe_reload.py b/test/registered/unit/layers/quantization/test_flashinfer_trtllm_bf16_moe_reload.py
+new file mode 100644
+--- /dev/null
++++ b/test/registered/unit/layers/quantization/test_flashinfer_trtllm_bf16_moe_reload.py
+@@ -0,0 +1,360 @@
++"""CPU unit tests for reloading BF16 MoE weights under the TRT-LLM backends.
++
++``UnquantizedFusedMoEMethod`` rewrites BF16 expert weights into the flashinfer
++TRT-LLM BlockMajorK layout after loading, so the weight loader has to undo that
++layout to copy canonical checkpoint tensors in and something has to put it back.
++The disk and checkpoint-engine paths re-run ``process_weights_after_loading``;
++``update_weights_from_tensor`` / ``_from_distributed`` do not.
++
++Pins both halves of issue #27787: the undo was gated on
++``is_flashinfer_trtllm_routed()`` while the rewrite was gated on
++``use_flashinfer_trtllm_moe`` (routed *or* non-routed), and widening that gate
++alone just trades the crash for a parameter left canonical while the kernel
++reads BlockMajorK.
++
++The layout arithmetic lives in flashinfer and needs SM100, so its entry points
++are replaced by a deterministic stand-in that is a genuine reordering. Whether
++the stand-in matches BlockMajorK byte for byte is the kernel's contract and is
++covered on-device.
++"""
++
++from sglang.test.ci.ci_register import register_cpu_ci
++
++register_cpu_ci(est_time=5, suite="base-a-test-cpu")
++
++import sys
++import unittest
++from types import ModuleType, SimpleNamespace
++from unittest.mock import patch
++
++import torch
++
++from sglang.srt.layers.quantization.unquant import UnquantizedFusedMoEMethod
++from sglang.srt.model_executor.model_runner_components import weight_updater
++from sglang.srt.model_executor.model_runner_components.weight_updater import (
++    _repack_weights_after_hot_update,
++)
++from sglang.srt.runtime_context import get_context, get_server_args
++from sglang.test.test_utils import CustomTestCase
++
++NUM_EXPERTS = 2
++HIDDEN_SIZE = 128
++INTERMEDIATE_SIZE = 128
++
++
++def _fake_permute_indices(weight_u8):
++    """A real, order-changing permutation of the expert tile's rows.
++
++    Deliberately not an involution: a reversal is its own inverse and would let
++    the restore re-apply the forward permutation instead of inverting it.
++    """
++    return torch.roll(torch.arange(weight_u8.shape[0]), 1)
++
++
++def _fake_convert_to_block_layout(weight_u8, block_k):
++    """Stand-in for flashinfer's [N, K] -> [K // block_k, N, block_k] rewrite."""
++    n, k = weight_u8.shape
++    return weight_u8.view(n, k // block_k, block_k).permute(1, 0, 2).contiguous()
++
++
++def _mock_flashinfer():
++    core = ModuleType("flashinfer.fused_moe.core")
++    core._maybe_get_cached_w3_w1_permute_indices = (
++        lambda cache, weight_u8, tile_m, **kwargs: _fake_permute_indices(weight_u8)
++    )
++    core.get_w2_permute_indices_with_cache = lambda cache, weight_u8, tile_m: (
++        _fake_permute_indices(weight_u8)
++    )
++    core.convert_to_block_layout = _fake_convert_to_block_layout
++
++    flashinfer = ModuleType("flashinfer")
++    flashinfer.__path__ = []
++    fused_moe = ModuleType("flashinfer.fused_moe")
++    fused_moe.__path__ = []
++    fused_moe.core = core
++    flashinfer.fused_moe = fused_moe
++    return patch.dict(
++        sys.modules,
++        {
++            "flashinfer": flashinfer,
++            "flashinfer.fused_moe": fused_moe,
++            "flashinfer.fused_moe.core": core,
++        },
++    )
++
++
++class _FakeMoELayer(torch.nn.Module):
++    """The surface of ``FusedMoE`` that the layout code actually touches."""
++
++    def __init__(self, method, seed: int):
++        super().__init__()
++        self.quant_method = method
++        self.num_local_experts = NUM_EXPERTS
++        self.hidden_size = HIDDEN_SIZE
++        self.intermediate_size_per_partition = INTERMEDIATE_SIZE
++        self.moe_runner_config = SimpleNamespace(is_gated=True)
++        generator = torch.Generator().manual_seed(seed)
++        self.w13_weight = torch.nn.Parameter(
++            torch.randn(
++                NUM_EXPERTS,
++                2 * INTERMEDIATE_SIZE,
++                HIDDEN_SIZE,
++                generator=generator,
++                dtype=torch.bfloat16,
++            ),
++            requires_grad=False,
++        )
++        self.w2_weight = torch.nn.Parameter(
++            torch.randn(
++                NUM_EXPERTS,
++                HIDDEN_SIZE,
++                INTERMEDIATE_SIZE,
++                generator=generator,
++                dtype=torch.bfloat16,
++            ),
++            requires_grad=False,
++        )
++
++
++class _FakeModel(torch.nn.Module):
++    def __init__(self, layer: _FakeMoELayer):
++        super().__init__()
++        self.layer = layer
++
++
++def _make_method(use_flashinfer_trtllm_moe: bool = True):
++    return UnquantizedFusedMoEMethod(
++        use_flashinfer_trtllm_moe=use_flashinfer_trtllm_moe
++    )
++
++
++def _canonical_shapes():
++    return {
++        "w13_weight": (NUM_EXPERTS, 2 * INTERMEDIATE_SIZE, HIDDEN_SIZE),
++        "w2_weight": (NUM_EXPERTS, HIDDEN_SIZE, INTERMEDIATE_SIZE),
++    }
++
++
++class TestFlashInferTrtllmBf16MoEReload(unittest.TestCase):
++    def _cold_load(self, seed: int):
++        """A layer loaded from disk and post-processed, i.e. in kernel layout."""
++        method = _make_method()
++        layer = _FakeMoELayer(method, seed=seed)
++        with _mock_flashinfer():
++            method._maybe_apply_flashinfer_trtllm_bf16_block_layout(layer)
++        return method, layer
++
++    def _restore_for_load(self, method, layer, param_names=("w13", "w2")):
++        with _mock_flashinfer():
++            for short in param_names:
++                name = f"{short}_weight"
++                method.maybe_restore_flashinfer_trtllm_bf16_weight_shape_for_load(
++                    layer=layer,
++                    param=getattr(layer, name),
++                    weight_name=f"model.layers.0.mlp.experts.{name}",
++                )
++
++    def test_process_weights_after_loading_applies_block_layout(self):
++        """Pins the wiring: the split-out helper is still called on the load path."""
++        method = _make_method()
++        layer = _FakeMoELayer(method, seed=0)
++        with patch.object(
++            method, "_maybe_apply_flashinfer_trtllm_bf16_block_layout"
++        ) as apply_layout:
++            method.process_weights_after_loading(layer)
++        apply_layout.assert_called_once_with(layer)
++
++    def test_block_layout_changes_shape(self):
++        """Guards the premise of every other test in this file."""
++        _, layer = self._cold_load(seed=0)
++        for name, canonical in _canonical_shapes().items():
++            self.assertNotEqual(tuple(getattr(layer, name).data.shape), canonical)
++
++    def test_restore_runs_for_non_routed_backend(self):
++        """Regression for #27787: the undo must fire for plain flashinfer_trtllm.
++
++        No moe-runner-backend global is set, so gating the undo on
++        ``is_flashinfer_trtllm_routed()`` leaves the weights blocked -- the state
++        that made the hot copy raise "size of tensor a (64) ... b (2048)".
++        """
++        method, layer = self._cold_load(seed=0)
++        self._restore_for_load(method, layer)
++        for name, canonical in _canonical_shapes().items():
++            self.assertEqual(tuple(getattr(layer, name).data.shape), canonical)
++
++    def test_reload_reproduces_cold_load_layout(self):
++        """A hot update must leave the weights exactly as a cold load would.
++
++        A gate-widening-only fix does not pass this: the copy succeeds, but
++        without the re-derive the bytes stay canonical.
++        """
++        _, reference = self._cold_load(seed=1)
++
++        method, layer = self._cold_load(seed=0)
++        self._restore_for_load(method, layer)
++
++        new_weights = _FakeMoELayer(method, seed=1)
++        for name in _canonical_shapes():
++            getattr(layer, name).data.copy_(getattr(new_weights, name).data)
++
++        with _mock_flashinfer():
++            _repack_weights_after_hot_update(_FakeModel(layer))
++
++        for name in _canonical_shapes():
++            got, want = getattr(layer, name).data, getattr(reference, name).data
++            self.assertEqual(tuple(got.shape), tuple(want.shape))
++            self.assertTrue(torch.equal(got, want), f"{name} differs from cold load")
++
++    def test_repack_is_noop_when_no_weight_was_reverted(self):
++        """Re-deriving an intact layout would double-block it."""
++        method, layer = self._cold_load(seed=0)
++        before = {n: getattr(layer, n).data.clone() for n in _canonical_shapes()}
++
++        with _mock_flashinfer():
++            method.repack_weights_after_hot_update(layer)
++            method.repack_weights_after_hot_update(layer)
++
++        for name, want in before.items():
++            self.assertTrue(torch.equal(getattr(layer, name).data, want))
++
++    def test_repack_is_noop_when_backend_inactive(self):
++        method = _make_method(use_flashinfer_trtllm_moe=False)
++        layer = _FakeMoELayer(method, seed=0)
++        before = {n: getattr(layer, n).data.clone() for n in _canonical_shapes()}
++
++        method.repack_weights_after_hot_update(layer)
++
++        for name, want in before.items():
++            self.assertEqual(tuple(getattr(layer, name).data.shape), want.shape)
++            self.assertTrue(torch.equal(getattr(layer, name).data, want))
++
++    def test_restore_inverts_the_block_layout(self):
++        """The restore must undo the data, not just reinterpret the shape.
++
++        A shape-only restore leaves block-layout bytes for the next re-derive to
++        block a second time.
++        """
++        method = _make_method()
++        layer = _FakeMoELayer(method, seed=3)
++        original = {n: getattr(layer, n).data.clone() for n in _canonical_shapes()}
++
++        with _mock_flashinfer():
++            method._maybe_apply_flashinfer_trtllm_bf16_block_layout(layer)
++        self._restore_for_load(method, layer)
++
++        for name, want in original.items():
++            got = getattr(layer, name).data
++            self.assertEqual(tuple(got.shape), tuple(want.shape))
++            self.assertTrue(torch.equal(got, want), f"{name} round trip is lossy")
++
++    def test_bucketed_update_reproduces_cold_load_layout(self):
++        """A refit split across several update RPCs must still be correct.
++
++        RL callers batch weights (``weight_sync/utils.py``), so one refit is many
++        update calls; expert slots carried by a later bucket must survive the
++        earlier buckets' re-derives untouched.
++        """
++        _, reference = self._cold_load(seed=1)
++        method, layer = self._cold_load(seed=0)
++        new_weights = _FakeMoELayer(method, seed=1)
++
++        # Bucket 1: w13, expert 0 only. Bucket 2: w13 expert 1. Bucket 3: w2.
++        buckets = [
++            ("w13_weight", 0),
++            ("w13_weight", 1),
++            ("w2_weight", None),
++        ]
++        for name, expert in buckets:
++            short = name[: -len("_weight")]
++            self._restore_for_load(method, layer, param_names=(short,))
++            dst, src = getattr(layer, name).data, getattr(new_weights, name).data
++            if expert is None:
++                dst.copy_(src)
++            else:
++                dst[expert].copy_(src[expert])
++            with _mock_flashinfer():
++                _repack_weights_after_hot_update(_FakeModel(layer))
++
++        for name in _canonical_shapes():
++            got, want = getattr(layer, name).data, getattr(reference, name).data
++            self.assertEqual(tuple(got.shape), tuple(want.shape))
++            self.assertTrue(torch.equal(got, want), f"{name} differs from cold load")
++
++    def test_restore_rejects_non_bijective_permutation(self):
++        """The inverse is an argsort, which is only valid for a bijection.
++
++        Guards against a future flashinfer permutation that pads or duplicates
++        rows: without the check the restore would silently scramble them.
++        """
++        method, layer = self._cold_load(seed=0)
++        not_a_bijection = lambda w: torch.zeros(w.shape[0], dtype=torch.long)
++
++        with (
++            patch(f"{__name__}._fake_permute_indices", not_a_bijection),
++            self.assertRaises(RuntimeError) as ctx,
++        ):
++            self._restore_for_load(method, layer, param_names=("w13",))
++        self.assertIn("not a bijection", str(ctx.exception))
++
++    def test_restore_rejects_unexpected_numel(self):
++        method, layer = self._cold_load(seed=0)
++        layer.hidden_size = HIDDEN_SIZE + 64
++
++        with self.assertRaises(RuntimeError):
++            self._restore_for_load(method, layer, param_names=("w13",))
++
++
++class TestRepackRunsOnFailedUpdate(CustomTestCase):
++    """The layout must be re-derived even when a weight update fails.
++
++    With the re-derive on the success path only, a `load_weights` that raised
++    part way through left parameters in load layout while the kernel read the
++    transformed one -- turning a reported failure into silently wrong numerics.
++    """
++
++    class _LoadFailed(RuntimeError):
++        pass
++
++    class _FailingModel(torch.nn.Module):
++        def load_weights(self, named_tensors):
++            raise TestRepackRunsOnFailedUpdate._LoadFailed("load failed mid-update")
++
++    def _make_updater(self, model):
++        return weight_updater.WeightUpdater(
++            tp_rank=0,
++            device="cpu",
++            gpu_id=0,
++            model_config=SimpleNamespace(),
++            custom_weight_loaders={},
++            get_model=lambda: model,
++            update_model_fields=lambda **kwargs: None,
++            recapture_cuda_graph=lambda: None,
++            get_model_runner=lambda: SimpleNamespace(server_args=get_server_args()),
++        )
++
++    def test_repack_runs_when_load_weights_raises(self):
++        model = self._FailingModel()
++        repacked = []
++
++        with (
++            get_context().override_server_args(weight_cache_mode="off"),
++            patch.object(
++                weight_updater,
++                "_repack_weights_after_hot_update",
++                lambda m: repacked.append(m),
++            ),
++            patch.object(
++                weight_updater, "_unsupported_derived_weight_cache_error", lambda: None
++            ),
++            patch.object(weight_updater, "monkey_patch_torch_reductions", lambda: None),
++        ):
++            with self.assertRaises(self._LoadFailed):
++                self._make_updater(model).update_weights_from_tensor(
++                    named_tensors=[("w", torch.zeros(1))]
++                )
++
++        self.assertEqual(repacked, [model], "layout not re-derived on the error path")
++
++
++if __name__ == "__main__":
++    unittest.main()
+

@@ -1,0 +1,90 @@
+{
+  "pr_url": "https://github.com/sgl-project/sglang/pull/33743",
+  "pr_head": "89f25a0b9772576fbd427a495a1144f544c90928",
+  "pr_base": "17ba2c2e7c7b81f31a8a9e693e7435ab262c16b4",
+  "image_sglang_ref": "aea7fb92c047c9c096eae66460acb25dec9ae5a9",
+  "patch": "pr33743-89f25a0.patch",
+  "patch_sha256": "2137ce6f3ec431e70f0ffd4e7e876070255a3e9f1488ece1c5346b1111fa908d",
+  "validation": {
+    "upstream_blob_hashes": true,
+    "image_git_apply_check": true,
+    "image_apply_exact_context": true,
+    "pr_base_apply_equals_head_bytes": true,
+    "patched_python_ast": true,
+    "upstream_unit_tests": "not run locally: local Python has no torch",
+    "remote_mutations": false,
+    "gpu_validation": false
+  },
+  "fetched_sources": [
+    {
+      "label": "image-base",
+      "path": "python/sglang/srt/layers/quantization/base_config.py",
+      "ref": "aea7fb92c047c9c096eae66460acb25dec9ae5a9",
+      "repo": "sgl-project/sglang",
+      "git_blob_sha": "c597e388e6517ba9ce5fa50d5c1b7a1b9a0a6558"
+    },
+    {
+      "label": "image-base",
+      "path": "python/sglang/srt/layers/quantization/unquant.py",
+      "ref": "aea7fb92c047c9c096eae66460acb25dec9ae5a9",
+      "repo": "sgl-project/sglang",
+      "git_blob_sha": "2dbd790415d57627a76d54af80860c749b48272a"
+    },
+    {
+      "label": "image-base",
+      "path": "python/sglang/srt/model_executor/model_runner_components/weight_updater.py",
+      "ref": "aea7fb92c047c9c096eae66460acb25dec9ae5a9",
+      "repo": "sgl-project/sglang",
+      "git_blob_sha": "51edb7c3210cbb66a4812603bfd42e6fae08faaf"
+    },
+    {
+      "label": "pr-base",
+      "path": "python/sglang/srt/layers/quantization/base_config.py",
+      "ref": "17ba2c2e7c7b81f31a8a9e693e7435ab262c16b4",
+      "repo": "sgl-project/sglang",
+      "git_blob_sha": "2877c8eb4df47725628530bec4e6694b368b2444"
+    },
+    {
+      "label": "pr-base",
+      "path": "python/sglang/srt/layers/quantization/unquant.py",
+      "ref": "17ba2c2e7c7b81f31a8a9e693e7435ab262c16b4",
+      "repo": "sgl-project/sglang",
+      "git_blob_sha": "c0dc373a4bc9f212b0fe43c52509c8ac15e4998a"
+    },
+    {
+      "label": "pr-base",
+      "path": "python/sglang/srt/model_executor/model_runner_components/weight_updater.py",
+      "ref": "17ba2c2e7c7b81f31a8a9e693e7435ab262c16b4",
+      "repo": "sgl-project/sglang",
+      "git_blob_sha": "e9dd1c7023f95b53a2bc8380754fe416e89c3007"
+    },
+    {
+      "label": "pr-head",
+      "path": "python/sglang/srt/layers/quantization/base_config.py",
+      "ref": "89f25a0b9772576fbd427a495a1144f544c90928",
+      "repo": "Kh4L/sglang",
+      "git_blob_sha": "e798864132f1eaa73d3885560e6a74a1ac2d3b4f"
+    },
+    {
+      "label": "pr-head",
+      "path": "python/sglang/srt/layers/quantization/unquant.py",
+      "ref": "89f25a0b9772576fbd427a495a1144f544c90928",
+      "repo": "Kh4L/sglang",
+      "git_blob_sha": "a3a329c62ff032a774ca2068ea8b0ded41d2363d"
+    },
+    {
+      "label": "pr-head",
+      "path": "python/sglang/srt/model_executor/model_runner_components/weight_updater.py",
+      "ref": "89f25a0b9772576fbd427a495a1144f544c90928",
+      "repo": "Kh4L/sglang",
+      "git_blob_sha": "ffe5b20bf5918e9c7fdd17b156df0e95936a6901"
+    },
+    {
+      "label": "pr-head",
+      "path": "test/registered/unit/layers/quantization/test_flashinfer_trtllm_bf16_moe_reload.py",
+      "ref": "89f25a0b9772576fbd427a495a1144f544c90928",
+      "repo": "Kh4L/sglang",
+      "git_blob_sha": "ab69574dc6f1ccd84fa2db1891a13d2f923ae84d"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+**
+!Dockerfile
+!.dockerignore
+!manifest.json
+!idempotent-postload.patch
+!apply_followup.py
+!test_real_flashinfer_postload.py

@@ -91,5 +91,26 @@ class CudaGraphLauncherTests(unittest.TestCase):
                 self.assertNotIn("--sglang-enable-torch-compile", after)
 
 
+class MoeBackendLauncherTests(unittest.TestCase):
+    def test_backend_changes_only_its_value_and_rejects_unsupported_values(self):
+        args = launcher.ScriptArgs(num_rollout=2, max_tokens_per_gpu=4096,
+                                   save_interval=0, sglang_enable_cuda_graph=True)
+        before = shlex.split(launcher._build_train_args(args))
+        self.assertEqual(before.count("--sglang-moe-runner-backend"), 1)
+        backend_index = before.index("--sglang-moe-runner-backend") + 1
+        self.assertEqual(before[backend_index], "triton")
+        self.assertTrue(args.enable_eval)
+        for backend in ("triton", "flashinfer_cutlass", "flashinfer_trtllm"):
+            with self.subTest(backend=backend):
+                selected = replace(args, sglang_moe_runner_backend=backend)
+                after = shlex.split(launcher._build_train_args(selected))
+                expected = before.copy()
+                expected[backend_index] = backend
+                self.assertEqual(after, expected)
+        for backend in ("", "auto", "flashinfer_cutedsl", "triton --sglang-disable-cuda-graph"):
+            with self.subTest(unsupported=backend), self.assertRaisesRegex(ValueError, "MoE backend"):
+                replace(args, sglang_moe_runner_backend=backend)
+
+
 if __name__ == "__main__":
     unittest.main()

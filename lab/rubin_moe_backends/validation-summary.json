@@ -1,0 +1,216 @@
+{
+  "scope": "Two rollouts starting from fresh initial weights per backend; decode graph ON.",
+  "limitations": [
+    "Two rollouts check execution and early numerical sanity, not convergence.",
+    "Historical Triton timings were collected on a different allocation.",
+    "Sampling and scheduling can change response lengths; compare tokens/GPU/s too."
+  ],
+  "historical_triton_log_sha256": "856fa11b5bb65c53cf357dd7fe54588ed8ecaa2aaba61f68c71222f6bf628991",
+  "rows": {
+    "Triton (historical)": [
+      {
+        "rollout_id": 0,
+        "common": {
+          "training_reward_mean": 0.4482421875,
+          "response_length_mean_tokens": 793.1572265625,
+          "truncated_ratio": 0.36181640625,
+          "retained_samples": 2048,
+          "retained_output_tokens_from_mean": 1624386.0,
+          "retained_input_output_tokens_from_mean": 1790898.0,
+          "output_tokens_per_gpu_generation_second": 6355.29074298119,
+          "retained_input_output_tokens_per_gpu_miles_step_second": 1274.3991374927396,
+          "actor_train_seconds": 112.9648745059967,
+          "log_probs_seconds": 21.768061876296997,
+          "ref_log_probs_seconds": 50.159512758255005,
+          "train_seconds": 185.1774706840515,
+          "train_wait_seconds": 166.1445655822754,
+          "update_weights_seconds": 4.209283351898193,
+          "rollout_seconds": 63.89896488189697,
+          "step_seconds": 351.3220362663269
+        }
+      },
+      {
+        "rollout_id": 1,
+        "common": {
+          "training_reward_mean": 0.5087890625,
+          "response_length_mean_tokens": 790.47314453125,
+          "truncated_ratio": 0.369140625,
+          "retained_samples": 2048,
+          "retained_output_tokens_from_mean": 1618889.0,
+          "retained_input_output_tokens_from_mean": 1787953.0,
+          "output_tokens_per_gpu_generation_second": 6567.121683462216,
+          "retained_input_output_tokens_per_gpu_miles_step_second": 2118.8197387161727,
+          "actor_train_seconds": 83.62060832977295,
+          "log_probs_seconds": 21.42885708808899,
+          "ref_log_probs_seconds": 24.97424840927124,
+          "train_seconds": 130.271240234375,
+          "train_wait_seconds": 80.68972158432007,
+          "update_weights_seconds": 3.6682753562927246,
+          "rollout_seconds": 61.628559589385986,
+          "step_seconds": 210.96096181869507
+        }
+      }
+    ],
+    "FlashInfer CUTLASS": [
+      {
+        "rollout_id": 0,
+        "common": {
+          "training_reward_mean": 0.4658203125,
+          "response_length_mean_tokens": 785.83447265625,
+          "truncated_ratio": 0.35205078125,
+          "retained_samples": 2048,
+          "retained_output_tokens_from_mean": 1609389.0,
+          "retained_input_output_tokens_from_mean": 1775901.0,
+          "output_tokens_per_gpu_generation_second": 7027.0209658657795,
+          "retained_input_output_tokens_per_gpu_miles_step_second": 1194.7841608552817,
+          "actor_train_seconds": 121.16278958320618,
+          "log_probs_seconds": 20.98830270767212,
+          "ref_log_probs_seconds": 54.08327603340149,
+          "train_seconds": 196.5196249485016,
+          "train_wait_seconds": 175.07489776611328,
+          "update_weights_seconds": 3.693305492401123,
+          "rollout_seconds": 57.257158041000366,
+          "step_seconds": 371.59452271461487
+        }
+      },
+      {
+        "rollout_id": 1,
+        "common": {
+          "training_reward_mean": 0.51025390625,
+          "response_length_mean_tokens": 792.703125,
+          "truncated_ratio": 0.3798828125,
+          "retained_samples": 2048,
+          "retained_output_tokens_from_mean": 1623456.0,
+          "retained_input_output_tokens_from_mean": 1792520.0,
+          "output_tokens_per_gpu_generation_second": 7625.0800351324415,
+          "retained_input_output_tokens_per_gpu_miles_step_second": 2195.628959813278,
+          "actor_train_seconds": 83.94957375526428,
+          "log_probs_seconds": 21.45862913131714,
+          "ref_log_probs_seconds": 25.39591670036316,
+          "train_seconds": 131.0575394630432,
+          "train_wait_seconds": 73.04343032836914,
+          "update_weights_seconds": 3.700281858444214,
+          "rollout_seconds": 53.22750687599182,
+          "step_seconds": 204.10096979141235
+        }
+      }
+    ],
+    "FlashInfer TRTLLM + both fixes": [
+      {
+        "rollout_id": 0,
+        "common": {
+          "training_reward_mean": 0.4541015625,
+          "response_length_mean_tokens": 790.71240234375,
+          "truncated_ratio": 0.3681640625,
+          "retained_samples": 2048,
+          "retained_output_tokens_from_mean": 1619379.0,
+          "retained_input_output_tokens_from_mean": 1785891.0,
+          "output_tokens_per_gpu_generation_second": 8351.209484953308,
+          "retained_input_output_tokens_per_gpu_miles_step_second": 1198.5241580359566,
+          "actor_train_seconds": 113.53572154045105,
+          "log_probs_seconds": 31.8055317401886,
+          "ref_log_probs_seconds": 58.92800545692444,
+          "train_seconds": 204.55683970451355,
+          "train_wait_seconds": 167.96193432807922,
+          "update_weights_seconds": 9.281027555465698,
+          "rollout_seconds": 48.477379322052,
+          "step_seconds": 372.5187740325928
+        }
+      },
+      {
+        "rollout_id": 1,
+        "common": {
+          "training_reward_mean": 0.50732421875,
+          "response_length_mean_tokens": 792.953125,
+          "truncated_ratio": 0.373046875,
+          "retained_samples": 2048,
+          "retained_output_tokens_from_mean": 1623968.0,
+          "retained_input_output_tokens_from_mean": 1793032.0,
+          "output_tokens_per_gpu_generation_second": 8568.600099116466,
+          "retained_input_output_tokens_per_gpu_miles_step_second": 1922.9942547379424,
+          "actor_train_seconds": 114.31832432746887,
+          "log_probs_seconds": 21.50244164466858,
+          "ref_log_probs_seconds": 28.14933967590332,
+          "train_seconds": 164.22298645973206,
+          "train_wait_seconds": 68.88119411468506,
+          "update_weights_seconds": 7.203707695007324,
+          "rollout_seconds": 47.38136863708496,
+          "step_seconds": 233.10418057441711
+        }
+      }
+    ]
+  },
+  "successful_checks": {
+    "flashinfer_cutlass": {
+      "eight_optimizer_steps": true,
+      "finite_positive_gradients": true,
+      "finite_losses": true,
+      "all_32_rank_steps_normal": true,
+      "no_metric_conflicts": true,
+      "effective_backend_matches": true,
+      "decode_capture_and_replay_logged": true
+    },
+    "flashinfer_trtllm_plus_postload_fix": {
+      "eight_optimizer_steps": true,
+      "finite_positive_gradients": true,
+      "finite_losses": true,
+      "all_32_rank_steps_normal": true,
+      "no_metric_conflicts": true,
+      "effective_backend_matches": true,
+      "decode_capture_and_replay_logged": true
+    }
+  },
+  "original_pr_only_status": "FAILED during initial weight sync, FlashInfer expected 2D expert tile but received 3D",
+  "registry": {
+    "image_id": "sha256:448a37a80616c92c5674489585ae4c3a3edd981d6d442bea121676e0dec3f4ad",
+    "target": "gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin:experimental-moe-pr33743-cu134-20260916-j2211281-postload-r1",
+    "started_utc": "2026-09-17T00:48:25.476366+00:00",
+    "status": "PUSHED",
+    "repo_digests": [
+      "gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin@sha256:405315ba3add773be16cfe176a4dcd15a1071cbf17f3be255ab2c47324c65f34"
+    ],
+    "finished_utc": "2026-09-17T00:48:43.547165+00:00"
+  },
+  "registry_verification": {
+    "verified_utc": "2026-09-17T00:50:04.027458+00:00",
+    "target": "gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin:experimental-moe-pr33743-cu134-20260916-j2211281-postload-r1",
+    "config_digest": "sha256:448a37a80616c92c5674489585ae4c3a3edd981d6d442bea121676e0dec3f4ad",
+    "image_matches": true,
+    "pushed_manifest_digest": [
+      "gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin@sha256:405315ba3add773be16cfe176a4dcd15a1071cbf17f3be255ab2c47324c65f34"
+    ],
+    "layers": 47
+  },
+  "native_versions": {
+    "torch": "2.15.0.dev20260818+cu134",
+    "sglang": "0.0.0",
+    "flashinfer-python": "0.6.18",
+    "triton": "3.8.0+gitdf3f91dd",
+    "transformer-engine": "2.19.0+5e52bef",
+    "ray": "2.58.0"
+  },
+  "corrected_image_cpu_provenance": {
+    "pr_head": "89f25a0b9772576fbd427a495a1144f544c90928",
+    "patch_sha256": "d137a9e5c3c30078e3727b34a4d0bb01990a42e7e96a68e80dd9caa313ebb040",
+    "before_git_blob": "1e718f7cd2d18b0122f0c2bb47610d46ec96c4f0",
+    "after_git_blob": "0ff99553743c61711e28b0dfde2bfd52ddd563fb",
+    "expected_original_failure_reproduced": true,
+    "real_flashinfer_cpu_tests_passed": 4,
+    "original_cpu_tests": {
+      "command": [
+        "/opt/sglang/bin/python3",
+        "-B",
+        "-c",
+        "import runpy,sys,torch; assert not torch.cuda.is_available() and torch.cuda.device_count() == 0, 'CPU build tests unexpectedly see a GPU'; sys.argv=sys.argv[1:]; runpy.run_path(sys.argv[0],run_name='__main__')",
+        "/sgl-workspace/sglang/test/registered/unit/layers/quantization/test_flashinfer_trtllm_bf16_moe_reload.py",
+        "-v"
+      ],
+      "elapsed_seconds": 11.586387892020866,
+      "log_sha256": "8f00db59ce6150e38a650b623f3c63a54fb6944a0e311e4cc92d24eea569ed72",
+      "returncode": 0,
+      "tests": 11
+    },
+    "native_packages_and_binaries_unchanged": true,
+    "native_payload_count": 44850
+  }
+}

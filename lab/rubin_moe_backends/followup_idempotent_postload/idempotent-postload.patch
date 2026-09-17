@@ -1,0 +1,17 @@
+--- a/python/sglang/srt/layers/quantization/unquant.py
++++ b/python/sglang/srt/layers/quantization/unquant.py
+@@ -726,10 +726,10 @@
+         # once per post-processing cycle.
+         self._cache_permute_indices.clear()
+ 
+-        for param_name in _FUSED_EXPERT_WEIGHT_NAMES:
+-            self._apply_trtllm_bf16_block_layout(
+-                layer, getattr(layer, param_name), param_name
+-            )
++        # Hot-update RPCs may have already repacked each bucket before the
++        # final post-load hook. Only transform weights still in canonical
++        # layout; packing an already blocked tensor a second time is invalid.
++        self.repack_weights_after_hot_update(layer)
+ 
+     def _trtllm_bf16_row_permutation(
+         self, layer: torch.nn.Module, param_name: str, expert_tile: torch.Tensor

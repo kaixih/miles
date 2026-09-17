@@ -1,0 +1,11 @@
+# Python-only PR33743 layer on the exact CUDA-graph baseline image.
+ARG BASE_IMAGE=gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-rubin@sha256:a03106bdd90c5d6067fbff246fff25df979f9da8486eb0dac795a315a2346d6c
+FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+COPY pr33743/pr33743-89f25a0.patch /opt/miles-moe/pr33743-89f25a0.patch
+COPY pr33743/manifest.json /opt/miles-moe/manifest.json
+COPY apply_trtllm_refit.py /opt/miles-moe/apply_trtllm_refit.py
+RUN --network=none python3 -B /opt/miles-moe/apply_trtllm_refit.py --base-image "${BASE_IMAGE}"
+LABEL ai.miles.extension="SGLang PR33743 BF16 TRTLLM hot-refit Python fix" \
+      ai.miles.sglang-pr="https://github.com/sgl-project/sglang/pull/33743" \
+      ai.miles.sglang-pr-head="89f25a0b9772576fbd427a495a1144f544c90928"
