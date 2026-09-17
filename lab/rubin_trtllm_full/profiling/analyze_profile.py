@@ -16,6 +16,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import render_slide
+
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / "lab/rubin_two_node"))
 import analyze_sglang_graph_trace as old
@@ -92,8 +94,9 @@ def render(analysis, row, output, title, png):
     if png:
         subprocess.run([str(renderer.NODE), str(renderer.ROOT / "capture_trace.mjs"),
                         str(output / "index.html"), str(output / "trace.png")], check=True, timeout=90)
-        result["png"] = str(output / "trace.png")
-        result["image_sha256"] = sha(output / "trace.png")
+        result["full_png"] = str(output / "trace.png")
+        result["full_image_sha256"] = sha(output / "trace.png")
+    result.update(render_slide.render(output, row, png, renderer.NODE, renderer.ROOT / "capture_trace.mjs"))
     result["source_trace"] = analysis["source"]
     result["selected_forward"] = row
     result["selection_rule"] = "Earliest complete bs=128 forward with paired CPU/GPU annotation and eager-prefill or correlated-graph-decode proof; never the fastest duration."

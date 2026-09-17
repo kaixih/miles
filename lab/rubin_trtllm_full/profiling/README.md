@@ -109,8 +109,18 @@ python3 lab/rubin_trtllm_full/profiling/analyze_profile.py \
 ```
 
 This checks runtime backend and exact input/measurement/trace identities. It
-reuses the original timeline renderer to create prefill/decode HTML and PNG
-screenshots, plus `profile-evidence.json`. Selection is the earliest complete
+reuses the original timeline renderer to preserve prefill/decode full HTML and
+`trace.png`, plus `profile-evidence.json`. The new `render_slide.py` also creates
+`compact-slide.html`, `compact-slide-data.json` and `compact-slide.png`: a
+1440×520 layout with 18–22px text, the complete selected GPU timeline on the left,
+and six individual kernel totals on the right. Short prefixes never define
+kernel identity: numeric row IDs keep distinct kernels separate when prefixes
+collide, while hover/JSON retain full names. The compact renderer independently
+checks event counts, every kernel total, cumulative time and interval union
+against the selected forward. The evidence's `png`/`image_sha256` fields point
+to this slide image; `full_png`/`full_image_sha256` preserve the full original.
+
+Selection is the earliest complete
 batch128 forward, never the fastest. Compare both platforms' `workload_sha256`,
 `input_ids_sha256`, frozen-file SHA, initial-model inventory, and selected
 forward `fields` before calling the profiles matched. Generated token values
@@ -129,16 +139,14 @@ pure decode timings nor the four-engine Miles generation timer.
 
 ## Report reuse
 
-For the **new** HTML slides directory, reuse the design/assets/navigation in
-`reports/rubin-gb300-qwen3-cudagraph` and its `check_slides.mjs`; do not overwrite
-that report. Its `generate.py` supports exact new run bindings and four separate
-profile records. The old `prepare_diagnostic_report.py` adapter is tied to old
-host-operator/OFF–ON contracts, so use the new `profile-evidence.json` to populate
-the new report inputs. Original `reports/rubin-gb300-qwen3/render_trace.py`
-provides the unchanged actual-trace visual style.
+Pass the two new evidence files to `lab/rubin_trtllm_full/build_report.py` with
+`--profile-rubin` and `--profile-gb300`. Use the new report's
+`reports/rubin-gb300-qwen3-trtllm-full/check_slides.mjs` for browser QA. Its image
+slots consume the compact PNG and verify its SHA; previous reports and
+`reports/rubin-gb300-qwen3/render_trace.py` remain unchanged.
 
 CPU contract checks:
 
 ```bash
-python3 -B lab/rubin_trtllm_full/profiling/test_profile_contract.py
+python3 -B -m unittest discover -s lab/rubin_trtllm_full/profiling -p 'test_*.py'
 ```
