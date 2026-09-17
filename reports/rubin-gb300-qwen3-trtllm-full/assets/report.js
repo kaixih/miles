@@ -53,16 +53,16 @@ slide("Numerical behavior through all updates","Correctness",`
  <p class="chart-note">${numericComplete?"Both runs completed 200 updates with finite losses, positive finite gradient norms and normal outcomes on all four ranks.":"Full-update validation is pending; the plots show only recorded observations."}</p>`,"Finite gradients and learning curves are checks for this workload, not a general proof of correctness.");
 
 slide("Whole-step and generation performance","Performance",`
- <div class="chart-columns content"><div><h3>Miles step timer</h3><div id="time-chart" class="chart compact-chart"></div></div><div><h3>Generation</h3><div id="generation-chart" class="chart compact-chart"></div></div></div>
- <div class="metric-strip"><div><span>Mean whole step</span><strong>${fmt(mean("gb300","step"))} → ${fmt(mean("rubin","step"))} s</strong><small>GB300 → Rubin · ${e(rateText("step"))}</small></div><div><span>Mean generation</span><strong>${fmt(mean("gb300","rollout"))} → ${fmt(mean("rubin","rollout"))} s</strong><small>GB300 → Rubin · ${e(rateText("rollout"))}</small></div></div>`,"Steady training rounds; startup and checkpoint-related rounds excluded on both systems. Main runs are unprofiled.");
+ <div class="chart-columns content"><div><h3>Miles step (4 optimizer updates)</h3><div id="time-chart" class="chart compact-chart"></div></div><div><h3>Generation per rollout</h3><div id="generation-chart" class="chart compact-chart"></div></div></div>
+ <div class="metric-strip"><div><span>Mean Miles step (4 updates)</span><strong>${fmt(mean("gb300","step"))} → ${fmt(mean("rubin","step"))} s</strong><small>GB300 → Rubin · ${e(rateText("step"))}</small></div><div><span>Mean generation per rollout</span><strong>${fmt(mean("gb300","rollout"))} → ${fmt(mean("rubin","rollout"))} s</strong><small>GB300 → Rubin · ${e(rateText("rollout"))}</small></div></div>`,"Seconds per rollout: one Miles step contains four optimizer updates. Steady rounds only; startup/checkpoint rounds excluded. Unprofiled.");
 
 const actorRatio=P.ratios.actor_train?.gb300_over_rubin;
-const actorText=finite(actorRatio)?`Actor update: Rubin takes ${fmt(mean("rubin","actor_train"))} s versus ${fmt(mean("gb300","actor_train"))} s on GB300 (${fmt(actorRatio,2)}× GB300/Rubin time ratio).`:"Actor-update comparison is pending.";
+const actorText=finite(actorRatio)?`Actor training (all 4 updates): Rubin takes ${fmt(mean("rubin","actor_train"))} s versus ${fmt(mean("gb300","actor_train"))} s on GB300 (${fmt(actorRatio,2)}× GB300/Rubin time ratio).`:"Actor training covers all four optimizer updates per rollout; comparison pending.";
 const tokenRate=p=>P.weighted_output_tokens_per_gpu_generation_second[p];
 slide("Keep the full performance breakdown visible","Performance",`
  <div id="stage-chart" class="chart stage-chart"></div>
  <p class="stage-finding">${e(actorText)}</p>
- <p class="small muted">Generation throughput: ${fmt(tokenRate("gb300"),0)} → ${fmt(tokenRate("rubin"),0)} output tokens/GPU/s (GB300 → Rubin).</p>`,"Independent recorded stage timers. Their sum is not a wall-time partition of the Miles step; faster generation need not mean a faster whole step.");
+ <p class="small muted">Generation throughput: ${fmt(tokenRate("gb300"),0)} → ${fmt(tokenRate("rubin"),0)} output tokens/GPU/s (GB300 → Rubin).</p>`,"Mean seconds per rollout. Actor training includes all four optimizer updates. Independent stage timers do not sum to the Miles step.");
 
 function profileSlide(platform,stage){
  const evidence=profiles.runs[platform],item=evidence?.profiles?.[stage],row=item?.selected_forward;
@@ -122,5 +122,5 @@ draw("eval-chart",runs.map(r=>{const es=r.rows.flatMap(row=>row.eval.map(v=>({..
 for(const [id,key,title]of [["gradient-chart","train/grad_norm","Gradient norm"],["logprob-chart","train/train_rollout_logprob_abs_diff","Mean absolute difference"]]){
  draw(id,runs.map(r=>{const values=new Map(r.rows.flatMap(row=>row.train_steps).map(s=>[s.logged_id,s.metrics[key]]));const ids=values.size?Array.from({length:Math.max(...values.keys())+1},(_,i)=>i):[];return {...lineStyle(r.label),x:ids,y:ids.map(i=>finite(values.get(i))?values.get(i):null)};}),{xTitle:"Optimizer update ID",yTitle:title});
 }
-const stageNames=[["rollout","Generation"],["actor_train","Actor update"],["log_probs","Old log prob"],["ref_log_probs","Reference"],["update_weights","Weight sync"]];
-draw("stage-chart",runs.map(r=>({name:name(r.label),type:"bar",x:stageNames.map(x=>x[1]),y:stageNames.map(x=>mean(r.label,x[0])??null),marker:{color:palette[r.label]}})),{xTitle:"",yTitle:"Mean seconds",layout:{barmode:"group"},pendingMessage:performancePending});
+const stageNames=[["rollout","Generation"],["actor_train","Actor (4 updates)"],["log_probs","Old log prob"],["ref_log_probs","Reference"],["update_weights","Weight sync"]];
+draw("stage-chart",runs.map(r=>({name:name(r.label),type:"bar",x:stageNames.map(x=>x[1]),y:stageNames.map(x=>mean(r.label,x[0])??null),marker:{color:palette[r.label]}})),{xTitle:"",yTitle:"Seconds per rollout",layout:{barmode:"group"},pendingMessage:performancePending});
