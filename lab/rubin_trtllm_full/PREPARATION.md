@@ -122,3 +122,50 @@ configuration. The replacement still requires the explicit host helper for
 allocation checks. Do not edit that helper after the controller records its
 SHA256. A preexisting controller claim or main-launch evidence prevents an
 automatic resubmission.
+
+## Explicit fresh attempt within the same Rubin lease
+
+`--attempt-tag r2` creates run `20260917-rubin-j2213753-trtllm-r2`, node-local
+root `miles-kaixih-j2213753-trtllm-r2`, container prefix
+`miles-rubin-qwen3-trtllm-j2213753-r2`, and profile
+`rubin-j2213753-trtllm-r2-profile-v1`. The campaign must be separate and end in
+`-r2`. This starts a new 50-rollout / 200-update run; earlier claims, logs,
+failures and directories are never resumed, reset or overwritten.
+
+The tagged attempt permits its own frozen source manifest and exact commit.
+The supplied manifest SHA256 and every listed file are verified and pinned.
+Launcher, reward and full main-driver hashes must match the original `1ce18e4e`
+manifest, preserving the learning recipe. The September 17 `r2` runtime is
+`45dfbda0693585b1c43f43eb4947cd65bad8897f`; its scoped runtime change adds bounded
+GET retries during worker discovery. The Rubin image, canonical model/data
+inventories and original allocation end remain unchanged.
+
+Plan-only command for this explicit attempt:
+
+```bash
+python3 -u lab/rubin_trtllm_full/campaign_worker.py \
+  --platform rubin --job-id 2213753 --attempt-tag r2 \
+  --campaign-root /home/scratch.kaixih_ent/repro/miles-qwen3-trtllm-full/20260917-campaign-rubin-j2213753-r2 \
+  --source-manifest /home/scratch.kaixih_ent/repro/miles-qwen3-trtllm-full/20260917-campaign-rubin-j2213753-r2/source-manifest.json \
+  --source-manifest-sha256 759cf3583b2c8f4e6f87e07094eb8f81ce124ea052e938cd683e08f7d570d34e \
+  --prepare-helper /home/scratch.kaixih_ent/repo/miles-rubin-cu134/lab/rubin_trtllm_full/prepare_platform.py \
+  --reuse-node-models /tmp/miles-kaixih-j2213753-trtllm/models \
+  --reuse-frozen-input-from /home/scratch.kaixih_ent/repro/miles-qwen3-trtllm-full/20260917-campaign \
+  --wait-until 2026-09-17T08:00:00Z
+```
+
+Add `--execute` only for the reviewed launch. Model reuse rechecks the complete
+canonical inventory and metadata fingerprints and mounts it read-only; failure
+stops preparation instead of silently copying another 122 GB. The original
+frozen profile input and receipt are copied byte-for-byte. Host helper SHAs are
+recorded separately from the frozen runtime. Preparation still requires four
+hours remaining; all watchdog and retention deadlines use the original
+12:23:11 UTC lease end. Ports are unchanged, so the previous owned container
+must be stopped by the operator before fresh bootstrap; these helpers never
+stop or delete a previous attempt to make room.
+
+The attempt tag is carried in names, controller claims and explicit helper
+arguments. It is intentionally not an extra main-driver config field, because
+the unchanged frozen main driver accepts only its documented schema. Final
+collection/report bindings must explicitly select this new run and source
+commit; do not splice older attempts into its curves.

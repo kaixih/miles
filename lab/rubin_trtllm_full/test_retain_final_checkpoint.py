@@ -22,6 +22,14 @@ def config():
             'save_optimizer': False}
 
 
+def retry_config(tag='r2'):
+    run = f'20260917-rubin-j2213753-trtllm-{tag}'
+    return {**config(), 'platform': 'rubin', 'job_id': '2213753', 'run_id': run,
+            'node': 'vr-nvl72-ts2-l11-038-c15', 'run_dir': str(R.BASE / run),
+            'node_run_dir': f'/tmp/miles-kaixih-j2213753-trtllm-{tag}/run',
+            'lease_deadline': '2026-09-17T12:23:11Z', 'attempt_tag': tag}
+
+
 def checkpoint(root):
     (root / 'iter_0000049').mkdir(parents=True)
     (root / 'rollout').mkdir()
@@ -73,6 +81,58 @@ class RetentionTests(unittest.TestCase):
                     path = Path(d) / 'driver-config.json'; path.write_text(json.dumps(c))
                     self.assertEqual(R.load_config(path), c)
                     self.assertEqual(R.load_config(path, job_id=job), c)
+
+    def test_retry_requires_explicit_tag_job_and_fresh_identity(self):
+        c = retry_config()
+        self.assertEqual(R.validate_config(c, job_id='2213753', attempt_tag='r2'), c)
+        for options in ({}, {'job_id': '2213753'}, {'attempt_tag': 'r2'},
+                        {'job_id': '2213753', 'attempt_tag': 'r3'},
+                        {'job_id': '2212643', 'attempt_tag': 'r2'}):
+            with self.subTest(options=options), self.assertRaises(ValueError):
+                R.validate_config(c, **options)
+        for field in ('run_id', 'run_dir', 'node_run_dir'):
+            for changed in (c[field].replace('-r2', ''), c[field].replace('-r2', '-r3')):
+                with self.subTest(field=field, value=changed), self.assertRaises(ValueError):
+                    R.validate_config({**c, field: changed}, job_id='2213753', attempt_tag='r2')
+        with self.assertRaises(ValueError):
+            R.validate_config({**c, 'platform': 'gb300'}, job_id='2213753', attempt_tag='r2')
+        # Untagged caller/config must not accidentally read retry output, or vice versa.
+        untagged = {k: v for k, v in c.items() if k != 'attempt_tag'}
+        untagged = {k: v.replace('-r2', '') if isinstance(v, str) else v for k, v in untagged.items()}
+        self.assertEqual(R.validate_config(untagged, job_id='2213753'), untagged)
+        with self.assertRaises(ValueError):
+            R.validate_config(untagged, job_id='2213753', attempt_tag='r2')
+
+    def test_attempt_tags_cannot_escape_or_alias_other_namespaces(self):
+        for tag in ('', 'R2', 'r-2', '../r2', 'r2/old', 'r2;false', 'r2\n', '123', 'a' * 13, 2):
+            with self.subTest(tag=tag), self.assertRaises(ValueError):
+                R.validate_config(retry_config(tag), job_id='2213753', attempt_tag=tag)
+        c = retry_config('recovery3')
+        self.assertEqual(R.validate_config(c, job_id='2213753', attempt_tag='recovery3'), c)
+        changed = {**c, 'node_run_dir': '/tmp/other-j2213753-trtllm-recovery3/run'}
+        with self.assertRaisesRegex(ValueError, 'exact fresh node-local root'):
+            R.validate_config(changed, job_id='2213753', attempt_tag='recovery3')
+
+    def test_retry_cli_and_load_config_pass_exact_identity_without_remote_calls(self):
+        c = retry_config()
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / 'driver-config.json'; p.write_text(json.dumps(c))
+            self.assertEqual(R.load_config(p, job_id='2213753', attempt_tag='r2'), c)
+            argv = ['retain_final_checkpoint.py', '--config', str(p), '--job-id', '2213753',
+                    '--attempt-tag', 'r2', '--execute']
+            with patch.object(sys, 'argv', argv), patch.object(R, 'execute', return_value=0) as execute:
+                self.assertEqual(R.main(), 0)
+                execute.assert_called_once_with(c)
+
+    def test_retry_preserves_original_lease_and_routes_only_new_checkpoint(self):
+        c = retry_config(); now = R.timestamp('2026-09-17T09:00:00Z')
+        raw = 'JobId=2213753 JobState=RUNNING NodeList=vr-nvl72-ts2-l11-038-c15 NumNodes=1 UserId=kaixih(28644) GroupId=dip(30) EndTime=2026-09-17T12:23:11'
+        self.assertEqual(R.allocation_guard(c, raw, now)['lease_deadline'], c['lease_deadline'])
+        with self.assertRaisesRegex(ValueError, 'Original allocation end changed'):
+            R.allocation_guard(c, raw.replace('12:23:11', '13:23:11'), now)
+        command = R.rsync_command(c, Path(c['run_dir']) / 'final-checkpoint', '/nfs/files.txt', 400, now=100)
+        self.assertIn('vr-nvl72-ts2-l11-038-c15:/tmp/miles-kaixih-j2213753-trtllm-r2/run/checkpoints/', command)
+        self.assertEqual(command[-1], c['run_dir'] + '/final-checkpoint/')
 
     def test_cli_passes_explicit_job_to_config_and_preserves_no_job_default(self):
         with tempfile.TemporaryDirectory() as d:

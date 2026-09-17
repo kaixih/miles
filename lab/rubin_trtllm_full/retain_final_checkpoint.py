@@ -50,12 +50,18 @@ def timestamp(value):
     return parsed.timestamp()
 
 
-def validate_config(raw, job_id=None):
+def validate_config(raw, job_id=None, attempt_tag=None):
     platform = raw.get('platform')
     require(platform in JOBS, 'Unknown platform')
     job = JOBS[platform] if job_id is None else str(job_id)
     require(re.fullmatch(r'[1-9][0-9]*', job), 'Explicit job ID must be a positive decimal allocation ID')
-    expected_run = f'20260917-{platform}-j{job}-trtllm'
+    require(raw.get('attempt_tag', attempt_tag) == attempt_tag, 'Config/CLI attempt identity differs')
+    if attempt_tag is not None:
+        require(platform == 'rubin' and job_id is not None
+                and isinstance(attempt_tag, str) and re.fullmatch(r'[a-z][a-z0-9]{0,11}', attempt_tag),
+                'Retry requires Rubin, an explicit job ID, and a safe attempt tag')
+    suffix = '' if attempt_tag is None else '-' + attempt_tag
+    expected_run = f'20260917-{platform}-j{job}-trtllm{suffix}'
     require(str(raw.get('job_id')) == job and raw.get('run_id') == expected_run, 'Wrong selected campaign/job identity')
     require(raw.get('run_dir') == str(BASE / expected_run), 'Wrong durable campaign root')
     require(re.fullmatch(r'[A-Za-z0-9.-]+', raw.get('node', '')), 'Unsafe node name')
@@ -64,6 +70,9 @@ def validate_config(raw, job_id=None):
             and str(p).startswith(('/tmp/', '/raid/')) and p.name == 'run'
             and re.search(r'(?:^|[-/])j' + re.escape(job) + r'(?=$|[-/])', str(p)),
             'Unbound node-local checkpoint path')
+    if attempt_tag is not None:
+        require(p.parent.name == f'miles-kaixih-j{job}-trtllm{suffix}',
+                'Retry checkpoint path must use its exact fresh node-local root')
     require(raw.get('uid', UID) == UID and raw.get('gid', GID) == GID, 'Normal writer identity mismatch')
     require(raw.get('sglang_moe_runner_backend') == 'flashinfer_trtllm'
             and raw.get('save_optimizer') is False, 'Require the model-only TRTLLM main run')
@@ -71,8 +80,8 @@ def validate_config(raw, job_id=None):
     return dict(raw)
 
 
-def load_config(path, job_id=None):
-    return validate_config(json.loads(Path(path).read_text()), job_id=job_id)
+def load_config(path, job_id=None, attempt_tag=None):
+    return validate_config(json.loads(Path(path).read_text()), job_id=job_id, attempt_tag=attempt_tag)
 
 
 def allocation_guard(c, raw, now):
@@ -301,8 +310,9 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--config', required=True, type=Path)
     p.add_argument('--job-id', help='Explicit replacement allocation; config/run/paths must match exactly')
+    p.add_argument('--attempt-tag', help='Explicit fresh Rubin retry; safe tag [a-z][a-z0-9]{0,11}, never reuse earlier outputs')
     p.add_argument('--execute', action='store_true')
-    args = p.parse_args(); c = load_config(args.config, job_id=args.job_id)
+    args = p.parse_args(); c = load_config(args.config, job_id=args.job_id, attempt_tag=args.attempt_tag)
     if args.execute:
         return execute(c)
     print(json.dumps({'mode': 'PLAN_ONLY_NO_REMOTE_CALLS', 'run_id': c['run_id'], 'iteration': 49,

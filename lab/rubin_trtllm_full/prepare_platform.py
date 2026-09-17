@@ -73,6 +73,10 @@ def node_view(platform, path):
 def validate_options(args):
     job = str(getattr(args, 'job_id', None) or JOBS[args.platform])
     require(re.fullmatch(r'[1-9][0-9]*', job), 'Job ID must be a positive decimal allocation ID')
+    tag = getattr(args, 'attempt_tag', None)
+    if tag is not None:
+        require(re.fullmatch(r'[a-z][a-z0-9]{0,11}', tag) and args.platform == 'rubin'
+                and getattr(args, 'job_id', None), 'Attempt tag requires an explicit Rubin job and a short lowercase tag')
     image = args.image or (RUBIN_IMAGE if args.platform == 'rubin' else '')
     require(re.fullmatch(r'[^\s]+@sha256:[0-9a-f]{64}', image), 'An immutable registry image digest is required')
     if args.platform == 'rubin':
@@ -83,12 +87,31 @@ def validate_options(args):
         require(p.is_absolute() and '..' not in p.parts and str(p).startswith(str(BASE) + '/'),
                 name + ' must be a normalized scratch path')
     timestamp(args.wait_until)
-    run_id = f'20260917-{args.platform}-j{job}-trtllm'
-    return {'platform': args.platform, 'job_id': job, 'run_id': run_id,
+    expected_manifest_sha = getattr(args, 'source_manifest_sha256', None)
+    if expected_manifest_sha is not None:
+        require(re.fullmatch(r'[0-9a-f]{64}', expected_manifest_sha), 'Expected source manifest SHA256 is invalid')
+    if tag:
+        require(expected_manifest_sha is not None, 'Tagged attempt requires an explicit source manifest SHA256')
+    reuse = getattr(args, 'reuse_node_models', None)
+    if reuse:
+        p = Path(reuse)
+        require(p.is_absolute() and '..' not in p.parts and p.name == 'models'
+                and p.parent.parent in (Path('/tmp'), Path('/raid/tmp'), Path('/raid/dldata'))
+                and re.fullmatch(r'miles-kaixih-j' + re.escape(job) + r'-trtllm(?:-[a-z][a-z0-9]{0,11})?', p.parent.name),
+                'Reused models must be an explicit prior local model directory for this job')
+    run_id = f'20260917-{args.platform}-j{job}-trtllm' + ('-' + tag if tag else '')
+    result = {'platform': args.platform, 'job_id': job, 'run_id': run_id,
             'run_dir': str(BASE / 'repro/miles-qwen3-trtllm-full' / run_id),
             'image': image, 'source': str(args.source), 'source_commit': args.source_commit,
             'source_manifest': str(args.source_manifest), 'model_record': str(args.model_record),
             'data_root': str(args.data_root), 'wait_until': args.wait_until}
+    if tag:
+        result['attempt_tag'] = tag
+    if expected_manifest_sha:
+        result['source_manifest_sha256'] = expected_manifest_sha
+    if reuse:
+        result['reuse_node_models'] = str(reuse)
+    return result
 
 
 def allocation_guard(config, record, now, original=None):
@@ -120,8 +143,11 @@ def allocation_guard(config, record, now, original=None):
 def verify_source(config):
     source = Path(config['source'])
     raw = Path(config['source_manifest']).read_bytes()
+    require(not config.get('source_manifest_sha256')
+            or hashlib.sha256(raw).hexdigest() == config['source_manifest_sha256'], 'Frozen source manifest SHA256 mismatch')
     manifest = json.loads(raw)
     require(manifest['git_commit'] == config['source_commit'], 'Frozen source commit mismatch')
+    require(manifest.get('source_root', str(source)) == str(source), 'Frozen source root mismatch')
     hashes = manifest['source_sha256']
     require(set(RUNTIME_FILES) <= hashes.keys(), 'Source manifest must include all five launcher/driver files')
     require(source.is_dir() and source.stat().st_uid == 28644 and not source.is_symlink(), 'Invalid frozen source root')
@@ -159,7 +185,7 @@ def host_storage(config, existing=None):
     shared = ('/mnt/cifs' if config['platform'] == 'gb300' else '') + '/home/scratch.kaixih_ent'
     shared_mount = subprocess.check_output(['findmnt', '-T', shared, '-n', '-o', 'SOURCE,FSTYPE,TARGET'], text=True)
     assert ('cifs' if config['platform'] == 'gb300' else 'nfs') in shared_mount.lower()
-    suffix = 'miles-kaixih-j' + config['job_id'] + '-trtllm'
+    suffix = 'miles-kaixih-j' + config['job_id'] + '-trtllm' + ('-' + config['attempt_tag'] if config.get('attempt_tag') else '')
     if existing:
         root = Path(existing['local_root'])
         assert root.name == suffix and root.parent in [Path('/raid/dldata'), Path('/raid/tmp'), Path('/tmp')]
@@ -304,7 +330,8 @@ for parent in PARENTS:
  result.append({'path':str(p),'uid':f.stat().st_uid,'gid':f.stat().st_gid})
 print(json.dumps(result))
 """.replace('PARENTS', repr(parents))
-        text = self.remote(['docker', 'run', '--rm', '--name', 'miles-trtllm-probe-j' + self.c['job_id'], '--user', '28644:30',
+        probe_name = 'miles-trtllm-probe-j' + self.c['job_id'] + ('-' + self.c['attempt_tag'] if self.c.get('attempt_tag') else '')
+        text = self.remote(['docker', 'run', '--rm', '--name', probe_name, '--user', '28644:30',
                             '--mount', f'type=bind,src={local}/run,dst=/run-output',
                             '--mount', f'type=bind,src={node_view(self.c["platform"], self.root)},dst=/durable-output',
                             self.c['image'], 'python3', '-B', '-c', code], label='container-writer-probe')
@@ -338,6 +365,11 @@ print(json.dumps(result))
                 'durable_route': 'SSH to login direct NFS' if self.c['platform'] == 'gb300' else 'container direct NFS'}
 
     def models(self, storage, expected):
+        explicit = self.c.get('reuse_node_models')
+        if explicit:
+            models = self.remote_json(host_model_inventory, explicit, label='explicit-reuse-model-inventory')
+            check_models(models, expected)
+            return {'root': explicit, 'models': models, 'mode': 'explicit_reused_verified_readonly_local_inputs'}
         candidates = (['/raid/tmp/miles-kaixih-j2198810-profile/models'] if self.c['platform'] == 'gb300' else [])
         for candidate in candidates:
             try:
@@ -360,12 +392,13 @@ print(json.dumps(result))
         return {'root': destination, 'models': models, 'mode': 'copied_canonical_inventory_to_local_storage'}
 
     def driver_config(self, storage, models):
-        return {'platform': self.c['platform'], 'run_id': self.c['run_id'], 'job_id': self.c['job_id'],
+        result = {'platform': self.c['platform'], 'run_id': self.c['run_id'], 'job_id': self.c['job_id'],
                 'node': self.original['NodeList'], 'node_ip': storage['node_ip'], 'image': self.c['image'],
                 'repo': self.c['source'], 'node_repo': node_view(self.c['platform'], self.c['source']),
                 'models': str(BASE / 'models'), 'node_models': models['root'], 'run_dir': str(self.root),
                 'node_run_dir': storage['local_root'] + '/run', 'cache_dir': storage['local_root'] + '/cache',
-                'container_prefix': 'miles-' + self.c['platform'] + '-qwen3-trtllm-j' + self.c['job_id'],
+                'container_prefix': 'miles-' + self.c['platform'] + '-qwen3-trtllm-j' + self.c['job_id']
+                                    + ('-' + self.c['attempt_tag'] if self.c.get('attempt_tag') else ''),
                 'ray_port': 26379, 'dashboard_port': 28265,
                 'megatron_path': '/root/Megatron-LM' if self.c['platform'] == 'gb300' else '/opt/Megatron-LM',
                 'nccl_iface': storage['nic'], 'lease_deadline': self.original['EndTime'] + 'Z',
@@ -373,6 +406,7 @@ print(json.dumps(result))
                 'train_sha256': DATA_HASHES['train.jsonl'], 'eval_sha256': DATA_HASHES['test-fixed-256.jsonl'],
                 'source_manifest': str(self.root / 'source-manifest.json'), 'uid': 28644, 'gid': 30,
                 'sglang_moe_runner_backend': 'flashinfer_trtllm', 'save_optimizer': False}
+        return result
 
     def inspect_container(self, c):
         data = json.loads(self.remote(['docker', 'inspect', c['container_prefix'] + '-0'], label='owned-container-inspect'))[0]
@@ -597,9 +631,12 @@ def parser():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--platform', choices=sorted(JOBS), required=True)
     p.add_argument('--job-id', help='Explicit existing allocation; omitted keeps the original campaign job')
+    p.add_argument('--attempt-tag', help='Explicit fresh Rubin attempt, e.g. r2; never resumes an earlier run')
     p.add_argument('--source', type=Path, required=True)
     p.add_argument('--source-commit', required=True)
     p.add_argument('--source-manifest', type=Path, required=True)
+    p.add_argument('--source-manifest-sha256', help='Expected frozen manifest hash; required for a tagged retry')
+    p.add_argument('--reuse-node-models', type=Path, help='Verify and reuse this prior job-local models directory; fail instead of copying on mismatch')
     p.add_argument('--image')
     p.add_argument('--model-record', type=Path, default=MODEL_RECORD)
     p.add_argument('--data-root', type=Path, default=DATA_ROOT)

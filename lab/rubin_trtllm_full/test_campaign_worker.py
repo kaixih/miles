@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -34,6 +35,92 @@ def replacement_options(**changes):
 
 
 class DurableController(unittest.TestCase):
+    def retry_options(self):
+        args = replacement_options()
+        args.attempt_tag = 'r2'
+        args.campaign_root = worker.BASE / '20260917-campaign-rubin-j2213753-r2'
+        args.source_manifest = args.campaign_root / 'source-manifest.json'
+        args.source_manifest_sha256 = 'b' * 64
+        args.reuse_node_models = Path('/tmp/miles-kaixih-j2213753-trtllm/models')
+        return args
+
+    def test_tagged_retry_is_fresh_and_requires_explicit_bound_manifest(self):
+        args = self.retry_options(); new = worker.Worker(args)
+        self.assertEqual(new.run_id, '20260917-rubin-j2213753-trtllm-r2')
+        self.assertEqual(new.profile_id, 'rubin-j2213753-trtllm-r2-profile-v1')
+        old = worker.Worker(replacement_options())
+        self.assertNotEqual(new.root, old.root)
+        self.assertNotEqual(new.work, old.work)
+        self.assertEqual(new.reuse_inputs, worker.CAMPAIGN)
+        for key, value in [('attempt_tag', '../r2'), ('job_id', None), ('source_manifest', worker.MANIFEST),
+                           ('source_manifest_sha256', None), ('reuse_frozen_input_from', None),
+                           ('reuse_node_models', Path('/tmp/miles-kaixih-j999-trtllm/models'))]:
+            bad = self.retry_options(); setattr(bad, key, value)
+            with self.subTest(key=key), self.assertRaises(ValueError): worker.Worker(bad)
+
+    def test_retry_allows_new_commit_but_preserves_original_recipe_sources(self):
+        original = {'git_commit': worker.REPLACEMENT_SOURCE_COMMIT,
+                    'source_sha256': {name: 'a' * 64 for name in worker.RECIPE_FILES}}
+        new = {'git_commit': 'b' * 40, 'source_sha256': dict(original['source_sha256'])}
+        self.assertEqual(worker.retry_source_contract(new, original)['unchanged_recipe_sources'], original['source_sha256'])
+        new['source_sha256'][worker.RECIPE_FILES[0]] = 'c' * 64
+        with self.assertRaisesRegex(ValueError, 'original launcher'): worker.retry_source_contract(new, original)
+
+    def test_retry_preparation_forwards_tag_manifest_hash_and_model_reuse(self):
+        instance = worker.Worker(self.retry_options())
+        instance.commit = 'c' * 40; instance.prepare_helper_sha = 'd' * 64
+        with tempfile.TemporaryDirectory() as directory:
+            instance.root = Path(directory)
+            with patch.object(instance, 'image_ready', return_value={'image': 'registry/image@sha256:' + 'e' * 64}), \
+                    patch.object(worker, 'sha', return_value='d' * 64), patch.object(instance, 'remaining', return_value=5*3600), \
+                    patch.object(instance, 'command', side_effect=RuntimeError('stop before preparation executes')) as command:
+                with self.assertRaisesRegex(RuntimeError, 'stop before'): instance.prepare_main()
+            argv = command.call_args.args[1]
+            for flag, value in [('--job-id', '2213753'), ('--attempt-tag', 'r2'),
+                                ('--source-manifest-sha256', 'b' * 64),
+                                ('--reuse-node-models', '/tmp/miles-kaixih-j2213753-trtllm/models')]:
+                self.assertEqual(argv[argv.index(flag)+1], value)
+
+    def test_retry_retention_forwards_same_job_and_attempt_tag(self):
+        instance = worker.Worker(self.retry_options())
+        with tempfile.TemporaryDirectory() as directory:
+            instance.work = Path(directory) / 'worker'; instance.work.mkdir()
+            helper = Path(directory) / 'retainer.py'; helper.write_text('# fixture\n')
+            with patch.object(worker, 'RETENTION', helper), \
+                    patch.object(instance, 'command', side_effect=RuntimeError('stop before retention executes')) as command:
+                with self.assertRaisesRegex(RuntimeError, 'stop before'): instance.retain_and_profile({})
+            argv = command.call_args.args[1]
+            self.assertEqual(argv[argv.index('--job-id')+1], '2213753')
+            self.assertEqual(argv[argv.index('--attempt-tag')+1], 'r2')
+
+    def test_retry_source_verification_records_new_commit_and_rejects_manifest_change(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve(); source = root / 'source-r2'; source.mkdir()
+            names = set(worker.RECIPE_FILES) | {'lab/rubin_trtllm_full/prepare_platform.py',
+                    'lab/rubin_trtllm_full/profile_operator.py', 'lab/rubin_trtllm_full/profiling/run_profile.py'}
+            hashes = {}
+            for name in names:
+                path = source / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text('# fixture\n')
+                hashes[name] = worker.sha(path)
+            manifest = root / 'source-manifest.json'
+            manifest.write_text(json.dumps({'git_commit': 'c' * 40, 'source_root': str(source), 'source_sha256': hashes}))
+            original = root / 'original-manifest.json'
+            original.write_text(json.dumps({'git_commit': worker.REPLACEMENT_SOURCE_COMMIT, 'source_sha256': hashes}))
+            args = self.retry_options(); args.source_manifest_sha256 = worker.sha(manifest)
+            instance = worker.Worker(args); instance.manifest = manifest; instance.prepare_helper = None
+            stat = Path.stat
+            def owned(path, *args, **kwargs):
+                values = list(stat(path, *args, **kwargs)); values[4] = 28644
+                return os.stat_result(values)
+            with patch.object(Path, 'stat', owned), patch.object(worker, 'MANIFEST', original), \
+                    patch.object(worker, 'module', return_value=types.SimpleNamespace()):
+                proof = instance.verify_source()
+                self.assertEqual(proof['git_commit'], 'c' * 40)
+                self.assertEqual(proof['manifest_sha256'], args.source_manifest_sha256)
+                self.assertEqual(proof['retry_recipe_contract']['baseline_commit'], worker.REPLACEMENT_SOURCE_COMMIT)
+                manifest.write_text(manifest.read_text() + '\n')
+                with self.assertRaisesRegex(ValueError, 'manifest SHA256 mismatch'): instance.verify_source()
+
     def test_replacement_allocation_uses_host_guard_and_actual_rounded_deadline(self):
         import prepare_platform
         instance = worker.Worker(replacement_options())

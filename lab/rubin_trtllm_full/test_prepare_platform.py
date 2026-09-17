@@ -29,6 +29,50 @@ def allocation():
 
 
 class PreparationTests(unittest.TestCase):
+    def test_tagged_retry_has_distinct_identity_and_reuses_verified_models_only(self):
+        a = options('rubin'); a.job_id = '2213753'; a.attempt_tag = 'r2'
+        a.source_manifest_sha256 = 'b' * 64
+        a.reuse_node_models = Path('/tmp/miles-kaixih-j2213753-trtllm/models')
+        c = P.validate_options(a); w = P.Worker(c, a); w.original = allocation()
+        self.assertEqual(c['run_id'], '20260917-rubin-j2213753-trtllm-r2')
+        self.assertEqual(c['run_dir'], '/home/scratch.kaixih_ent/repro/miles-qwen3-trtllm-full/' + c['run_id'])
+        with patch.object(w, 'remote_json', return_value={'verified': 'inventory'}) as read, \
+                patch.object(P, 'check_models') as check, patch.object(w, 'remote', side_effect=AssertionError('Unexpected model copy')):
+            model = w.models({'local_root': '/tmp/miles-kaixih-j2213753-trtllm-r2'}, {'canonical': True})
+            self.assertEqual(model['root'], str(a.reuse_node_models))
+            read.assert_called_once_with(P.host_model_inventory, str(a.reuse_node_models), label='explicit-reuse-model-inventory')
+            check.assert_called_once_with({'verified': 'inventory'}, {'canonical': True})
+        driver = w.driver_config({'node_ip': '10.0.0.1', 'local_root': '/tmp/miles-kaixih-j2213753-trtllm-r2', 'nic': 'mp0'}, model)
+        self.assertEqual(driver['container_prefix'], 'miles-rubin-qwen3-trtllm-j2213753-r2')
+        self.assertEqual(driver['node_run_dir'], '/tmp/miles-kaixih-j2213753-trtllm-r2/run')
+        self.assertNotIn('attempt_tag', driver)  # Frozen main driver has a strict config schema.
+        spec = importlib.util.spec_from_file_location('retry_frozen_driver', Path(__file__).parents[1] / 'rubin_two_node/run_cudagraph_main.py')
+        main = importlib.util.module_from_spec(spec); spec.loader.exec_module(main)
+        normalized = main._config(driver)
+        self.assertEqual(normalized['container'], 'miles-rubin-qwen3-trtllm-j2213753-r2-0')
+        self.assertEqual(main._plan(normalized)['recipe']['rollouts'], 50)
+        self.assertEqual(main._plan(normalized)['recipe']['optimizer_updates'], 200)
+        self.assertFalse(driver['save_optimizer'])
+        with patch.object(w, 'remote_json', return_value={}), patch.object(P, 'check_models', side_effect=ValueError('changed')), \
+                patch.object(w, 'remote', side_effect=AssertionError('Must not silently copy')):
+            with self.assertRaisesRegex(ValueError, 'changed'): w.models({}, {})
+
+    def test_tagged_retry_rejects_unsafe_or_implicit_source_and_model_reuse(self):
+        a = options('rubin'); a.job_id = '2213753'; a.attempt_tag = 'r2'; a.source_manifest_sha256 = 'b' * 64
+        for key, value in [('attempt_tag', 'r2/old'), ('attempt_tag', 'R2'), ('job_id', None),
+                           ('source_manifest_sha256', None), ('source_manifest_sha256', 'main'),
+                           ('reuse_node_models', Path('/tmp/miles-kaixih-j999-trtllm/models'))]:
+            original = getattr(a, key)
+            setattr(a, key, value)
+            with self.subTest(key=key), self.assertRaises(ValueError): P.validate_options(a)
+            setattr(a, key, original)
+
+    def test_expected_manifest_hash_is_checked_before_source_access(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / 'source-manifest.json'; p.write_text('{}')
+            c = {'source': str(Path(d) / 'missing-source'), 'source_manifest': str(p), 'source_manifest_sha256': '0' * 64}
+            with self.assertRaisesRegex(ValueError, 'manifest SHA256 mismatch'): P.verify_source(c)
+
     def test_explicit_replacement_job_binds_paths_and_preserves_recipe(self):
         a = options('rubin'); a.job_id = '2213753'
         c = P.validate_options(a)
