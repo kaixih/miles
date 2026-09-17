@@ -5,11 +5,13 @@
   "run_bindings": [
     {
       "label": "rubin",
-      "run_id": "20260917-rubin-j2213753-trtllm"
+      "run_id": "20260917-rubin-j2213753-trtllm-r2",
+      "source_commit": "45dfbda0693585b1c43f43eb4947cd65bad8897f"
     },
     {
       "label": "gb300",
-      "run_id": "20260917-gb300-j2212644-trtllm"
+      "run_id": "20260917-gb300-j2212644-trtllm",
+      "source_commit": "1ce18e4e1930bfbdaaa4a776c3a82dcebed5fa0d"
     }
   ],
   "expected_rollouts": 50,
@@ -23,11 +25,17 @@
       "run_id": "20260917-rubin-j2212643-trtllm",
       "completed_rollouts": 32,
       "reason": "GPU0 uncorrectable ECC; Slurm drained the node and requested reboot. Archived separately; the replacement restarts from the initial policy."
+    },
+    {
+      "run_id": "20260917-rubin-j2213753-trtllm",
+      "completed_rollouts": 41,
+      "reason": "Unretried worker-discovery HTTP transport failure after generation; no recoverable checkpoint. Archived separately. r2 restarts from the initial model with bounded discovery GET retries."
     }
   ],
   "software_note": "GB300 uses an upstream Miles base with the scoped TRTLLM weight-refit fixes. Rubin uses the CUDA13.4/TE2.19 adaptation. Software stacks differ; these are comparisons of the recorded systems.",
   "planned_te_versions": {
     "rubin": "2.19",
     "gb300": "2.17"
-  }
+  },
+  "runtime_note": "Rubin r2 adds bounded transport retries only for worker-discovery GETs. Launcher, learning recipe, generation POSTs, numerical kernels and graph settings are unchanged."
 }

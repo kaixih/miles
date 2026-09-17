@@ -39,6 +39,24 @@ observed one-second start/end rounding (04:23:10–12:23:11 UTC), while retentio
 still requires the actual lease end to match **12:23:11 UTC** exactly and keeps
 the same 120-second reserve.
 
+The fresh **r2** attempt within job **2213753** uses an explicit tag:
+
+```bash
+python3 lab/rubin_trtllm_full/retain_final_checkpoint.py \
+  --config /home/scratch.kaixih_ent/repro/miles-qwen3-trtllm-full/20260917-rubin-j2213753-trtllm-r2/driver-config.json \
+  --job-id 2213753 --attempt-tag r2 \
+  --execute
+```
+
+Its node-local parent is exactly `miles-kaixih-j2213753-trtllm-r2`, and its
+durable run directory ends in `20260917-rubin-j2213753-trtllm-r2`. Both must
+match the explicit tag; an untagged or different attempt's checkpoint cannot
+be selected. This is a fresh run, not checkpoint resume or reuse of either
+failed attempt. The original lease end and all retention guards remain
+unchanged. The driver config intentionally omits an `attempt_tag` field for
+compatibility with the frozen main runner; the CLI and exact run/node paths
+carry the tag.
+
 The data route is **node-local checkpoint49 → SSH rsync launched on dl3 → direct
 NFS**. It does not write through GB300's CIFS mount. Only manifest-listed final
 checkpoint files, `latest_checkpointed_iteration.txt`, and

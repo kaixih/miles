@@ -112,6 +112,23 @@ class CollectorTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'requires flashinfer_trtllm'):
                 C.validate_config(platform, c)
 
+    def test_explicit_r2_rejects_old_attempt_paths_and_sources(self):
+        c = trtllm_config('rubin')
+        c.update(job_id='2213753', run_id='20260917-rubin-j2213753-trtllm-r2',
+                 run_dir='/home/scratch.kaixih_ent/repro/miles-qwen3-trtllm-full/20260917-rubin-j2213753-trtllm-r2',
+                 node_run_dir='/tmp/miles-kaixih-j2213753-trtllm-r2/run',
+                 container_prefix='miles-rubin-qwen3-trtllm-j2213753-r2',
+                 source_commit='45dfbda0693585b1c43f43eb4947cd65bad8897f')
+        C.validate_config('rubin', c)
+        for change in (
+            {'node_run_dir': '/tmp/miles-kaixih-j2213753-trtllm/run'},
+            {'container_prefix': 'miles-rubin-qwen3-trtllm-j2213753'},
+            {'source_commit': '1ce18e4e1930bfbdaaa4a776c3a82dcebed5fa0d'},
+            {'run_id': c['run_id'].replace('-r2', '-r3')},
+        ):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                C.validate_config('rubin', {**c, **change})
+
     def test_allocation_requires_owner_node_running_and_exact_unexpired_lease(self):
         c = config(); now = dt.datetime(2026,9,16,8,tzinfo=dt.timezone.utc)
         text = 'JobId=2203647 JobState=RUNNING NodeList=gb300-test NumNodes=1 UserId=kaixih(28644) EndTime=2026-09-16T14:50:55'

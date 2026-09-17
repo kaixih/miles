@@ -37,7 +37,7 @@ slide("Experiment configuration","Experiment",`
  <p><strong>Rubin ES</strong><br>Rubin container adaptation<br>TE ${e(version("rubin","transformer-engine"))}</p>
  <p><strong>GB300</strong><br>Upstream Miles base + refit fixes<br>TE ${e(version("gb300","transformer-engine"))}</p>
  <p class="small muted">Both include the TRTLLM weight-refit fixes. Training uses TP1 / EP4 and a 4,096-token budget per GPU.</p>
- <div class="callout">Results compare these complete systems. Library versions differ.</div></div></div>`,"Same training settings; final weights-only checkpoint. Profiling runs separately after training.");
+ <div class="callout">Results compare these complete systems. Library versions differ.</div></div></div>`,"Same learning settings; Rubin adds a bounded control-request retry. Profiling runs separately after training.");
 
 slide("Reward and held-out evaluation","Correctness",`
  <div class="chart-columns content"><div><h3>Training rollout reward</h3><div id="reward-chart" class="chart half"></div></div><div><h3>Held-out GSM8K accuracy</h3><div id="eval-chart" class="chart half"></div></div></div>

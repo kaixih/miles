@@ -1,15 +1,25 @@
 # Finish the retained TRTLLM comparison
 
 Run locally from the Miles workspace. `finalize_campaign.py` is plan-only by
-default and binds **Rubin job 2213753** and **GB300 job 2212644**. It rejects the
-failed first Rubin run, mismatched images, and a different frozen runtime.
+default and binds **Rubin job 2213753, attempt r2** and **GB300 job 2212644**.
+The exact Rubin run is `20260917-rubin-j2213753-trtllm-r2`; its controller is under
+`20260917-campaign-rubin-j2213753-r2/workers/rubin/` and its profile is
+`rubin-j2213753-trtllm-r2-profile-v1`. Both earlier Rubin attempts are rejected.
 
-After replacement preparation reaches READY, retain its actual driver config as
+After r2 preparation reaches READY, retain its actual driver config as
 `outputs/rubin-gb300-qwen3-trtllm-full/rubin-driver-config.json`; the collector
-mapping already names that file. Until this copy is made, a stale config for
-job 2212643 correctly fails even the local plan check. Copy the real generated
-config from `dl3:/home/scratch.kaixih_ent/repro/miles-qwen3-trtllm-full/20260917-rubin-j2213753-trtllm/driver-config.json`;
-do not manufacture a config by changing the old job ID.
+mapping already names that file. Until this copy is made, the previous untagged
+config correctly fails even the local plan check. Copy the real generated config
+from `dl3:/home/scratch.kaixih_ent/repro/miles-qwen3-trtllm-full/20260917-rubin-j2213753-trtllm-r2/driver-config.json`;
+do not manufacture a config by changing the old run ID.
+
+Each entry in `reports/rubin-gb300-qwen3-trtllm-full/experiment.json`'s
+`run_bindings` must include its exact `source_commit` as well as `label` and
+`run_id`. GB300 retains commit `1ce18e4e1930bfbdaaa4a776c3a82dcebed5fa0d`;
+Rubin must name the actual newly frozen r2 commit. The commits may differ.
+The finalizer checks each driver config against its own explicit binding, then
+checks the profile identity and retained operator against that same commit.
+Do not substitute a placeholder, the previous Rubin source, or a branch name.
 
 ```bash
 python3 lab/rubin_trtllm_full/finalize_campaign.py
@@ -25,10 +35,11 @@ The tool does the following, stopping on any failed check:
 
 1. Read the two controllers' completion records, checkpoint PASS receipts and
    retained profiling receipts from **dl3**. Verify the exact run/image identities,
-   successful profile terminal state and plan/terminal hashes against each
+   per-platform bound source commits, successful profile terminal state and plan/terminal hashes against each
    diagnostic retention manifest.
 2. Download only the manifest-listed files under each
-   `diagnostics/<platform>-j<job>-trtllm-profile-v1/node-output/`. Check their sizes
+   `diagnostics/<exact-profile-id>/node-output/`, preserving Rubin's `-r2`
+   suffix. Check their sizes
    and SHA256 values locally. No model weights, checkpoint shards, caches or
    source trees are downloaded. Each manifest is bounded to 1,100 MiB.
 3. Run the existing `profiling/analyze_profile.py --png` against each fresh local

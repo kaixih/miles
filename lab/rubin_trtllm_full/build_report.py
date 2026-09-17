@@ -62,7 +62,8 @@ def bind_experiment(experiment):
     if len(experiment["run_bindings"]) != 2 or set(bindings) != set(PLATFORMS):
         raise ValueError("Require exactly two explicit platform/run bindings")
     for label, run_id in bindings.items():
-        if not re.fullmatch(r"20260917-" + label + r"-j\d+-trtllm", run_id):
+        suffix = r"(?:-r2)?" if label == "rubin" else ""
+        if not re.fullmatch(r"20260917-" + label + r"-j\d+-trtllm" + suffix, run_id):
             raise ValueError("Refusing a baseline or unbound run ID")
     return bindings
 

@@ -43,6 +43,10 @@ def encoded(value):
 
 def campaign(platform, run_id):
     """Only the two explicitly authorized, separately retained campaigns."""
+    if platform == 'rubin' and run_id == '20260917-rubin-j2213753-trtllm-r2':
+        return {'job_id': '2213753', 'root': 'miles-qwen3-trtllm-full',
+                'name': 'qwen3-trtllm-full-v1', 'requires_trtllm': True,
+                'attempt_tag': 'r2'}
     for date, suffix, root, name in (
             ('20260916', 'cg', 'miles-qwen3-cudagraph', 'qwen3-cudagraph-nightly-v1'),
             ('20260917', 'trtllm', 'miles-qwen3-trtllm-full', 'qwen3-trtllm-full-v1')):
@@ -79,6 +83,11 @@ def validate_config(platform, c):
         raise ValueError('Unsafe or unbound host watchdog path')
     if not str(p).startswith(('/tmp/', '/raid/')) or p.name != 'run':
         raise ValueError('Host output root must be a job-specific run directory')
+    if selected.get('attempt_tag') and (
+            p.parent.name != 'miles-kaixih-j2213753-trtllm-r2'
+            or c.get('container_prefix') != 'miles-rubin-qwen3-trtllm-j2213753-r2'
+            or c.get('source_commit') != '45dfbda0693585b1c43f43eb4947cd65bad8897f'):
+        raise ValueError('Retry must use its exact separate node root, container and source')
     if not 1024 <= int(c['dashboard_port']) <= 65535:
         raise ValueError('Invalid Ray API port')
     if not re.fullmatch(r'.+@sha256:[0-9a-f]{64}', c.get('image', '')):

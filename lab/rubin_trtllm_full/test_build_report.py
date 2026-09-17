@@ -76,6 +76,23 @@ def comparison():
 
 
 class ReportBoundary(unittest.TestCase):
+    def test_retry_suffix_keeps_explicit_main_binding(self):
+        experiment = {"schema": "qwen3-trtllm-full-experiment-v1", "experiment_id": build.EXPERIMENT,
+                      "run_bindings": [{"label": "rubin", "run_id": "20260917-rubin-j2213753-trtllm-r2"},
+                                       {"label": "gb300", "run_id": "20260917-gb300-j2212644-trtllm"}]}
+        bindings = build.bind_experiment(experiment)
+        self.assertEqual(bindings["rubin"], "20260917-rubin-j2213753-trtllm-r2")
+        for old_run in ("20260917-rubin-j2213753-trtllm", "20260917-rubin-j2212643-trtllm"):
+            data = {"schema": "miles-qwen3-comparison-v1", "experiment_id": build.EXPERIMENT,
+                    "runs": [{"label": "rubin", "metadata": {"run_id": old_run}}]}
+            with self.subTest(old_run=old_run), self.assertRaisesRegex(ValueError, "Old or unbound"):
+                build.validate_main(data, None, Path("/tmp"), bindings)
+        for index, suffix in ((0, "-r3"), (0, "-r2/old"), (1, "-r2")):
+            changed = copy.deepcopy(experiment)
+            changed["run_bindings"][index]["run_id"] = changed["run_bindings"][index]["run_id"].removesuffix("-r2") + suffix
+            with self.subTest(index=index, suffix=suffix), self.assertRaisesRegex(ValueError, "unbound"):
+                build.bind_experiment(changed)
+
     def test_recipe_accepts_observed_defaults_and_equivalent_numeric_arguments(self):
         metadata = recipe_metadata()
         self.assertTrue(build.check_recipe(metadata))

@@ -19,9 +19,9 @@ ROOT = Path(__file__).resolve().parents[2]
 INPUTS = ROOT / 'outputs/rubin-gb300-qwen3-trtllm-full'
 REPORT = ROOT / 'reports/rubin-gb300-qwen3-trtllm-full'
 REMOTE = Path('/home/scratch.kaixih_ent/repro/miles-qwen3-trtllm-full')
-COMMIT = '1ce18e4e1930bfbdaaa4a776c3a82dcebed5fa0d'
 JOBS = {'rubin': '2213753', 'gb300': '2212644'}
-CAMPAIGNS = {'rubin': '20260917-campaign-rubin-rerun-j2213753', 'gb300': '20260917-campaign'}
+RUN_IDS = {'rubin': '20260917-rubin-j2213753-trtllm-r2', 'gb300': '20260917-gb300-j2212644-trtllm'}
+CAMPAIGNS = {'rubin': '20260917-campaign-rubin-j2213753-r2', 'gb300': '20260917-campaign'}
 IMAGES = {'rubin': '405315ba3add773be16cfe176a4dcd15a1071cbf17f3be255ab2c47324c65f34',
           'gb300': 'c8b88b345c450e6c40a45122dbedbfc992a2b1f834e2a960d7a340bf1cd89680'}
 NODE = Path('/Users/kaixih/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node')
@@ -52,24 +52,34 @@ def write(path, data):
 def bound_configs(config_path, experiment):
     mapping = json.loads(config_path.read_text())
     require(set(mapping) == set(JOBS) and all(mapping.values()), 'Both actual driver configs are required')
+    entries = json.loads(experiment.read_text()).get('run_bindings')
+    require(isinstance(entries, list) and len(entries) == 2
+            and all(isinstance(r, dict) for r in entries), 'Require exactly two explicit experiment bindings')
+    bindings = {r.get('label'): r for r in entries}
+    require(set(bindings) == set(JOBS), 'Require one explicit binding per platform')
+    for platform, binding in bindings.items():
+        require(binding.get('run_id') == RUN_IDS[platform]
+                and isinstance(binding.get('source_commit'), str)
+                and re.fullmatch(r'[0-9a-f]{40}', binding['source_commit']),
+                'Exact run and per-platform source_commit required in experiment binding: ' + platform)
     configs = {}
     for platform, job in JOBS.items():
         path = Path(mapping[platform])
         c = json.loads((path if path.is_absolute() else config_path.parent / path).read_text())
-        run_id = f'20260917-{platform}-j{job}-trtllm'
+        run_id = RUN_IDS[platform]
         require(c.get('run_id') == run_id and str(c.get('job_id')) == job
                 and c.get('run_dir') == str(REMOTE / run_id) and c.get('platform') == platform
-                and c.get('source_commit') == COMMIT
+                and c.get('source_commit') == bindings[platform]['source_commit']
                 and c.get('image') == f'gitlab-master.nvidia.com:5005/kaixih/my_docker_hub/miles-{platform}@sha256:{IMAGES[platform]}',
                 'Wrong/stale run, image or source binding: ' + platform)
         configs[platform] = c
-    actual = {r['label']: r['run_id'] for r in json.loads(experiment.read_text())['run_bindings']}
-    require(actual == {p: c['run_id'] for p, c in configs.items()}, 'Report experiment bindings differ')
     return configs
 
 
 def paths(platform, c):
-    profile = f'{platform}-j{JOBS[platform]}-trtllm-profile-v1'
+    require(platform in RUN_IDS and c.get('run_id') == RUN_IDS[platform]
+            and c.get('run_dir') == str(REMOTE / RUN_IDS[platform]), 'Wrong exact run binding for receipt paths')
+    profile = c['run_id'].removeprefix('20260917-') + '-profile-v1'
     diagnostic = Path(c['run_dir']) / 'diagnostics' / profile
     worker = REMOTE / CAMPAIGNS[platform] / 'workers' / platform
     return diagnostic, {'state': worker / 'state.json', 'worker_exit': worker / 'worker-exit.json',
@@ -105,6 +115,8 @@ def snapshot(platform, c):
 
 def validate_ready(platform, c, records):
     diagnostic, selected = paths(platform, c)
+    require(isinstance(c.get('source_commit'), str) and re.fullmatch(r'[0-9a-f]{40}', c['source_commit']),
+            'Profile requires the bound exact source commit')
     require(set(records) == set(selected), 'Incomplete readiness receipts')
     data = {}
     for name, expected in selected.items():
@@ -123,9 +135,11 @@ def validate_ready(platform, c, records):
     identity = plan.get('identity', {})
     require(plan.get('schema') == 'trtllm-prefill-decode-profile-v1' and plan.get('main_run_id') == c['run_id']
             and identity.get('run_id') == diagnostic.name and identity.get('main_run_id') == c['run_id']
-            and identity.get('image_reference') == c['image'] and identity.get('source_commits', {}).get('miles_main') == COMMIT
+            and identity.get('image_reference') == c['image']
+            and identity.get('source_commits', {}).get('miles_main') == c['source_commit']
             and plan.get('order') == ['on'] and terminal.get('status') == 'COMPLETED', 'Stale or incomplete profile')
     require(operator.get('config', {}).get('run_id') == c['run_id'] and operator['config'].get('image') == c['image']
+            and operator['config'].get('source_commit') == c['source_commit']
             and operator.get('ray_job', {}).get('status') == 'SUCCEEDED'
             and operator.get('frozen_input_sha256') == plan.get('frozen_input_sha256'), 'Operator identity/completion differs')
     require(retention.get('source_before_after_and_destination_verified') is True, 'Profile retention not verified')
