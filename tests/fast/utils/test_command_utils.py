@@ -1060,6 +1060,13 @@ class TestDetectHardware:
 
         assert command_utils.detect_hardware() == expected
 
+    def test_sm107_is_rubin(self, monkeypatch):
+        _fake_torch(monkeypatch, capability=(10, 7), machine="aarch64")
+
+        assert command_utils.detect_hardware() == "Rubin"
+        assert command_utils.NUM_GPUS_OF_HARDWARE["Rubin"] == 4
+        assert command_utils.GENERATION_HARDWARE["Rubin"] == "Rubin"
+
     @pytest.mark.parametrize(
         ("capability", "expected"),
         [((9, 4), "MI300X"), ((9, 4), "MI325X"), ((9, 5), "MI350X"), ((9, 5), "MI355X")],
@@ -1078,7 +1085,7 @@ class TestDetectHardware:
 
     def test_every_detectable_hardware_is_a_table_entry(self, monkeypatch):
         """A detected name the tables do not carry is a KeyError at the first lookup."""
-        for capability in ((9, 0), (10, 0), (10, 3)):
+        for capability in ((9, 0), (10, 0), (10, 3), (10, 7)):
             for machine in ("x86_64", "aarch64"):
                 _fake_torch(monkeypatch, capability=capability, machine=machine)
                 assert command_utils.detect_hardware() in command_utils.NUM_GPUS_OF_HARDWARE
