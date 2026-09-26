@@ -146,6 +146,10 @@ RUN python3 -m pip install --no-deps flash-linear-attention==0.5.2 fla-core==0.5
     patch --fuzz=0 -p1 -d "$FLA_DIR" < /tmp/fla_kda_hoist_next_power_of_2.patch && \
     rm /tmp/fla_kda_hoist_next_power_of_2.patch
 
+# Use the main image's CPU-only router wheel to preserve routing replay requests.
+RUN python3 -m pip install --force-reinstall --no-deps \
+    'https://github.com/yueming-yuan/miles-wheels/releases/download/cu130-torch213-aarch64/sglang_router-0.3.2-cp38-abi3-manylinux_2_39_aarch64.whl#sha256=d4c3aac2fdc5743a6003845af65157ef07f0483fef43d93aa12b0740c3f53b2b'
+
 # DeepSeek V4 uses TileKernels; retain the TVM-FFI version required by FA4.
 COPY docker/patch/tile_kernels_target.patch /tmp/tile_kernels_target.patch
 RUN python3 -m pip install --no-deps tilelang==0.1.14 tile_kernels==1.0.0 && \
