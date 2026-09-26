@@ -13,6 +13,7 @@ ARG FA2_COMMIT=a8aa52b1ab3e9ca574c8a33b3f35afc017ffa2e2
 ARG MEGATRON_COMMIT=96fe16ecb280f0365f68fe0dc8a33e2e27b4cb95
 ARG SGLANG_COMMIT=67e4cd1885155bf9b08366b348c59d5b79a7fb7b
 ARG FLASH_MLA_COMMIT=b7643bd54521f563b839b98289b5cd048c062ba2
+ARG FHT_COMMIT=e7706faf8d1c3b9f241e36860640ad1dac644ede
 
 ENV CUDA_HOME=/usr/local/cuda \
     TORCH_CUDA_ARCH_LIST=10.7 \
@@ -167,6 +168,16 @@ RUN git init /opt/build/flash-mla && \
     FLASH_MLA_DISABLE_SM90=1 python3 -m pip install \
       /opt/build/flash-mla --no-deps --no-build-isolation -v && \
     rm -rf /opt/build/flash-mla
+
+# Megatron's DSA indexer rotates activations with this native Torch extension.
+RUN git init /opt/build/fast-hadamard-transform && \
+    git -C /opt/build/fast-hadamard-transform remote add origin https://github.com/Dao-AILab/fast-hadamard-transform.git && \
+    git -C /opt/build/fast-hadamard-transform fetch --depth=1 origin ${FHT_COMMIT} && \
+    git -C /opt/build/fast-hadamard-transform checkout --detach FETCH_HEAD && \
+    git -C /opt/build/fast-hadamard-transform apply /opt/miles-rubin/fast-hadamard-sm107.patch && \
+    FAST_HADAMARD_TRANSFORM_FORCE_BUILD=TRUE python3 -m pip install \
+      /opt/build/fast-hadamard-transform --no-deps --no-build-isolation -v && \
+    rm -rf /opt/build/fast-hadamard-transform
 
 LABEL ai.miles.hardware="Vera Rubin SM107 / aarch64" \
       ai.miles.support="experimental core Megatron BF16"
