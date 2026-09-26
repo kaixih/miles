@@ -11,6 +11,7 @@ import platform
 import random
 import shlex
 import socket
+import sys
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from functools import partial
@@ -74,7 +75,7 @@ def convert_checkpoint(
         pythonpath = shlex.quote(_pythonpath_with_sources(megatron_path))
         fn(
             f"PYTHONPATH={pythonpath} "
-            f"torchrun "
+            f"{shlex.quote(sys.executable)} -m torch.distributed.run "
             f"--nproc-per-node {num_gpus_per_node} "
             f"{multinode_args}"
             f"{repo_base_dir}/tools/convert_hf_to_torch_dist.py "
