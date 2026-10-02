@@ -229,7 +229,7 @@ def execute(args: ScriptArgs):
 
     if args.train_fp8 or args.train_mxfp8:
         match args.hardware:
-            case "B200" | "B300" | "GB200" | "GB300":
+            case "B200" | "B300" | "GB200" | "GB300" | "Rubin":
                 misc_args += (
                     "--transformer-impl transformer_engine "
                     "--bf16 "
