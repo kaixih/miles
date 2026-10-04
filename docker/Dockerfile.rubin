@@ -146,9 +146,10 @@ RUN bash /tmp/install-kube-tools.sh "${TARGETARCH}" && rm -f /tmp/install-kube-t
 # ====================================== Install main package ============================================
 
 ARG MILES_REPO=radixark/miles
-ARG MILES_COMMIT=main
+ARG MILES_COMMIT=a3be2ba174b48064fc46bc0724bca05cf1695d69
 RUN git clone "https://github.com/${MILES_REPO}.git" /opt/miles && \
     cd /opt/miles && \
+    git fetch --depth=1 origin "${MILES_COMMIT}" && \
     git checkout "${MILES_COMMIT}" && \
     python3 -m pip install -e . --no-deps --no-build-isolation
 
