@@ -75,6 +75,19 @@ PROVIDER_CREDENTIALS = {
         "forward": ("MODAL_PROFILE", "MODAL_ENVIRONMENT", "OPENENV_MODAL_APP"),
         "target": ("MODAL_ENVIRONMENT", "workspace environment", "the profile's default"),
     },
+    "opensandbox": {
+        "provider": "OpenSandbox",
+        "key_env_vars": ("OPEN_SANDBOX_API_KEY",),
+        "file_env_var": "OPEN_SANDBOX_API_KEY_FILE",
+        "arg_attr": "opensandbox_api_key_file",
+        "default_path": "~/.config/opensandbox/api_key",
+        "provision_hint": "mkdir -p ~/.config/opensandbox && echo '<key>' > ~/.config/opensandbox/api_key",
+        "sdk": "opensandbox",
+        "sdk_hint": "pip install -e '<miles>[opensandbox]'",
+        "sdk_min_version": "1.1.0",
+        "forward": ("OPEN_SANDBOX_API_URL", "OPEN_SANDBOX_CA_FILE", "OPENENV_OPENSANDBOX_LOG_DIR"),
+        "target": ("OPEN_SANDBOX_API_URL", "endpoint", "not configured (OPEN_SANDBOX_API_URL required)"),
+    },
 }
 
 

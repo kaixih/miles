@@ -51,6 +51,7 @@ AGENT_MODULES = {
     "daytona": "openenv_daytona_agent_function",
     "e2b": "openenv_e2b_agent_function",
     "modal": "openenv_modal_agent_function",
+    "opensandbox": "openenv_opensandbox_agent_function",
 }
 AGENT_FUNCTIONS = {backend: f"{module}.run" for backend, module in AGENT_MODULES.items()}
 _ALIASES = {"agentenv": "e2b"}

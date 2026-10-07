@@ -127,6 +127,38 @@ carries the snippet for sweeping a shared workspace). And for the Docker Hub
 limit above, Modal takes registry credentials directly: hand
 `Image.from_registry` a `modal.Secret`.
 
+### OpenSandbox (prototype)
+
+Uses the existing Miles agent loop and canonical TB2 `tests/test.sh` scoring.
+Each episode starts from its official task image and installs the OpenEnv
+server layer inside that sandbox; this prototype has no cached-image build
+path. The provider adds no GPU requirement: CPU-only golden checks still use
+sandbox resources, while model serving and training retain their own GPU needs.
+
+Validation uses `opensandbox==1.1.0` and OpenEnv revision
+`38b2a31354d1d4d627894412b9d469e92f4a2c61`. Install both OpenEnv core and the
+editable `tbench2_env` client from that checkout; the backend pins the server
+runtime to the same revision. Use a TB2 Git checkout pinned to the revision
+used to generate the prompt data.
+
+```bash
+pip install -e '<miles>[opensandbox]' 'opensandbox==1.1.0'
+pip install -e '<OpenEnv>' -e '<OpenEnv>/envs/tbench2_env' 'mcp<2'
+export OPENENV_SANDBOX_BACKEND=opensandbox
+export OPENENV_TB2_TASKS_DIR=/workspace/terminal-bench-2
+export OPEN_SANDBOX_API_URL=https://sandbox.example.com
+export OPEN_SANDBOX_API_KEY_FILE="$HOME/.config/opensandbox/api_key"
+# Optional private CA; TLS verification stays enabled:
+# export OPEN_SANDBOX_CA_FILE=/path/to/trusted-ca.pem
+export OPENENV_OPENSANDBOX_LOG_DIR=/workspace/openenv-opensandbox-logs
+```
+
+Provision your own key file separately. The service must proxy authenticated
+HTTP **and WebSocket** traffic on the configured HTTPS origin; a raw container
+port is insufficient. Each attempt's log directory records bootstrap output
+and lifecycle evidence, including deletion and the subsequent 404 confirmation.
+Use the environment checks in step 3 before connecting a model.
+
 ### Alternative: one shared env server
 
 Rather than a sandbox per episode, one long-lived server can serve them all,

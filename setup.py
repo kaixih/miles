@@ -69,6 +69,9 @@ setup(
         "modal": [
             "modal>=1.5.5",
         ],
+        "opensandbox": [
+            "opensandbox>=1.1.0",
+        ],
     },
     python_requires=">=3.10",
     classifiers=[

@@ -107,13 +107,14 @@ def test_unreadable_path_counts_as_absent(monkeypatch, tmp_path):
     assert env == {}
 
 
-def test_worker_environment_supply_is_accepted_without_forwarding(monkeypatch, tmp_path):
+@pytest.mark.parametrize("backend", ["daytona", "opensandbox"])
+def test_worker_environment_supply_is_accepted_without_forwarding(monkeypatch, tmp_path, backend):
     """When the launcher itself has the credential in env, workers are assumed
     to have it too (platform-injected / single-host inheritance) and nothing is
     forwarded."""
-    monkeypatch.setenv("DAYTONA_API_KEY", "dtn_from_env")
+    monkeypatch.setenv(PROVIDER_CREDENTIALS[backend]["key_env_vars"][0], "secret_from_env")
     env: dict[str, str] = {}
-    _supply(env, "daytona", default_path=str(tmp_path / "absent"))
+    _supply(env, backend, default_path=str(tmp_path / "absent"))
     assert env == {}
 
 
@@ -264,6 +265,42 @@ def test_modal_provisioning_uses_public_sandbox_v2_switch(monkeypatch, tmp_path)
     overridden: dict[str, str] = {}
     provision_provider(overridden, PROVIDER_CREDENTIALS["modal"], arg_path=str(config))
     assert overridden["MODAL_SANDBOX_V2"] == "0"
+
+
+def test_opensandbox_provisioning_forwards_paths_and_endpoint(monkeypatch, tmp_path, capsys):
+    key_file = tmp_path / "api_key"
+    key_file.write_text("opensandbox_secret\n")
+    ca_file = tmp_path / "ca.pem"
+    log_dir = tmp_path / "lifecycle"
+    monkeypatch.setenv("OPEN_SANDBOX_API_KEY", "opensandbox_env_secret")
+    monkeypatch.setenv("OPEN_SANDBOX_API_URL", "https://opensandbox.internal")
+    monkeypatch.setenv("OPEN_SANDBOX_CA_FILE", str(ca_file))
+    monkeypatch.setenv("OPENENV_OPENSANDBOX_LOG_DIR", str(log_dir))
+    monkeypatch.setitem(sys.modules, "opensandbox", types.ModuleType("opensandbox"))
+    monkeypatch.setattr(credentials.importlib.metadata, "version", lambda name: "1.1.0")
+
+    env: dict[str, str] = {}
+    provision_provider(env, PROVIDER_CREDENTIALS["opensandbox"], arg_path=str(key_file))
+
+    assert env == {
+        "OPEN_SANDBOX_API_KEY_FILE": str(key_file),
+        "OPEN_SANDBOX_API_URL": "https://opensandbox.internal",
+        "OPEN_SANDBOX_CA_FILE": str(ca_file),
+        "OPENENV_OPENSANDBOX_LOG_DIR": str(log_dir),
+    }
+    output = capsys.readouterr().out
+    assert "opensandbox_secret" not in output
+    assert "opensandbox_env_secret" not in output
+
+
+def test_opensandbox_provisioning_rejects_older_sdk(monkeypatch, tmp_path):
+    key_file = tmp_path / "api_key"
+    key_file.write_text("secret\n")
+    monkeypatch.setitem(sys.modules, "opensandbox", types.ModuleType("opensandbox"))
+    monkeypatch.setattr(credentials.importlib.metadata, "version", lambda name: "1.0.0")
+
+    with pytest.raises(RuntimeError, match=r"opensandbox>=1\.1\.0 \(installed: 1\.0\.0\)"):
+        provision_provider({}, PROVIDER_CREDENTIALS["opensandbox"], arg_path=str(key_file))
 
 
 def test_credential_available_accepts_either_supply(monkeypatch, tmp_path):

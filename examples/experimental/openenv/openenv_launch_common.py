@@ -37,6 +37,7 @@ class LaunchArgs(Protocol):
     daytona_api_key_file: str
     e2b_api_key_file: str
     modal_config_file: str
+    opensandbox_api_key_file: str
     session_server_external_host: str
     miles_host_ip: str
 
@@ -199,7 +200,10 @@ def apply_optional_env_vars(env: dict[str, str], args: LaunchArgs) -> None:
     backend = resolve_sandbox_backend(args)
     if backend:
         spec = PROVIDER_CREDENTIALS[backend]
-        provision_provider(env, spec, arg_path=getattr(args, spec["arg_attr"], "") or "")
+        # Older launchers may not declare this provider's key-file argument.
+        # An explicit argument wins over the env var; provisioning owns the default.
+        key_file = getattr(args, spec["arg_attr"], "") or os.environ.get(spec["file_env_var"], "")
+        provision_provider(env, spec, arg_path=key_file)
         # Preflight the env package the recipe bakes into each task image —
         # shared by every sandbox backend. The import check catches a missing
         # install; the source probe catches an install that imports fine but
