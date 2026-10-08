@@ -10,7 +10,7 @@ from miles.backends.megatron_utils.sglang import (
     should_deepgemm_weight_requant_ue8m0,
     transform_scale_ue8m0,
 )
-from miles.utils.fp8_kernel import blockwise_cast_to_fp8_triton
+from miles.kernels.quant.fp8_blockwise import fp8_blockwise_cast
 
 
 def quantize_params_fp8(args, megatron_name, converted_named_params, quantization_config):
@@ -148,7 +148,7 @@ def _quantize_param(args, name, weight, weight_block_size, ignored_layers, packe
         ):
             qweight, scale = per_block_cast_to_fp8(weight)
         else:
-            qweight, scale = blockwise_cast_to_fp8_triton(weight, weight_block_size)
+            qweight, scale = fp8_blockwise_cast(weight, weight_block_size)
         scale_name = name.replace(".weight", ".weight_scale_inv")
     else:
         # per tensor quant

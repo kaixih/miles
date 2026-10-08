@@ -157,11 +157,11 @@ def execute():
         "--rollout-shuffle "
         "--rm-type deepscaler "
         "--num-rollout 2 "
-        "--rollout-batch-size 8 "
-        "--n-samples-per-prompt 8 "
+        "--rollout-batch-size 4 "
+        "--n-samples-per-prompt 4 "
         "--rollout-max-response-len 100 "
         "--rollout-temperature 1 "
-        "--global-batch-size 64 "
+        "--global-batch-size 16 "
     )
 
     perf_args = (
@@ -253,6 +253,7 @@ def execute():
         "--attention-backend flash "
         "--allgather-cp "
         "--miles-dsa-topk-backend flashinfer "
+        "--update-weight-transfer-mode broadcast_packed "
         f"--update-weight-buffer-size {2 * 1024 ** 3} "
         "--actor-num-nodes 1 "
         f"--actor-num-gpus-per-node {ACTOR_NUM_GPUS} "
