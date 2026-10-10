@@ -47,7 +47,7 @@ hf download zai-org/GLM-5.3-Flash --local-dir /root/models/GLM-5.3-Flash
 hf download --repo-type dataset zhuzilin/dapo-math-17k --local-dir /root/datasets/dapo-math-17k
 ```
 
-The reference checkpoint has to be converted first — `--ref-load` resolves to
+By default, the reference checkpoint has to be converted first — `--ref-load` resolves to
 `<--ckpt-dir>/<megatron_model_type>_torch_dist`:
 
 ```bash
@@ -62,6 +62,18 @@ CONVERT_KEEP_PP1=1 CUDA_DEVICE_MAX_CONNECTIONS=1 PYTHONPATH=/root/Megatron-LM \
 ```
 
 ## 4. Launch
+
+For the full 45-layer model, `--direct-hf-init` instead initializes the trainer directly
+from `--hf-checkpoint` through the upstream mbridge loader, without an offline conversion
+or a custom initialization hook. The checkpoint must identify a 45-layer `glm5_next`
+model. Converted-checkpoint loading remains the default. With Ray already running on
+the allocated nodes and `MILES_SCRIPT_EXTERNAL_RAY=1`, run on the head node:
+
+```bash
+python scripts/run_glm5_3_flash.py \
+  --model-name GLM-5.3-Flash --num-nodes 8 --num-gpus-per-node 4 \
+  --hf-checkpoint /root/models/GLM-5.3-Flash --direct-hf-init --num-rollout 2
+```
 
 Bring up a ray cluster across the nodes, `export MILES_SCRIPT_EXTERNAL_RAY=1`, then on the
 head node:

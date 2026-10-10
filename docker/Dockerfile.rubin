@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # doc-dev: docs/developer/ci/02-docker-build.md
 # Native aarch64 build adding Vera Rubin (SM107) support.
-ARG SGLANG_IMAGE=lmsysorg/sglang:nightly-cu134-20260911-a4ff563@sha256:4af3254b070e087afdf8cabebe895132bb4d1d6cf6fd5b5c60f0a3da07c1b468
+ARG SGLANG_IMAGE=lmsysorg/sglang:nightly-cu134-20261009-91b3692@sha256:3ebc3d7c39d20c1cc23ab1145ec55f47aa532283dc7093dde67fe7d29f2a7492
 FROM ${SGLANG_IMAGE}
 
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
@@ -11,12 +11,16 @@ SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 ARG TARGETARCH
 ARG MAX_JOBS=8
 ARG NVCC_THREADS=2
-ARG TE_COMMIT=5e52befd5262c06289106338c308079d6adb391f
-ARG TE_FA4_FIX_COMMIT=8d43cd1ff49a024b00e228d156b63cd5a19d32b3
-ARG APEX_COMMIT=1bcf66dc11c3f614d6a071b1bb39854189ea3110
-ARG FA2_COMMIT=edb5c76ee329b18ed95d1f7ea9aa522a1331ab7d
-ARG MEGATRON_COMMIT=96fe16ecb280f0365f68fe0dc8a33e2e27b4cb95
-ARG SGLANG_COMMIT=67e4cd1885155bf9b08366b348c59d5b79a7fb7b
+ARG TE_COMMIT=76ae4b0981849d4b85a528d26f39981974b409f8
+ARG TE_FA4_FIX_BASE=21a066d257afeaf8039325f58df9a62587517976
+ARG TE_FA4_FIX_COMMIT=c0d1c37d787a9eb832fa4f6cbdd4fcffff1e5932
+ARG APEX_COMMIT=575968bc1f9127ccd61003a681472a83af4ff1a1
+ARG FA2_COMMIT=94e22c906678e5483fa0e9e24d8e787bc2c0ed4c
+ARG MEGATRON_COMMIT=fd15ee20a4f03b03680529baf4b8f7eeed64df1d
+ARG MBRIDGE_COMMIT=a61943d7fcb34a190471cfeb0a0eb8bbda621ddf
+ARG MBRIDGE_DEVICE_FIX_COMMIT=9b35aef3c1aa8de5d799cbecc12e7233cc39bb16
+ARG TMS_COMMIT=118b09b3bc7b0cf386745db1eac2601d4aa7e681
+ARG SGLANG_COMMIT=d1faf8244e6d60e8491d7e81d2e465e3f9a2fd94
 ARG FLASH_MLA_COMMIT=b7643bd54521f563b839b98289b5cd048c062ba2
 ARG FHT_COMMIT=e7706faf8d1c3b9f241e36860640ad1dac644ede
 
@@ -41,7 +45,7 @@ RUN test "$(uname -m)" = aarch64 && \
 # ====================================== Python dependencies ============================================
 
 RUN python3 -m pip install 'setuptools<80' wheel packaging pybind11 ninja cmake \
-      'nvidia-cudnn-frontend==1.28.0' einops onnx onnxscript pydantic nvdlfw-inspect
+      'nvidia-cudnn-frontend==1.29.0' einops onnx onnxscript pydantic nvdlfw-inspect
 
 # Torch extension headers include cuDNN from the base's pip installation.
 ENV CUDNN_PATH=/opt/sglang/lib/python3.12/site-packages/nvidia/cudnn
@@ -50,8 +54,7 @@ ENV CPLUS_INCLUDE_PATH=/usr/local/cuda/include/cccl:${CUDNN_PATH}/include \
     LIBRARY_PATH=${CUDNN_PATH}/lib
 
 # Retain TE's CUDA 13 targets; the cu130/Torch2.13 wheels cannot be reused.
-# Apply only the backends.py fix from TE #3532.
-# TE 2.19 has import os where the upstream diff uses import inspect as context.
+# Apply the complete backends.py fix from the pinned TE #3532 revision.
 RUN --mount=type=cache,id=miles-te-${TE_COMMIT}-torch215-cu134,target=/opt/build/te,sharing=locked \
     if ! test -d /opt/build/te/src/.git; then \
       git init /opt/build/te/src && \
@@ -62,15 +65,16 @@ RUN --mount=type=cache,id=miles-te-${TE_COMMIT}-torch215-cu134,target=/opt/build
     fi && \
     test "$(git -C /opt/build/te/src rev-parse HEAD)" = "${TE_COMMIT}" && \
     test -z "$(git -C /opt/build/te/src diff --name-only HEAD)" && \
-    git -C /opt/build/te/src fetch --depth=2 origin ${TE_FA4_FIX_COMMIT} && \
+    git -C /opt/build/te/src fetch --depth=1 origin ${TE_FA4_FIX_BASE} ${TE_FA4_FIX_COMMIT} && \
+    git -C /opt/build/te/src diff --unified=1 ${TE_FA4_FIX_BASE} ${TE_FA4_FIX_COMMIT} -- \
+      transformer_engine/pytorch/attention/dot_product_attention/backends.py > /tmp/te-fa4.patch && \
+    git -C /opt/build/te/src apply --check /tmp/te-fa4.patch && \
     python3 -m pip uninstall -y transformer-engine transformer-engine-cu12 \
       transformer-engine-cu13 transformer-engine-torch && \
     NVTE_FRAMEWORK=pytorch NVTE_CUDA_ARCHS="75;80;89;90;100;120" NVTE_WITH_NCCL_EP=0 \
       python3 -m pip install /opt/build/te/src --no-deps --no-build-isolation -v && \
-    git -C /opt/build/te/src show --format= --unified=1 ${TE_FA4_FIX_COMMIT} -- \
-      transformer_engine/pytorch/attention/dot_product_attention/backends.py | \
-      sed 's/^ import inspect$/ import os/' | \
-      git -C "$(python3 -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" apply
+    git -C "$(python3 -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" apply /tmp/te-fa4.patch && \
+    rm /tmp/te-fa4.patch
 
 RUN git init /opt/build/apex && \
     git -C /opt/build/apex remote add origin https://github.com/NVIDIA/apex.git && \
@@ -96,10 +100,18 @@ RUN git init /root/Megatron-LM && \
     git -C /root/Megatron-LM checkout --detach FETCH_HEAD && \
     git -C /root/Megatron-LM submodule update --init --recursive --depth=1 && \
     python3 -m pip install -e /root/Megatron-LM --no-deps --no-build-isolation && \
-    python3 -m pip install --no-deps --no-build-isolation \
-      git+https://github.com/ISEEKYAN/mbridge.git@89eb10887887bc74853f89a4de258c0702932a1c && \
     TMS_CUDA_MAJOR=13 python3 -m pip install --force-reinstall --no-deps --no-build-isolation \
-      git+https://github.com/fzyzcjy/torch_memory_saver.git@b5588e83de86412a48689a6583a4b567e75f7acc
+      git+https://github.com/fzyzcjy/torch_memory_saver.git@${TMS_COMMIT}
+
+# mbridge main plus #151: load each rank's weights on its own CUDA device.
+RUN git init /opt/mbridge && \
+    git -C /opt/mbridge remote add origin https://github.com/ISEEKYAN/mbridge.git && \
+    git -C /opt/mbridge fetch --depth=1 origin ${MBRIDGE_COMMIT} && \
+    git -C /opt/mbridge checkout --detach FETCH_HEAD && \
+    git -C /opt/mbridge fetch --depth=2 origin ${MBRIDGE_DEVICE_FIX_COMMIT} && \
+    git -C /opt/mbridge -c user.name="Miles image build" -c user.email="build@localhost" \
+      cherry-pick ${MBRIDGE_DEVICE_FIX_COMMIT} && \
+    python3 -m pip install /opt/mbridge --no-deps --no-build-isolation
 
 # Megatron's build requires <80; ModelOpt needs >=80 and still imports pkg_resources.
 RUN python3 -m pip install --no-deps setuptools==80.9.0
@@ -146,7 +158,7 @@ RUN bash /tmp/install-kube-tools.sh "${TARGETARCH}" && rm -f /tmp/install-kube-t
 # ====================================== Install main package ============================================
 
 ARG MILES_REPO=radixark/miles
-ARG MILES_COMMIT=a3be2ba174b48064fc46bc0724bca05cf1695d69
+ARG MILES_COMMIT=fc5dc4ac8b0c4097c521d47a3b8f1e6df3e553df
 RUN git clone "https://github.com/${MILES_REPO}.git" /opt/miles && \
     cd /opt/miles && \
     git fetch --depth=1 origin "${MILES_COMMIT}" && \

@@ -1,11 +1,23 @@
-"""GLM-5.3-Flash DAPO training on an already-running ray cluster (MILES_SCRIPT_EXTERNAL_RAY=1).
+"""GLM-5.3-Flash DAPO training on an already-running Ray cluster (MILES_SCRIPT_EXTERNAL_RAY=1).
 
-python scripts/run_glm5_3_flash.py train --model-name GLM-5.3-Flash --num-nodes 8 --num-gpus-per-node 4
-python scripts/run_glm5_3_flash.py train --num-nodes 1 --num-gpus-per-node 8
+The HF checkpoint and DAPO dataset must already exist on every worker. By default,
+training also requires a converted checkpoint under ckpt_dir. Direct HF initialization
+uses the upstream mbridge loader instead, without an offline conversion or custom hook.
+
+Args:
+    --model-name: Full GLM-5.3-Flash or the default 4-layer slice.
+    --direct-hf-init: Initialize the full 45-layer trainer from --hf-checkpoint.
+    --num-rollout: Number of rollouts, each followed by one training update.
+
+python scripts/run_glm5_3_flash.py --model-name GLM-5.3-Flash --num-nodes 8 --num-gpus-per-node 4
+python scripts/run_glm5_3_flash.py --model-name GLM-5.3-Flash --num-nodes 8 --direct-hf-init --num-rollout 2
+python scripts/run_glm5_3_flash.py --num-nodes 1 --num-gpus-per-node 8
 """
 
+import json
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
 import typer
@@ -27,6 +39,7 @@ class ScriptArgs(U.ExecuteTrainConfig):
     num_gpus_per_node: int = 4
     run_id: str = U.create_run_id()
     hf_checkpoint: str | None = None
+    direct_hf_init: bool = False
     model_dir: str = "/root/models"
     ckpt_dir: str = "/root/ckpt"
     data_dir: str = "/root/datasets"
@@ -43,12 +56,26 @@ class ScriptArgs(U.ExecuteTrainConfig):
     def __post_init__(self):
         if self.hf_checkpoint is None:
             self.hf_checkpoint = f"{self.model_dir}/{self.model_name}"
+        if self.direct_hf_init:
+            if self.model_name != "GLM-5.3-Flash":
+                raise ValueError("--direct-hf-init requires the full GLM-5.3-Flash model")
+            config = json.loads((Path(self.hf_checkpoint) / "config.json").read_text())
+            if config["model_type"] != "glm5_next" or config["text_config"]["num_hidden_layers"] != 45:
+                raise ValueError("--direct-hf-init requires a 45-layer glm5_next HF checkpoint")
+
+    @property
+    def ref_load(self) -> str:
+        if self.direct_hf_init:
+            return self.hf_checkpoint
+        return f"{self.ckpt_dir}/{_MODEL_REGISTRY[self.model_name]}_torch_dist"
 
 
 def _train(args: ScriptArgs):
     megatron_model_type = _MODEL_REGISTRY[args.model_name]
 
-    ckpt_args = f"--hf-checkpoint {args.hf_checkpoint} --ref-load {args.ckpt_dir}/{megatron_model_type}_torch_dist "
+    ckpt_args = f"--hf-checkpoint {args.hf_checkpoint} --ref-load {args.ref_load} "
+    if args.direct_hf_init:
+        ckpt_args += "--megatron-to-hf-mode raw "
     if not args.skip_saving:
         load_save_path = f"{args.save_dir}/{args.run_id}/checkpoints"
         ckpt_args += (
