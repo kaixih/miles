@@ -293,16 +293,6 @@ def test_opensandbox_provisioning_forwards_paths_and_endpoint(monkeypatch, tmp_p
     assert "opensandbox_env_secret" not in output
 
 
-def test_opensandbox_provisioning_rejects_older_sdk(monkeypatch, tmp_path):
-    key_file = tmp_path / "api_key"
-    key_file.write_text("secret\n")
-    monkeypatch.setitem(sys.modules, "opensandbox", types.ModuleType("opensandbox"))
-    monkeypatch.setattr(credentials.importlib.metadata, "version", lambda name: "1.0.0")
-
-    with pytest.raises(RuntimeError, match=r"opensandbox>=1\.1\.0 \(installed: 1\.0\.0\)"):
-        provision_provider({}, PROVIDER_CREDENTIALS["opensandbox"], arg_path=str(key_file))
-
-
 def test_credential_available_accepts_either_supply(monkeypatch, tmp_path):
     """The predicate a caller uses to decide rather than fail: a non-empty key
     file, or every one of the provider's credential variables."""

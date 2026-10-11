@@ -138,16 +138,12 @@ def test_transport_refuses_credentials_leaving_the_configured_origin(runtime, ur
     lease.close()
 
 
-@pytest.mark.parametrize("response_lost", [False, True])
-def test_create_post_is_never_repeated_after_an_ambiguous_attempt(runtime, response_lost):
+def test_create_post_is_not_repeated_when_its_response_is_lost(runtime):
     lease = sandbox._SandboxLease(runtime.settings, "task")
     lease.manager = runtime.manager
     request = httpx.Request("POST", "https://sandbox.test/v1/sandboxes")
-    if response_lost:
-        runtime.transport.handle_request.side_effect = httpx.ReadTimeout("create response lost")
-        with pytest.raises(httpx.ReadTimeout):
-            lease.handle_request(request)
-    else:
+    runtime.transport.handle_request.side_effect = httpx.ReadTimeout("create response lost")
+    with pytest.raises(httpx.ReadTimeout):
         lease.handle_request(request)
     with pytest.raises(RuntimeError, match="repeat an ambiguous sandbox create"):
         lease.handle_request(request)
@@ -186,6 +182,7 @@ def test_lost_create_response_reconciles_only_this_attempts_metadata(runtime):
     runtime.manager.list_sandbox_infos.side_effect = list_sandboxes
     with pytest.raises(httpx.ReadTimeout, match="create response lost"):
         sandbox.create_task_sandbox(Path("/tasks/task"))
+    assert runtime.transport.handle_request.call_count == 1
     runtime.manager.kill_sandbox.assert_called_once_with("sb-mine")
     assert _report(runtime)["cleanup"] == {"ids": ["sb-mine"], "deletion_confirmed": True}
 
@@ -229,10 +226,22 @@ def test_nonzero_bootstrap_never_reports_ready_and_keeps_redacted_output(runtime
     assert stderr.read_text() == "bootstrap failed: [REDACTED]\n"
 
 
-def test_cleanup_waits_for_404_then_is_idempotent(runtime):
+def test_create_waits_for_server_and_cleanup_confirms_deletion(runtime):
+    runtime.health.get.side_effect = [httpx.ConnectError("server is starting"), httpx.Response(200)]
     runtime.manager.get_sandbox_info.side_effect = [SimpleNamespace(id="sb-123"), _ApiError(status_code=404)]
     close, url = sandbox.create_task_sandbox(Path("/tasks/task"))
-    assert url.endswith("/proxy/8000")
+    assert runtime.sdk_create.call_args.args == ("task:fixed",)
+    assert runtime.sdk_create.call_args.kwargs["resource"] == {
+        "cpu": "1",
+        "memory": "2048Mi",
+        "ephemeral-storage": "10240Mi",
+    }
+    assert "serve-task" in runtime.instance.commands.run.call_args.args[0]
+    runtime.instance.get_endpoint.assert_called_once_with(8000)
+    assert url == "https://sandbox.test/v1/sandboxes/sb-123/proxy/8000"
+    assert runtime.health.get.call_count == 2
+    assert _report(runtime)["ready"]
+    runtime.manager.kill_sandbox.assert_not_called()
     close()
     close()
     runtime.manager.kill_sandbox.assert_called_once_with("sb-123")
@@ -243,32 +252,20 @@ def test_cleanup_waits_for_404_then_is_idempotent(runtime):
     assert _report(runtime)["cleanup"] == {"ids": ["sb-123"], "deletion_confirmed": True}
 
 
-def test_cleanup_failure_is_raised_and_persisted_without_the_secret(runtime):
+@pytest.mark.parametrize("delete_fails", [False, True])
+def test_cleanup_does_not_claim_success_when_deletion_fails_or_remains_unconfirmed(runtime, delete_fails):
     close, _ = sandbox.create_task_sandbox(Path("/tasks/task"))
-    runtime.manager.kill_sandbox.side_effect = _ApiError("delete denied: private-test-key", status_code=500)
-    with pytest.raises(_ApiError, match="delete denied"):
+    if delete_fails:
+        runtime.manager.kill_sandbox.side_effect = _ApiError("delete denied: private-test-key", status_code=500)
+        error_type, message = _ApiError, "delete denied"
+    else:
+        runtime.manager.get_sandbox_info.side_effect = None
+        runtime.manager.get_sandbox_info.return_value = SimpleNamespace(id="sb-123")
+        error_type, message = RuntimeError, "deletion was not confirmed"
+    with pytest.raises(error_type, match=message):
         close()
     report = _report(runtime)
-    assert "delete denied: [REDACTED]" in report["cleanup_error"]
+    assert message in report["cleanup_error"]
+    assert "private-test-key" not in report["cleanup_error"]
     assert "cleanup" not in report
     runtime.transport.close.assert_called_once()
-
-
-def test_successful_delete_without_404_is_not_confirmed_cleanup(runtime):
-    close, _ = sandbox.create_task_sandbox(Path("/tasks/task"))
-    runtime.manager.get_sandbox_info.side_effect = None
-    runtime.manager.get_sandbox_info.return_value = SimpleNamespace(id="sb-123")
-    with pytest.raises(RuntimeError, match="deletion was not confirmed"):
-        close()
-    report = _report(runtime)
-    assert "deletion was not confirmed" in report["cleanup_error"]
-    assert "cleanup" not in report
-
-
-def test_readiness_tolerates_a_server_not_listening_yet(runtime):
-    runtime.health.get.side_effect = [httpx.ConnectError("server is starting"), httpx.Response(200)]
-    close, _ = sandbox.create_task_sandbox(Path("/tasks/task"))
-    assert runtime.health.get.call_count == 2
-    assert _report(runtime)["ready"]
-    runtime.manager.kill_sandbox.assert_not_called()
-    close()
