@@ -9,6 +9,10 @@ is the binary pytest result (1.0 = all tests pass, else 0.0).
 This guide targets a **single H200 node with 8 GPUs**. The run is colocated
 (training + rollout on the same 8 GPUs): TP=4, EP=2, one SGLang engine per GPU.
 
+For the eight-node Rubin GLM-5.3-Flash configuration, see
+[GLM-5.3-Flash + OpenSandbox on Rubin](glm53_tbench2_rubin/README.md), including
+container preparation, the complete recipe, and multi-node bring-up.
+
 ## Prerequisites
 
 - Somewhere for the task environments to run, per step 2: an account with one of
