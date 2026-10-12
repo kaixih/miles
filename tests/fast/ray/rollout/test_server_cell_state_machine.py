@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import time
 
 import pytest
@@ -468,6 +469,47 @@ class TestTick:
         await cell.tick()
 
         assert isinstance(cell._state, StatePendingWeights)
+
+    @pytest.mark.parametrize("timeout_action", ["snapshot", "reset_tensors"])
+    async def test_initialization_retry_preserves_the_original_weight_reference(
+        self, cell_env, monkeypatch, timeout_action: str
+    ):
+        """A reset can commit even though the controller times out waiting for its response."""
+        weights = {"current": "original", "snapshot": None}
+
+        class _TimeoutApiClient(_RecordingApiClient):
+            timeouts_remaining = 1
+
+            async def check_weights(self, **kwargs):
+                await super().check_weights(**kwargs)
+                action = kwargs["action"]
+                if action == "snapshot":
+                    weights["snapshot"] = weights["current"]
+                elif action == "reset_tensors":
+                    weights["current"] = "randomized"
+                if action == timeout_action and _TimeoutApiClient.timeouts_remaining:
+                    _TimeoutApiClient.timeouts_remaining -= 1
+                    await asyncio.Event().wait()
+
+        monkeypatch.setattr(server_cell_module, "SGLangApiClient", _TimeoutApiClient)
+        cell = _make_cell(args_overrides=dict(check_weight_update_equal=True))
+        await cell.init()
+
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(cell.tick(), timeout=0.01)
+        assert cell.is_initializing
+
+        await cell.tick()
+
+        assert cell.is_pending_weights
+        actions = [kwargs["action"] for name, kwargs in cell_env["memory_calls"] if name == "check_weights"]
+        assert actions == (
+            ["snapshot", "snapshot", "reset_tensors"]
+            if timeout_action == "snapshot"
+            else ["snapshot", "reset_tensors", "reset_tensors"]
+        )
+        weights["current"] = "original"  # A successful initial trainer weight push.
+        assert weights["snapshot"] == weights["current"]
 
     async def test_debug_rollout_only_starts_serving_without_a_weight_update(self, cell_env):
         """With no trainer running, the engine must serve the weights it loaded from disk."""
