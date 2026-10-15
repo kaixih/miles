@@ -59,9 +59,10 @@ case "$STEP" in
     VERIFY="echo tools=\$(ls $STAGE/tools | wc -l) inputs=\$(ls $STAGE/inputs | wc -l); sha256sum $STAGE/inputs/initial-snapshot-retry.patch $STAGE/inputs/known-versions.json $STAGE/inputs/data/*.jsonl | cut -c1-16,66-"
     for n in $(hosts); do
       echo "== $n"
-      if on_node "$n" test -r "$CIFS_R/inputs/known-versions.json"; then
-        on_node "$n" bash -c "set -e; umask 077; test ! -e $STAGE; mkdir -p $STAGE/receipts; cp -r $CIFS_R/tools $CIFS_R/inputs $STAGE/; echo via=cifs; $VERIFY"
-      else
+      on_node "$n" test ! -e "$STAGE"
+      if on_node "$n" test -r "$CIFS_R/inputs/known-versions.json" && \
+         on_node "$n" bash -c "set -e; umask 077; mkdir -p $STAGE/receipts; cp -r $CIFS_R/tools $CIFS_R/inputs $STAGE/ || { rm -rf $STAGE; exit 7; }; echo via=cifs; $VERIFY"; then :; else
+        echo "CIFS view not usable for $n; piping a tarball through srun stdin"
         tar -C "$R" -czf - tools inputs | on_node "$n" bash -c "set -e; umask 077; test ! -e $STAGE; mkdir -p $STAGE/receipts; tar -xzf - -C $STAGE; echo via=srun-stdin; $VERIFY"
       fi
     done ;;
@@ -92,22 +93,26 @@ case "$STEP" in
         git clone --quiet $TB2_REPO \$W/terminal-bench-2 && git -C \$W/terminal-bench-2 -c advice.detachedHead=false checkout --quiet $TB2_COMMIT && echo tb2=\$(git -C \$W/terminal-bench-2 rev-parse HEAD)
         echo origin=\$(git -C \$W/terminal-bench-2 remote get-url origin); sha256sum \$W/data/*.jsonl | cut -c1-16,66-" > "$R/receipts/stage-tools-$n.log" 2>&1 &
     done; wait
-    for n in $(hosts); do echo "== $n: $(grep -E '^(openenv|tb2|origin)=' "$R/receipts/stage-tools-$n.log" | paste -sd' ')"; done ;;
+    FAIL=0; for n in $(hosts); do
+      if grep -q "^openenv=$OPENENV_COMMIT" "$R/receipts/stage-tools-$n.log" && grep -q "^tb2=$TB2_COMMIT" "$R/receipts/stage-tools-$n.log"; then
+        echo "== $n: $(grep -E '^(openenv|tb2|origin)=' "$R/receipts/stage-tools-$n.log" | paste -sd' ')"
+      else echo "== $n: stage-tools FAILED: $(tail -3 "$R/receipts/stage-tools-$n.log" | tr '\n' ' ' | cut -c1-300)"; FAIL=1; fi
+    done; exit $FAIL ;;
   install)
     for n in $(hosts); do
       ( CID=$(cid_of "$n"); on_node "$n" docker exec --user 0 "$CID" python3 -B /work/tools/install_deps.py plan > "$R/receipts/install-plan-$n.log" 2>&1 || true ) &
     done; wait
-    for n in $(hosts); do
-      echo "== $n: $(python3 - "$R/receipts/install-plan-$n.log" <<'PY'
+    FAIL=0; for n in $(hosts); do
+      S=$(python3 - "$R/receipts/install-plan-$n.log" <<'PY'
 import json, sys
 text = open(sys.argv[1]).read()
 i = text.find('{\n  "status"')
-if i < 0: print("PLAN FAILED: " + text[-300:].replace("\n", " ")); raise SystemExit
+if i < 0: print("PLAN FAILED: " + text[-300:].replace("\n", " ")); raise SystemExit(1)
 d = json.loads(text[i:])
 print(d["status"], "new=%d" % len(d["new_packages"]), "replacements=%s" % sorted(d["replacements"]))
 PY
-)"
-    done ;;
+) || FAIL=1; echo "== $n: $S"
+    done; exit $FAIL ;;
   apply)
     # Optional: sha256 of the reviewed planned_versions JSON (identical across nodes). When given, a container
     # whose plan differs is skipped; without it, apply installs what plan wrote in that container.
@@ -123,10 +128,13 @@ sys.exit('planned_versions differ from the reviewed plan: '+v) if v!='$VERSIONS_
         on_node "$n" docker exec --user 0 "$CID" python3 -B /work/tools/install_deps.py apply > "$R/receipts/install-apply-$n.log" 2>&1 || true
         on_node "$n" docker exec "$CID" python3 -B /work/tools/install_deps.py verify > "$R/receipts/install-verify-$n.log" 2>&1 || true ) &
     done; wait
-    for n in $(hosts); do
-      echo "== $n apply: $(grep -o '"status": "[A-Z_]*"' "$R/receipts/install-apply-$n.log" | tail -1 || tail -c 200 "$R/receipts/install-apply-$n.log")"
-      echo "== $n verify: $(grep -o 'VERIFY_JSON=.*"status": "[A-Z_]*"' "$R/receipts/install-verify-$n.log" | grep -o '"status": "[A-Z_]*"' | tail -1 || tail -c 300 "$R/receipts/install-verify-$n.log" | tr '\n' ' ')"
-    done ;;
+    FAIL=0; for n in $(hosts); do
+      A=$(grep -o '"status": "[A-Z_]*"' "$R/receipts/install-apply-$n.log" | tail -1 || true)
+      V=$(grep -o 'VERIFY_JSON=.*"status": "[A-Z_]*"' "$R/receipts/install-verify-$n.log" | grep -o '"status": "[A-Z_]*"' | tail -1 || true)
+      [ "$A" = '"status": "INSTALLED_PENDING_RUN_UID_VERIFY"' ] || { A="FAILED: $(tail -c 300 "$R/receipts/install-apply-$n.log" | tr '\n' ' ')"; FAIL=1; }
+      [ "$V" = '"status": "RUN_UID_IMPORTS_PASSED"' ] || { V="FAILED: $(tail -c 300 "$R/receipts/install-verify-$n.log" | tr '\n' ' ')"; FAIL=1; }
+      echo "== $n apply: $A"; echo "== $n verify: $V"
+    done; exit $FAIL ;;
   key)
     KEY_STAGING=${KEY_STAGING:?set KEY_STAGING to the 0600 key file on the login node}
     H=$(head_node); test -s "$KEY_STAGING"

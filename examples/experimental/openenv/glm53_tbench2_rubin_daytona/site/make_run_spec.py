@@ -42,7 +42,7 @@ def main():
     assert job["JobState"] == "RUNNING", job.get("JobState")
     hosts = read(["scontrol", "show", "hostnames", job["NodeList"]]).splitlines()
     assert len(hosts) == int(job["NumNodes"])
-    lines = read(["srun", f"--jobid={args.job_id}", "--overlap", f"--nodes={len(hosts)}", f"--ntasks={len(hosts)}",
+    lines = read(["srun", "--chdir=/tmp", f"--jobid={args.job_id}", "--overlap", f"--nodes={len(hosts)}", f"--ntasks={len(hosts)}",
                   "--ntasks-per-node=1", "--cpu-bind=none", "bash", "-c",
                   f"echo $(hostname -s) $(ip -4 -o addr show dev {args.nic} | awk '{{split($4,a,\"/\"); print a[1]}}')"]).splitlines()
     ips = {}

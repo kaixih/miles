@@ -15,7 +15,8 @@
 # The run root is created world-readable: the nodes read it through a read-only CIFS view under a
 # service identity (prepare_run.sh stage-node), and it holds no secrets (the key goes through srun).
 # The OpenEnv and Terminal-Bench-2 checkouts are cloned on the nodes by prepare_run.sh stage-tools.
-# MODEL_ID (default zai-org/GLM-5.3-Flash) is recorded in the manifest.
+# MODEL_ID (default zai-org/GLM-5.3-Flash) and MODEL_REVISION (default: the checkpoint directory name) are
+# recorded in the manifest.
 set -euo pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)   # .../site
 RECIPE=$(dirname "$HERE")
@@ -30,6 +31,7 @@ case "$MODE" in
     cp "$RECIPE"/*.py "$RECIPE"/*.sh "$HERE"/*.py "$HERE"/*.sh "$ROOT/tools/"
     cp "$RECIPE/initial-snapshot-retry.patch" "$RECIPE/known-versions.json" "$ROOT/inputs/"
     cp "$RECIPE"/data/*.jsonl "$ROOT/inputs/data/"
+    chmod a+rx "$ROOT"; chmod -R a+rX "$ROOT/tools" "$ROOT/inputs"   # the nodes read it through the CIFS view
     echo "tools: $(ls "$ROOT/tools" | wc -l) files; inputs:"
     (cd "$ROOT/inputs" && sha256sum ./*.patch ./*.json data/*.jsonl | cut -c1-16,66-)
     test -s "$ROOT/inputs/model-reference-manifest.json" || echo "next: bash make_inputs.sh manifest $ROOT <checkpoint dir>"
@@ -55,7 +57,7 @@ def one(name):
 
 with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
     files = dict(pool.map(one, names))
-manifest = {"model_id": model_id, "revision": os.path.basename(os.path.normpath(src)),
+manifest = {"model_id": model_id, "revision": os.environ.get("MODEL_REVISION") or os.path.basename(os.path.normpath(src)),
             "total_bytes": sum(v["size"] for v in files.values()), "files": files}
 with open(out, "w") as handle:
     json.dump(manifest, handle, indent=2, sort_keys=True)
