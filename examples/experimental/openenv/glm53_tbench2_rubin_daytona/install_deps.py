@@ -6,9 +6,11 @@ Run inside the container. `plan` and `apply` as root (docker exec --user 0), `ve
   plan    Resolve the requested packages against a constraints file that pins every package the image
           already has; only openai and mcp may move, to the floors the OpenEnv/fastmcp stack needs.
           Writes a hash-locked requirements file under /opt/tb2-daytona-install. Changes nothing.
-  apply   Installs exactly the reviewed lock (--no-deps --require-hashes), installs OpenEnv and
-          tbench2_env editable from a copy at /opt/OpenEnv, relocates Megatron-LM to /opt when /root
-          is unreadable for the run UID, applies the one-file snapshot-retry patch to /opt/miles.
+  apply   Installs exactly the lock that `plan` wrote in this container (--no-deps --require-hashes),
+          after checking that the installer, the lock and the installed packages have not changed since;
+          installs OpenEnv and tbench2_env editable from a copy at /opt/OpenEnv, relocates Megatron-LM
+          to /opt when /root is unreadable for the run user (by default the owner of /work), applies
+          the one-file snapshot-retry patch to /opt/miles.
   verify  Imports what the launcher and the Daytona provider need and records versions and paths.
 
 Inputs staged on /work by the host side: /work/OpenEnv (checkout at the pinned commit),
@@ -179,8 +181,11 @@ def apply(args):
     if os.getuid() != 0 or not Path("/.dockerenv").is_file():
         raise RuntimeError("apply runs as root inside the run container")
     plan_path = INSTALL / "installation-plan.json"
-    if sha(plan_path) != args.approved_plan_sha256:
-        raise RuntimeError("the exact reviewed installation-plan SHA is required")
+    if not plan_path.is_file():
+        raise RuntimeError("no installation plan in this container; run `plan` first")
+    plan_sha = sha(plan_path)
+    if args.approved_plan_sha256 and plan_sha != args.approved_plan_sha256:
+        raise RuntimeError("the installation plan differs from the reviewed SHA")
     approved = json.loads(plan_path.read_text())
     before = packages()
     if approved["installer_sha256"] != sha(__file__) or approved["before"] != before:
@@ -198,7 +203,7 @@ def apply(args):
         raise RuntimeError(f"{MCORE_SHARED} already exists")
     if (INSTALL / "apply-started.json").exists():
         raise RuntimeError("apply already started in this container; inspect it instead of re-running")
-    (INSTALL / "apply-started.json").write_text(json.dumps({"approved_plan_sha256": args.approved_plan_sha256}) + "\n")
+    (INSTALL / "apply-started.json").write_text(json.dumps({"plan_sha256": plan_sha}) + "\n")
 
     if approved["planned_versions"]:
         run([sys.executable, "-m", "pip", "install", "--no-deps", "--only-binary=:all:", "--require-hashes",
@@ -230,7 +235,7 @@ def apply(args):
     if after != expected:
         raise RuntimeError(f"installed packages differ from the reviewed plan: {sorted(set(after.items()) ^ set(expected.items()))}")
     receipt = {
-        "status": "INSTALLED_PENDING_RUN_UID_VERIFY", "node": os.uname().nodename, "approved_plan_sha256": args.approved_plan_sha256,
+        "status": "INSTALLED_PENDING_RUN_UID_VERIFY", "node": os.uname().nodename, "plan_sha256": plan_sha,
         "added_packages": {n: v for n, v in after.items() if n not in before},
         "changed_existing_packages": {n: {"before": v, "after": after[n]} for n, v in before.items() if after[n] != v},
         "megatron_path": str(mcore), "miles_diff_stat": git(MILES, "diff", "HEAD", "--stat"),
@@ -288,14 +293,19 @@ def verify(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=["plan", "apply", "verify"])
-    parser.add_argument("--approved-plan-sha256")
-    parser.add_argument("--uid", type=int, help="UID the run containers execute as (required for apply)")
-    parser.add_argument("--gid", type=int, help="GID of that run user (required for apply)")
+    parser.add_argument("--approved-plan-sha256", help="optional: apply only if the plan file has this SHA256")
+    parser.add_argument("--uid", type=int, help="UID the training runs as (default: the owner of /work)")
+    parser.add_argument("--gid", type=int, help="GID the training runs as (default: the group of /work)")
     args = parser.parse_args()
     if args.mode == "apply" and (args.uid is None or args.gid is None):
-        parser.error("--uid and --gid (the run UID/GID) are required for apply")
-    if args.mode == "apply" and not args.approved_plan_sha256:
-        parser.error("apply requires --approved-plan-sha256")
+        try:
+            work = os.stat("/work")
+        except FileNotFoundError:
+            parser.error("/work is not mounted; pass --uid and --gid of the user the training runs as")
+        args.uid = work.st_uid if args.uid is None else args.uid
+        args.gid = work.st_gid if args.gid is None else args.gid
+        if args.uid == 0:
+            parser.error("/work is owned by root; pass --uid and --gid of the user the training runs as")
     os.environ["PIP_CACHE_DIR"] = str(INSTALL / "pip-cache")
     {"plan": plan, "apply": apply, "verify": verify}[args.mode](args)
 

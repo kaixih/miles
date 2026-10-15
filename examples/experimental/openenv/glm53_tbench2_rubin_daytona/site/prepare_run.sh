@@ -18,7 +18,8 @@
 #   bootstrap    bootstrap_node.py on every node (fresh node root + idle container)
 #   stage-tools  copy tools/inputs/data into each node root and clone the pinned OpenEnv/TB2 checkouts there
 #   install      install_deps.py plan in every container (root); prints each plan SHA for review
-#   apply <sha>  install_deps.py apply (root) with the reviewed plan SHA, then verify as the run UID
+#   apply [sha]  install_deps.py apply (root) in every container, then verify as the run UID; the optional
+#                sha256 of the reviewed planned_versions JSON skips any container whose plan differs
 #   key          pipe the login-node staging key file into the head container's /work/private/daytona.key
 #   nccl [probe] run_nccl_node.py on every node at once
 #   ray-ready    ray_ready.py inside the head container (Ray daemons must already run)
@@ -104,16 +105,18 @@ PY
 )"
     done ;;
   apply)
-    # The reviewed plan is identified by the sha256 of its planned_versions (identical across nodes);
-    # each container's own installation-plan.json sha is then passed to apply on that node.
-    VERSIONS_SHA=${1:?sha256 of the reviewed planned_versions JSON required}
+    # Optional: sha256 of the reviewed planned_versions JSON (identical across nodes). When given, a container
+    # whose plan differs is skipped; without it, apply installs what plan wrote in that container.
+    VERSIONS_SHA=${1:-}
     for n in $(hosts); do
       ( CID=$(cid_of "$n")
-        PLAN_SHA=$(on_node "$n" docker exec "$CID" python3 -c "import json,hashlib,sys
+        if [ -n "$VERSIONS_SHA" ]; then
+          on_node "$n" docker exec "$CID" python3 -c "import json,hashlib,sys
 d=json.load(open('/opt/tb2-daytona-install/installation-plan.json'))
 v=hashlib.sha256(json.dumps(d['planned_versions'],sort_keys=True).encode()).hexdigest()
-sys.exit('planned_versions differ from the reviewed plan: '+v) if v!='$VERSIONS_SHA' else print(hashlib.sha256(open('/opt/tb2-daytona-install/installation-plan.json','rb').read()).hexdigest())") || { echo "$n: plan mismatch, apply skipped" > "$R/receipts/install-apply-$n.log"; exit 0; }
-        on_node "$n" docker exec --user 0 "$CID" python3 -B /work/tools/install_deps.py apply --approved-plan-sha256 "$PLAN_SHA" > "$R/receipts/install-apply-$n.log" 2>&1 || true
+sys.exit('planned_versions differ from the reviewed plan: '+v) if v!='$VERSIONS_SHA' else None" || { echo "$n: plan mismatch, apply skipped" > "$R/receipts/install-apply-$n.log"; exit 0; }
+        fi
+        on_node "$n" docker exec --user 0 "$CID" python3 -B /work/tools/install_deps.py apply > "$R/receipts/install-apply-$n.log" 2>&1 || true
         on_node "$n" docker exec "$CID" python3 -B /work/tools/install_deps.py verify > "$R/receipts/install-verify-$n.log" 2>&1 || true ) &
     done; wait
     for n in $(hosts); do

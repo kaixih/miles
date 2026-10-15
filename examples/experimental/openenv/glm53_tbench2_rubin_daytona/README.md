@@ -57,33 +57,28 @@ is complete as built, and the only addition is what `install_deps.py` does.
 
 ### 1. Dependencies — [`install_deps.py`](install_deps.py)
 
-The image has no Daytona SDK and no OpenEnv. `install_deps.py` adds them without moving the
-image's own stack: `plan` resolves the request against a constraints file that pins every
-package already installed, writes a hash-locked requirements file and changes nothing;
-`apply` installs exactly the reviewed lock with `--no-deps --require-hashes`, installs OpenEnv
-and `tbench2_env` editable from a copy at `/opt/OpenEnv`, relocates Megatron-LM to
-`/opt/Megatron-LM` when `/root` is unreadable for the run UID, and applies the one source
-change below; `verify` runs as the run UID and imports everything the launcher needs. The
-script reads fixed paths: the OpenEnv checkout at `/work/OpenEnv`, and
-`initial-snapshot-retry.patch` plus `known-versions.json` under `/work/inputs/` (that is where
-`site/prepare_run.sh stage-tools` puts them); it writes its plan, lock and receipt under
-`/opt/tb2-daytona-install/`.
+The image has no Daytona SDK and no OpenEnv. `install_deps.py` adds them in three steps and
+leaves the rest of the image's Python stack as it is:
 
-Observed delta on the pinned image: 52 new wheels (`daytona==0.224.1` with its six
-`daytona-*-api-client` packages, `fastmcp==3.4.8`, `mcp==1.30.0`, `openai==2.7.2`, and the
-packages in [`known-versions.json`](known-versions.json)) plus the two editable installs.
-Only two existing packages move, because the OpenEnv / fastmcp stack requires it:
-`openai` 2.6.1 → 2.7.2 and `mcp` 2.3.0 → 1.30.0. The server side of `tbench2_env` (Gradio and
-the other server extras) is not installed in the training container; each sandbox image
-installs it into its own venv from the embedded `tbench2_env` package source.
+- `plan` (as root): works out what is missing while pinning every package the image already
+  has, and writes a hash-locked requirements file under `/opt/tb2-daytona-install/`. Nothing
+  is installed. Two existing pins have to move because OpenEnv needs them (`openai` 2.6.1 →
+  2.7.2, `mcp` 2.3.0 → 1.30.0); everything else stays.
+- `apply` (as root): installs exactly that lock with `pip install --no-deps --require-hashes`,
+  installs OpenEnv and `tbench2_env` editable from `/work/OpenEnv` (copied to `/opt/OpenEnv`),
+  copies Megatron-LM to `/opt/Megatron-LM` so the non-root run user can import it, and applies
+  the patch from section 2. It refuses to run if the installer, the lock or the installed
+  packages changed after `plan`.
+- `verify` (as the run user): imports everything the launcher needs and prints a receipt.
+
+Run the three steps in every container:
 
 ```bash
-# inside the container, as root; everything is written under /opt/tb2-daytona-install
-python3 install_deps.py plan            # installation-plan.json, pip-plan.json, resolved-requirements.txt
-python3 install_deps.py apply --uid <run uid> --gid <run gid> \
-    --approved-plan-sha256 <sha256 of installation-plan.json>      # writes receipt.json
-# as the run UID
-python3 install_deps.py verify
+# as root
+python3 install_deps.py plan      # resolves and locks; shows what will change; installs nothing
+python3 install_deps.py apply     # installs exactly what plan wrote
+# as the run user
+python3 install_deps.py verify    # imports everything the launcher needs
 ```
 
 ### 2. One source change — radixark/miles#4029
