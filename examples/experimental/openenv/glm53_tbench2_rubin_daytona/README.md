@@ -34,23 +34,24 @@ Per-step values are in [`assets/fig5-series.csv`](assets/fig5-series.csv).
 
 ## Container
 
-Base image: **`miles-rubin-dev:sgfix-20261011-j2460554` (internal)**, built from the Rubin
-Dockerfile of [radixark/miles#4011](https://github.com/radixark/miles/pull/4011)
-(`docker/Dockerfile.rubin`). Pin it by digest; do not use a moving tag. The stack this recipe
-was validated on:
+Use **`miles-rubin-dev:sgfix-20261011-j2460554` (internal)**, built from
+`docker/Dockerfile.rubin` in [radixark/miles#4011](https://github.com/radixark/miles/pull/4011).
+It already contains Miles, SGLang and Megatron-LM with the Rubin / GLM-5.3-Flash support. The
+Daytona SDK and OpenEnv are not in the image; `install_deps.py` (next section) adds them. Where
+each piece comes from, with the revisions this run used:
 
 | Component | Revision | Where |
 |---|---|---|
-| Miles | `0d9d726e0f9b9d487c36a0c342012b917820fb04` | image, `/opt/miles` |
-| SGLang | `6b5f3dfc5a395d6fd56d105c34c8e3542846ca4c` | image |
-| Megatron-LM | `fd15ee20a4f03b03680529baf4b8f7eeed64df1d` | image, `/root/Megatron-LM`; `install_deps.py` copies it to `/opt/Megatron-LM` when `/root` is unreadable for the run UID, as it is here |
+| Miles | `0d9d726e0f9b9d487c36a0c342012b917820fb04` | in the image, `/opt/miles` |
+| SGLang | `6b5f3dfc5a395d6fd56d105c34c8e3542846ca4c` | in the image |
+| Megatron-LM | `fd15ee20a4f03b03680529baf4b8f7eeed64df1d` | in the image, `/root/Megatron-LM`; `install_deps.py` copies it to `/opt/Megatron-LM` so the run user can read it |
 | Daytona SDK | `0.224.1` | added by `install_deps.py` |
-| OpenEnv incl. `tbench2_env` | `38b2a31354d1d4d627894412b9d469e92f4a2c61` | checkout under `/work`, installed editable from a copy at `/opt/OpenEnv` by `install_deps.py` |
-| Terminal-Bench-2 | `2fd12b88aafdd04a52c298e3940bcb189f9766d6` | checkout at `/work/terminal-bench-2` with a GitHub `origin` |
+| OpenEnv incl. `tbench2_env` | `38b2a31354d1d4d627894412b9d469e92f4a2c61` | checkout staged at `/work/OpenEnv`, installed editable by `install_deps.py` |
+| Terminal-Bench-2 tasks | `2fd12b88aafdd04a52c298e3940bcb189f9766d6` | checkout staged at `/work/terminal-bench-2`, `origin` set to GitHub: the sandbox build downloads each task directory from that origin at this commit |
 
-The image already carries the Rubin / GLM-5.3 model support. Do not overlay an older Miles
-tree onto `/opt/miles` and do not reapply historical GLM parser, template, timeout or
-strict-filter patch bundles.
+Do not overlay a newer Miles, SGLang or Megatron tree over the preinstalled ones, and do not
+reapply historical GLM-5.3 patch bundles (parser, template, timeouts, strict filter): the image
+is complete as built, and the only addition is what `install_deps.py` does.
 
 ## What has to be added to the image
 
