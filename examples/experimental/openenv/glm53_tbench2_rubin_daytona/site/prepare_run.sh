@@ -36,7 +36,6 @@ SPEC_LOCAL=$R/run-spec.json
 SPEC=$STAGE/run-spec.json
 MODEL_CACHE=${MODEL_CACHE:-/raid/dldata/${USER}-models/GLM-5.3-Flash/hf-3f1971b_orig}
 KNOWN_GOOD_CACHE=${KNOWN_GOOD_CACHE:-$MODEL_CACHE}
-KEY_STAGING=${KEY_STAGING:?set KEY_STAGING to the 0600 key file on the login node}
 
 hosts() { scontrol show hostnames "$(scontrol show job -o "$JOB" | tr ' ' '\n' | grep '^NodeList=' | cut -d= -f2)"; }
 on_node() { local node=$1; shift; srun --jobid="$JOB" --overlap --nodes=1 --ntasks=1 --cpu-bind=none --chdir=/tmp -w "$node" "$@"; }
@@ -74,7 +73,7 @@ case "$STEP" in
   bootstrap)
     test -f "$SPEC_LOCAL"
     for n in $(hosts); do on_node "$n" python3 -B "$STAGE/tools/bootstrap_node.py" --spec "$SPEC" > "$R/receipts/bootstrap-$n.summary.json" 2>&1 & done; wait
-    for n in $(hosts); do echo "$n: $(tail -1 "$R/receipts/bootstrap-$n.summary.json" | cut -c1-300)"; on_node "$n" cat "$(node_root)/bootstrap-node.json" > "$R/receipts/bootstrap-$n.json" 2>/dev/null || true; done ;;
+    FAIL=0; for n in $(hosts); do echo "$n: $(tail -1 "$R/receipts/bootstrap-$n.summary.json" | cut -c1-300)"; on_node "$n" cat "$(node_root)/bootstrap-node.json" > "$R/receipts/bootstrap-$n.json" 2>/dev/null || true; test -s "$R/receipts/bootstrap-$n.json" || { echo "$n: bootstrap FAILED (see receipts/bootstrap-$n.summary.json)"; FAIL=1; }; done; exit $FAIL ;;
   stage-tools)
     ROOT=$(node_root)
     for n in $(hosts); do
@@ -124,6 +123,7 @@ sys.exit('planned_versions differ from the reviewed plan: '+v) if v!='$VERSIONS_
       echo "== $n verify: $(grep -o 'VERIFY_JSON=.*"status": "[A-Z_]*"' "$R/receipts/install-verify-$n.log" | grep -o '"status": "[A-Z_]*"' | tail -1 || tail -c 300 "$R/receipts/install-verify-$n.log" | tr '\n' ' ')"
     done ;;
   key)
+    KEY_STAGING=${KEY_STAGING:?set KEY_STAGING to the 0600 key file on the login node}
     H=$(head_node); test -s "$KEY_STAGING"
     on_node "$H" python3 -B "$STAGE/tools/receive_key_node.py" --spec "$SPEC"
     on_node "$H" python3 -B "$STAGE/tools/receive_key_node.py" --spec "$SPEC" --execute < "$KEY_STAGING" | tee "$R/receipts/key-transfer.json" ;;

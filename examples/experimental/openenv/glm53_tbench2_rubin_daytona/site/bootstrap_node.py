@@ -102,12 +102,19 @@ def main():
     device, device_info = imex_device(uid, gid)
 
     own_ip = nodes[node]
-    peer_ip = spec["head_ip"] if own_ip != spec["head_ip"] else next(ip for ip in nodes.values() if ip != own_ip)
-    (route,) = json.loads(read(["ip", "-j", "-4", "route", "get", peer_ip]))
-    nic = route["dev"]
-    require(nic != "lo" and route.get("prefsrc") == own_ip, f"route to {peer_ip} is not via this node's run IP: {route}")
-    if nic != spec["nic"]:
-        print(f"note: spec names NIC {spec['nic']} but this node routes to its peer via {nic}; using {nic}", flush=True)
+    peers = [ip for ip in nodes.values() if ip != own_ip]
+    if peers:
+        peer_ip = spec["head_ip"] if own_ip != spec["head_ip"] else peers[0]
+        (route,) = json.loads(read(["ip", "-j", "-4", "route", "get", peer_ip]))
+        nic = route["dev"]
+        require(nic != "lo" and route.get("prefsrc") == own_ip, f"route to {peer_ip} is not via this node's run IP: {route}")
+        if nic != spec["nic"]:
+            print(f"note: spec names NIC {spec['nic']} but this node routes to its peer via {nic}; using {nic}", flush=True)
+    else:  # single-node allocation: no peer to route to; the spec's interface must carry this node's run IP
+        nic = spec["nic"]
+        route = {"single_node": True, "dev": nic}
+        addrs = json.loads(read(["ip", "-j", "-4", "addr", "show", "dev", nic]))
+        require(any(a.get("local") == own_ip for i in addrs for a in i.get("addr_info", [])), f"{nic} does not carry {own_ip}")
 
     model = Path(model_paths[node])  # per node: each node verified its own cache (stage_model_node.py receipt)
     require(model.is_absolute() and model.resolve(strict=True) == model and model.is_dir(), "model path must be canonical")
