@@ -1,31 +1,38 @@
-# GLM-5.3-Flash — native Daytona TB2 on eight Rubin nodes
+# GLM-5.3-Flash on Terminal-Bench-2 with Daytona sandboxes (Rubin)
 
-Fully asynchronous GRPO on OpenEnv's **Terminal-Bench-2** environment with GLM-5.3-Flash
-(full 45 layers), four training nodes and four rollout nodes with four GPUs each. Every
-episode runs in its own **Daytona** sandbox created from the task's official image through
-the **native** Miles Daytona provider — no OpenSandbox provider, no Miles source overlay.
-Only the launcher in this directory is new; the agent loop, the TITO session server, the
-Daytona materialization and the fully-async scheduler are the unmodified upstream code.
+This directory holds the recipe and the results of a fully asynchronous GRPO run of
+GLM-5.3-Flash on OpenEnv's Terminal-Bench-2 environment, on Rubin nodes, with every episode
+executed in its own Daytona sandbox through Miles' native Daytona provider. The run trained
+for 20 optimizer steps and collects the three per-step series of Figure 5 in the Miles v0.1
+report (§9): step wall-clock, trainer-vs-rollout log-probability divergence, and raw task
+reward. The launcher and helper scripts used for the run are in this directory.
 
-What ran on 2026-10-15 (all on the pinned image below):
+Setup:
 
-| Stage | What | Result |
-|---|---|---|
-| M1 | `scan_golden.py --tasks fix-git` on one Daytona sandbox (no model) | canonical `tests/test.sh` reward 1.0, sandbox 404 after delete |
-| M2 | GLM multi-turn sampling through the real agent loop, 1 + 8 trajectories (2 nodes, one TP8 engine) | first-turn roles correct, 30-turn model→tool→model episodes, tokens / logprobs / loss-mask aligned, no TITO prefix mismatch |
-| M3 | 3 optimizer updates on 8 nodes with the formal settings | every update: 16/16 trainer ranks normal, finite loss/grad, broadcast to both engines; held-out eval 0.2 (8/40) before → 0.175 (7/40) after |
-| 20 steps | 20 optimizer updates, evaluation off, step-time / log-prob-divergence / reward series | figure below |
+1. **GPUs**: 8 Rubin nodes, 4 GPUs each (32 in total): 16 for training (TP4 / PP4 / EP4,
+   layers 11/11/11/12) and 16 for rollout (two TP8 / EP8 SGLang engines).
+2. **Model**: GLM-5.3-Flash, full 45 layers, original FP8 HF checkpoint, served and trained
+   as-is (no checkpoint conversion).
+3. **Data**: Terminal-Bench-2 via OpenEnv `tbench2_env`, 69 training tasks; 8 prompts × 8
+   samples = 64 trajectories per step, up to 30 turns and 3600 s per episode, one Daytona
+   sandbox per episode built from the task's official image. Evaluation was off for this run.
+4. **Steps**: 20 optimizer updates, fully async (128 trajectories in flight, in-place pause
+   for weight sync), GRPO with Adam at lr 1e-6, TIS clipped to [0, 2].
+5. **Container**: `miles-rubin-dev:sgfix-20261011-j2460554` (internal), built from
+   `docker/Dockerfile.rubin` in radixark/miles#4011. On top of the image: the Daytona SDK and
+   OpenEnv added by `install_deps.py`, and the one-file fix from radixark/miles#4029.
+6. **Results** (all 20 updates completed; 16/16 trainer ranks healthy and weights broadcast to
+   both engines on every step):
+
+   | Series (Fig. 5 analogue) | This run |
+   |---|---|
+   | (a) wall-clock per step | median 367 s over steps 1–19; 355–385 s from step 5 on (step 0 includes the first rollout, 2213 s) |
+   | (b) mean \|trainer − rollout\| log-prob at sampled tokens | 0.0787 on average, 0.0875 → 0.0627 |
+   | (c) raw task reward per step | mean 0.188; 9-step moving average 0.219 → 0.189 (flat, as expected for 20 steps) |
 
 ![Figure 5-style series from the 20-step run](assets/fig5.png)
 
-(a) wall-clock per training step, median **367 s** over steps 1–19 (355–385 s from step 5 on;
-step 0 includes the first rollout and is clipped); (b) mean |trainer − rollout| log-probability
-at sampled tokens, **0.0787** on average, 0.0875 → 0.0627; (c) raw task reward per step
-(before GRPO centering), mean 0.188, nine-step moving average 0.219 → 0.189. These are the
-same three quantities as Figure 5 of the Miles v0.1 report (§9, GLM-5.2 744B on 64 GB300:
-263 s median, 0.0369, 0.438 → 0.556); the reward here stays flat, which is the expected
-outcome for a 20-step functional run and is not a learning claim. The per-step numbers are in
-[`assets/fig5-series.csv`](assets/fig5-series.csv).
+Per-step values are in [`assets/fig5-series.csv`](assets/fig5-series.csv).
 
 ## Container
 
