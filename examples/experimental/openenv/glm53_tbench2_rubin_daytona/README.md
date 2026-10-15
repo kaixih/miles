@@ -103,11 +103,15 @@ revision only; on a newer Miles tree use the PR itself.
 | [`reconcile_sandboxes.py`](reconcile_sandboxes.py) | Lists and deletes the Daytona sandboxes a run leaves behind (see "After a run"). |
 | [`assets/`](assets/) | The figure and its per-step CSV. |
 | [`data/`](data/) | The frozen Terminal-Bench-2 task split: 69 training tasks and 20 held-out tasks, one row per task in the format [`../make_tbench2_data.py`](../make_tbench2_data.py) produces. |
-| [`site/`](site/) | The preparation work between "Slurm gave us N nodes" and "`launch_train.sh` can run in the head container", as we did it on our Slurm + Docker cluster. Kept as a reference; another cluster needs its own equivalents, and the container flags and layout below are what they have to reproduce. |
+| [`site/`](site/) | **Site-specific.** The preparation between "Slurm gave us N nodes" and "`launch_train.sh` can run in the head container", as we did it on our cluster; kept as a reference, assumptions below. |
 
 What `site/` does, in order:
 
-1. `make_inputs.sh`: builds the login-node run root once (`tools/`, `inputs/`; see below).
+1. `make_inputs.sh`: builds the login-node run root once. `files <run root>` copies these
+   scripts, the task split from `data/`, the patch and `known-versions.json` into it;
+   `manifest <run root> <checkpoint dir>` writes the size and SHA256 of every checkpoint file
+   to `inputs/model-reference-manifest.json` (run it where the checkpoint is on local disk; it
+   is about 330 GB).
 2. `prepare_run.sh`: the login-node entry point, one sub-command per step; each step reaches
    the nodes through `srun` and runs one of the scripts below.
 3. `stage_model_node.py`: on every node, verify the node-local copy of the checkpoint against
@@ -127,118 +131,88 @@ What `site/` does, in order:
 7. `rubin_node.py`: start Ray in each container (head or worker), pinned to the fabric interface.
 8. `ray_ready.py`: wait until Ray reports every node and GPU.
 
-Slurm, `srun`, the `/raid` paths and the optional CIFS view of the scratch root are specific to
-our cluster; the
-`docker run` flags and the Ray start are the generic part.
+`site/` is written for our cluster and assumes: Slurm, with `srun --overlap` into an existing
+allocation; Docker on every node, usable by the ordinary user; the image already pulled on every
+node; a node-local NVMe directory (`/raid/dldata`) with room for a 330 GB checkpoint copy and the
+run; an NVL72 IMEX channel device owned by the run user; one fabric interface per node that
+carries the IP the other nodes route to; outbound HTTPS from the nodes (GitHub, PyPI and the
+Daytona API are reachable directly); and no mount of the login node's scratch directory on the
+nodes except a read-only CIFS view under a service identity, so the run root has to be
+world-readable to be read from there (`CIFS_VIEW`), otherwise `stage-node` pipes it through
+`srun` stdin. Another cluster needs its own version of these steps; what it has to reproduce is
+the container below.
 
-### Before the first run: build the run root
+### Layout
 
-`prepare_run.sh` works from a run root on the login node, `$SCRATCH_ROOT/<run id>/`, and stages
-its `tools/` and `inputs/` onto every node. `site/make_inputs.sh` builds that root:
+| On the node | In the container | Holds |
+|---|---|---|
+| `<node root>/work/` | `/work` | `tools/` (these scripts), `data/` (the task split), `inputs/` (patch, pins, manifest), `OpenEnv/` and `terminal-bench-2/` (checkouts at the pinned commits, cloned from GitHub by `stage-tools`), `output/<run id>/` (`dump_details`, logs), `offload/`, `cache/`, `ray/`, `home/`, and on the head `private/daytona.key` |
+| `<node root>/tmp/` | `/tmp` | scratch |
+| `<model cache>/` | `/inputs/GLM-5.3-Flash` | the original HF FP8 checkpoint, read-only, verified on every node against the manifest |
+| `/opt/OpenEnv`, `/opt/Megatron-LM` | the same paths | copies made inside the container by `install_deps.py apply` |
 
-```bash
-bash site/make_inputs.sh files $SCRATCH_ROOT/<run id>              # login node; clones from GitHub
-bash site/make_inputs.sh manifest <run root> <checkpoint directory> # where the checkpoint reads at disk speed
-```
+The node root defaults to `/raid/dldata/<user>-<run id>` (`NODE_ROOT`). The Terminal-Bench-2
+checkout keeps its GitHub `origin` because the Daytona sandbox build downloads each task
+directory from that origin at the pinned commit.
 
-`files` copies this directory's scripts into `tools/` and fills `inputs/` with git bundles of the
-pinned OpenEnv and Terminal-Bench-2 commits (the nodes clone from the bundles, not from the
-network), the frozen task split from [`data/`](data/), the patch and `known-versions.json`.
-`manifest` hashes every file of the GLM-5.3-Flash checkpoint into
-`inputs/model-reference-manifest.json`, which `stage_model_node.py` uses to verify each node's
-copy; the checkpoint is about 330 GB, so run it against a local copy (for example a node that
-already has the cache, through `srun`) and copy the file into the run root if that machine
-cannot write there. The prompt files for the sampling check are subsets of the training file.
+### The container
 
-### Node layout used by the scripts
-
-```text
-/raid/dldata/<user>-<run-id>/            fresh node-local run root on every node
-  work/   -> /work in the container       home, tools/, inputs/, data/, OpenEnv/, terminal-bench-2/,
-                                          output/<run>/dump_details, offload/, cache/, ray/, private/
-  tmp/    -> /tmp
-<model dir> -> /inputs/GLM-5.3-Flash      original HF FP8 checkpoint, read-only, verified by SHA256 per node
-/opt/OpenEnv, /opt/Megatron-LM            copies made by install_deps.py apply (root), world-readable
-```
-
-The Terminal-Bench-2 checkout under `/work` must have a **GitHub `origin`**: the Daytona
-recipe downloads each task directory as the pinned-commit GitHub tarball when it builds the
-sandbox image. Containers run as the ordinary UID with `--network host --ipc host`,
-`--ulimit nofile=65536:524288`, the node's IMEX channel device, and a lifetime bounded by the
-Slurm end time (`/bin/sleep <remaining seconds>` entrypoint).
-
-## Credentials
-
-Only the Ray head needs the Daytona key. Put it in `/work/private/daytona.key` on the head
-(directory `0700`, file `0600`, owned by the run UID) through a non-echoing transfer
-(`site/receive_key_node.py` reads it from stdin and creates the file exclusively). Set
+What `bootstrap_node.py` starts on every node, written out as the equivalent `docker run`. This
+is the contract another cluster has to reproduce:
 
 ```bash
-export DAYTONA_API_KEY_FILE=/work/private/daytona.key
-export DAYTONA_API_URL=https://app.daytona.io/api
+docker run -d --name <run id> --hostname <node> --pull never --restart no \
+  --user <uid>:<gid> --gpus all --network host --ipc host --workdir /opt/miles \
+  --ulimit memlock=-1:-1 --ulimit stack=67108864:67108864 --ulimit nofile=65536:524288 \
+  --label miles.run=<run id> --device /dev/nvidia-caps-imex-channels/channel<N> \
+  --mount type=bind,src=<node root>/work,dst=/work --mount type=bind,src=<node root>/tmp,dst=/tmp \
+  --mount type=bind,src=<model cache>,dst=/inputs/GLM-5.3-Flash,readonly \
+  --env HOME=/work/home --env TMPDIR=/tmp --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONUNBUFFERED=1 \
+  --env SLURM_JOB_ID=<job> --env MASTER_ADDR=<head fabric IP> --env MILES_NODE_EXTERNAL_IP=<this node's fabric IP> \
+  --env NCCL_SOCKET_IFNAME==<fabric NIC> --env GLOO_SOCKET_IFNAME=<fabric NIC> --env NCCL_CUMEM_ENABLE=1 \
+  --entrypoint /bin/sleep <image> <seconds until the allocation ends>
 ```
 
-on the head. The launcher forwards only the **path** and the URL into Ray's runtime env
-(`miles.rollout.agentic.credentials.provision_provider`), and `--pin-rollout-manager-to-head`
-keeps the agent-function processes on the head, so no other node reads the file. The key must
-not appear in command lines, shell history, logs or archives; remove the file (and any staging
-copy) after the run's sandboxes have been reconciled.
+The container runs as the ordinary user, not root; `install_deps.py plan` and `apply` are the
+only steps run with `docker exec --user 0`. Ray is then started in every container by
+`rubin_node.py` (`ray start --head` on the node with the lowest fabric IP, the others join it),
+and `launch_train.sh` submits to that cluster from the head container.
+
+## The Daytona key
+
+Only the head container ever holds the key, as a file; it is never put in a command line, an
+environment value or a log.
+
+1. On the login node, keep the key in a `0600` file and point `KEY_STAGING` at it.
+2. `bash site/prepare_run.sh key <jobid>` pipes that file into the head container, where
+   `receive_key_node.py` creates `/work/private/daytona.key` (`0700` directory, `0600` file,
+   owned by the run user) from stdin and prints nothing but a receipt.
+3. In the head container, `launch_train.sh` exports `DAYTONA_API_KEY_FILE=/work/private/daytona.key`
+   and `DAYTONA_API_URL=https://app.daytona.io/api` (its defaults). The launcher forwards the
+   file **path** and the URL to the Ray job (`provision_provider` in
+   `miles.rollout.agentic.credentials`), and `--pin-rollout-manager-to-head` keeps the processes
+   that read the file on the head.
+4. After the run's sandboxes are reconciled, `bash site/prepare_run.sh cleanup-key <jobid>
+   [--also-staging]` shreds the file (and the login-node copy).
 
 ## Launch
 
-Prerequisites on the head container: the Ray cluster is up on all nodes (one
-`python3 /work/tools/rubin_node.py --head-ip <head fabric IP> --interface <fabric NIC>` per
-container, started under a long-lived `srun` step or `docker exec`; the head is the node with
-the numerically lowest fabric IP; `site/ray_ready.py` confirms every node and GPU), the data files
-`tbench2_train69.jsonl` (69 rows) and `tbench2_eval.jsonl` (20 rows) are under `/work/data`,
-and the model directory is mounted at `/inputs/GLM-5.3-Flash`.
+Everything below runs in the head container, as the run user. Prerequisites: Ray is up on all
+nodes (`site/ray_ready.py` confirms every node and GPU), the key file is in place, `/work/data`
+holds `tbench2_train69.jsonl` and `tbench2_eval.jsonl`, and the model is mounted at
+`/inputs/GLM-5.3-Flash`.
 
-**Sandbox check, no model** (in the head container, which has the key file; no GPUs or Ray
-needed): run one task's reference solution in a Daytona sandbox through the upstream
-`scan_golden.py`; it writes one JSON line per task with the reward, which must be 1.0 for
-`fix-git`.
+**The 20-step run** (eight nodes, evaluation off; the run in the figure above):
 
 ```bash
-mkdir -p /work/output/<run>-check
-OPENENV_SANDBOX_BACKEND=daytona DAYTONA_API_URL=https://app.daytona.io/api \
-DAYTONA_API_KEY_FILE=/work/private/daytona.key OPENENV_TB2_TASKS_DIR=/work/terminal-bench-2 \
-OPENENV_LAUNCHER=<you> OPENENV_RUN_ID=<run>-check \
-python3 /opt/miles/examples/experimental/openenv/scan_golden.py --tasks fix-git --concurrency 1 \
-    --out /work/output/<run>-check/golden.jsonl
+bash /work/tools/launch_train.sh train <run>-fig5 /work/data/tbench2_train69.jsonl /work/data/tbench2_eval.jsonl \
+    --num-rollout 20 --eval-interval 0 2>&1 | tee /work/output/<run>-fig5.log
+python3 /work/tools/fig5_collect.py --log /work/output/<run>-fig5.log \
+    --out fig5-series.json --csv fig5-series.csv --png fig5.png
 ```
 
-**Sampling check, no weight update** (two nodes, one TP8 engine):
-
-```bash
-SAMPLE_NUM_ROLLOUT=1 SAMPLE_PROMPTS=1 SAMPLE_SAMPLES=1 SAMPLE_CONCURRENCY=1 \
-bash launch_train.sh sample <run>-sample1 /work/data/<one-task>.jsonl
-SAMPLE_NUM_ROLLOUT=1 SAMPLE_PROMPTS=4 SAMPLE_SAMPLES=2 SAMPLE_CONCURRENCY=8 \
-bash launch_train.sh sample <run>-sample2 /work/data/<four-tasks>.jsonl
-```
-
-`--debug-rollout-only` at this Miles revision still initializes Megatron's parallel state on
-the engine's eight GPUs, so the launcher states the stub layout explicitly
-(`--actor-num-nodes 1 --actor-num-gpus-per-node 8`, TP8/PP1 so a one-sample batch is valid).
-Inspect `dump_details/rollout_data/0.pt`: `response_length == len(loss_mask) ==
-len(rollout_log_probs)`, `metadata.accumulated_token_ids == tokens`,
-`metadata.tito_session_mismatch` empty or only `assistant_text` entries.
-
-**Training** (eight nodes):
-
-```bash
-bash launch_train.sh train <run>-train /work/data/tbench2_train69.jsonl /work/data/tbench2_eval.jsonl --num-rollout 3
-```
-
-With `--num-rollout 3` and the default `--eval-interval 10`, this performs the baseline eval
-before training and the final eval after the last update, and no mid-run eval.
-
-**20-step series, evaluation off** (the run in the figure above):
-
-```bash
-bash launch_train.sh train <run>-fig5 /work/data/tbench2_train69.jsonl /work/data/tbench2_eval.jsonl \
-    --num-rollout 20 --eval-interval 0
-python3 fig5_collect.py --log <driver.log> --out fig5-series.json --csv fig5-series.csv --png fig5.png
-```
+`launch_train.sh` checks the data file hashes, submits the Ray job and streams its log; that
+log is what `fig5_collect.py` reads (the PNG needs `matplotlib`; JSON and CSV do not).
 
 The launcher's training arguments: TP4 / PP4 / EP4 / CP1 with
 layers 11/11/11/12, full uniform recompute, dynamic batching at 8192 tokens per GPU, optimizer
@@ -248,6 +222,32 @@ flight with `sample` submission granularity, temperature 0.8, 8192 tokens per tu
 max sequence, 30 turns and 3600 s per episode, GRPO with Adam at 1e-6, clip 0.2/0.28, TIS 0–2,
 `check_no_aborted`, strict weight comparison with the `visual.` exclusion, and
 `NVTE_FP8_BLOCK_SCALING_FP32_SCALES=1` for the trainers. No checkpoints are saved.
+
+**Variants and checks**
+
+- *Training with evaluation*: drop `--eval-interval 0`. With the default `--eval-interval 10`
+  and a short `--num-rollout` (we used 3), this runs the held-out evaluation before training and
+  after the last update, and nothing in between.
+- *Sampling check, no weight update* (two nodes, one TP8 engine): `launch_train.sh sample <run>
+  <prompts.jsonl>` with `SAMPLE_NUM_ROLLOUT=1 SAMPLE_PROMPTS=1 SAMPLE_SAMPLES=1 SAMPLE_CONCURRENCY=1`
+  (one episode) or `SAMPLE_PROMPTS=4 SAMPLE_SAMPLES=2 SAMPLE_CONCURRENCY=8`; the prompt file is a
+  subset of the training file. `--debug-rollout-only` at this Miles revision still initializes
+  Megatron's parallel state on the engine's eight GPUs, so the launcher states the stub layout
+  explicitly (`--actor-num-nodes 1 --actor-num-gpus-per-node 8`, TP8/PP1 so a one-sample batch is
+  valid). Inspect `dump_details/rollout_data/0.pt`: `response_length == len(loss_mask) ==
+  len(rollout_log_probs)`, `metadata.accumulated_token_ids == tokens`,
+  `metadata.tito_session_mismatch` empty or only `assistant_text` entries.
+- *Sandbox check, no model* (head container; no GPUs or Ray needed): run one task's reference
+  solution in a Daytona sandbox through the upstream `scan_golden.py`; the reward must be 1.0:
+
+  ```bash
+  mkdir -p /work/output/<run>-check
+  OPENENV_SANDBOX_BACKEND=daytona DAYTONA_API_URL=https://app.daytona.io/api \
+  DAYTONA_API_KEY_FILE=/work/private/daytona.key OPENENV_TB2_TASKS_DIR=/work/terminal-bench-2 \
+  OPENENV_LAUNCHER=<you> OPENENV_RUN_ID=<run>-check \
+  python3 /opt/miles/examples/experimental/openenv/scan_golden.py --tasks fix-git --concurrency 1 \
+      --out /work/output/<run>-check/golden.jsonl
+  ```
 
 ## After a run
 

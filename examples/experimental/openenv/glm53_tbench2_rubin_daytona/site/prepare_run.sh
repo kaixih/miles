@@ -18,7 +18,7 @@
 #   stage-model  stage_model_node.py on every node (parallel); receipts fetched to $R/receipts/model/<node>.json
 #   spec <nic>   make_run_spec.py on the login node from the model receipts, then push run-spec.json to every node
 #   bootstrap    bootstrap_node.py on every node (fresh node root + idle container)
-#   stage-tools  copy tools/inputs/data into each node root and clone the pinned OpenEnv/TB2 checkouts there
+#   stage-tools  copy tools/inputs/data into each node root and clone OpenEnv/TB2 from GitHub at the pinned commits
 #   install      install_deps.py plan in every container (root); prints each plan SHA for review
 #   apply [sha]  install_deps.py apply (root) in every container, then verify as the run UID; the optional
 #                sha256 of the reviewed planned_versions JSON skips any container whose plan differs
@@ -38,6 +38,10 @@ SPEC_LOCAL=$R/run-spec.json
 SPEC=$STAGE/run-spec.json
 MODEL_CACHE=${MODEL_CACHE:-/raid/dldata/${USER}-models/GLM-5.3-Flash/hf-3f1971b_orig}
 KNOWN_GOOD_CACHE=${KNOWN_GOOD_CACHE:-$MODEL_CACHE}
+OPENENV_REPO=${OPENENV_REPO:-https://github.com/meta-pytorch/OpenEnv.git}
+OPENENV_COMMIT=${OPENENV_COMMIT:-38b2a31354d1d4d627894412b9d469e92f4a2c61}
+TB2_REPO=${TB2_REPO:-https://github.com/laude-institute/terminal-bench-2.git}
+TB2_COMMIT=${TB2_COMMIT:-2fd12b88aafdd04a52c298e3940bcb189f9766d6}
 
 hosts() { scontrol show hostnames "$(scontrol show job -o "$JOB" | tr ' ' '\n' | grep '^NodeList=' | cut -d= -f2)"; }
 on_node() { local node=$1; shift; srun --jobid="$JOB" --overlap --nodes=1 --ntasks=1 --cpu-bind=none --chdir=/tmp -w "$node" "$@"; }
@@ -52,7 +56,7 @@ case "$STEP" in
     # Compute nodes may see the scratch root through a CIFS view; copy from there into node-local staging.
     # Falls back to piping a tarball through srun stdin when the CIFS view cannot read the run root.
     CIFS_R=${CIFS_VIEW:-/nonexistent}/$RUN_ID
-    VERIFY="echo tools=\$(ls $STAGE/tools | wc -l) inputs=\$(ls $STAGE/inputs | wc -l); sha256sum $STAGE/inputs/OpenEnv.bundle $STAGE/inputs/terminal-bench-2.bundle $STAGE/inputs/data/*.jsonl | cut -c1-16,66-"
+    VERIFY="echo tools=\$(ls $STAGE/tools | wc -l) inputs=\$(ls $STAGE/inputs | wc -l); sha256sum $STAGE/inputs/initial-snapshot-retry.patch $STAGE/inputs/known-versions.json $STAGE/inputs/data/*.jsonl | cut -c1-16,66-"
     for n in $(hosts); do
       echo "== $n"
       if on_node "$n" test -r "$CIFS_R/inputs/known-versions.json"; then
@@ -84,9 +88,8 @@ case "$STEP" in
         cp $STAGE/tools/*.py $STAGE/tools/*.sh \$W/tools/; cp $SPEC \$W/tools/run-spec.json
         cp $STAGE/inputs/initial-snapshot-retry.patch $STAGE/inputs/model-reference-manifest.json $STAGE/inputs/known-versions.json \$W/inputs/
         cp $STAGE/inputs/data/tbench2_train69.jsonl $STAGE/inputs/data/tbench2_eval.jsonl \$W/data/
-        git -c advice.detachedHead=false clone --quiet $STAGE/inputs/OpenEnv.bundle \$W/OpenEnv && echo openenv=\$(git -C \$W/OpenEnv rev-parse HEAD)
-        git -c advice.detachedHead=false clone --quiet $STAGE/inputs/terminal-bench-2.bundle \$W/terminal-bench-2 && echo tb2=\$(git -C \$W/terminal-bench-2 rev-parse HEAD)
-        git -C \$W/terminal-bench-2 remote set-url origin https://github.com/laude-institute/terminal-bench-2.git
+        git clone --quiet $OPENENV_REPO \$W/OpenEnv && git -C \$W/OpenEnv -c advice.detachedHead=false checkout --quiet $OPENENV_COMMIT && echo openenv=\$(git -C \$W/OpenEnv rev-parse HEAD)
+        git clone --quiet $TB2_REPO \$W/terminal-bench-2 && git -C \$W/terminal-bench-2 -c advice.detachedHead=false checkout --quiet $TB2_COMMIT && echo tb2=\$(git -C \$W/terminal-bench-2 rev-parse HEAD)
         echo origin=\$(git -C \$W/terminal-bench-2 remote get-url origin); sha256sum \$W/data/*.jsonl | cut -c1-16,66-" > "$R/receipts/stage-tools-$n.log" 2>&1 &
     done; wait
     for n in $(hosts); do echo "== $n: $(grep -E '^(openenv|tb2|origin)=' "$R/receipts/stage-tools-$n.log" | paste -sd' ')"; done ;;
