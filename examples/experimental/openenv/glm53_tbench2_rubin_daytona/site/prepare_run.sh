@@ -3,13 +3,15 @@
 # Site settings come from the environment:
 #   SCRATCH_ROOT  durable experiment root on the login node (run root = $SCRATCH_ROOT/<run id>)
 #   RUN_PREFIX    run id prefix; run id = <RUN_PREFIX>-j<jobid> (default glm53-tb2-daytona)
-#   KEY_STAGING   0600 file holding the Daytona key on the login node (step `key` only)
+#   KEY_STAGING   0600 file holding the Daytona key on the login node (steps `key` and `cleanup-key --also-staging`)
 #   IMAGE_REF / IMAGE_ID   pinned container image reference and image id (step `spec`)
 #   MODEL_SOURCE  read-only directory holding the original HF checkpoint (step `stage-model`)
 #   MODEL_CACHE / KNOWN_GOOD_CACHE   node-local checkpoint cache to create / an existing verified cache to reuse
 #   NODE_ROOT     node-local run root (default /raid/dldata/$USER-<run id>); CIFS_VIEW optional compute-node view of SCRATCH_ROOT
 #
 #   bash prepare_run.sh <step> <jobid> [step args]
+#
+#   The run root $SCRATCH_ROOT/<run id> (tools/ and inputs/) is built once by make_inputs.sh.
 #
 #   stage-node   tar tools+inputs from the run's scratch root and pipe them through srun stdin into a
 #                node-local staging dir on every node (compute nodes need not mount the login node's scratch)
@@ -53,7 +55,7 @@ case "$STEP" in
     VERIFY="echo tools=\$(ls $STAGE/tools | wc -l) inputs=\$(ls $STAGE/inputs | wc -l); sha256sum $STAGE/inputs/OpenEnv.bundle $STAGE/inputs/terminal-bench-2.bundle $STAGE/inputs/data/*.jsonl | cut -c1-16,66-"
     for n in $(hosts); do
       echo "== $n"
-      if on_node "$n" test -r "$CIFS_R/tools/known-versions.json"; then
+      if on_node "$n" test -r "$CIFS_R/inputs/known-versions.json"; then
         on_node "$n" bash -c "set -e; umask 077; test ! -e $STAGE; mkdir -p $STAGE/receipts; cp -r $CIFS_R/tools $CIFS_R/inputs $STAGE/; echo via=cifs; $VERIFY"
       else
         tar -C "$R" -czf - tools inputs | on_node "$n" bash -c "set -e; umask 077; test ! -e $STAGE; mkdir -p $STAGE/receipts; tar -xzf - -C $STAGE; echo via=srun-stdin; $VERIFY"
@@ -79,8 +81,8 @@ case "$STEP" in
     for n in $(hosts); do
       on_node "$n" bash -c "set -euo pipefail; umask 022; W=$ROOT/work; test -d \$W/home
         mkdir -p \$W/tools \$W/inputs \$W/data \$W/output
-        cp $STAGE/tools/*.py $STAGE/tools/*.sh $STAGE/tools/known-versions.json \$W/tools/; cp $SPEC \$W/tools/run-spec.json
-        cp $STAGE/inputs/initial-snapshot-retry.patch $STAGE/inputs/model-reference-manifest.json $STAGE/tools/known-versions.json \$W/inputs/
+        cp $STAGE/tools/*.py $STAGE/tools/*.sh \$W/tools/; cp $SPEC \$W/tools/run-spec.json
+        cp $STAGE/inputs/initial-snapshot-retry.patch $STAGE/inputs/model-reference-manifest.json $STAGE/inputs/known-versions.json \$W/inputs/
         cp $STAGE/inputs/data/tbench2_train69.jsonl $STAGE/inputs/data/tbench2_eval.jsonl \$W/data/
         git -c advice.detachedHead=false clone --quiet $STAGE/inputs/OpenEnv.bundle \$W/OpenEnv && echo openenv=\$(git -C \$W/OpenEnv rev-parse HEAD)
         git -c advice.detachedHead=false clone --quiet $STAGE/inputs/terminal-bench-2.bundle \$W/terminal-bench-2 && echo tb2=\$(git -C \$W/terminal-bench-2 rev-parse HEAD)
@@ -134,7 +136,7 @@ sys.exit('planned_versions differ from the reviewed plan: '+v) if v!='$VERSIONS_
     # Only after this run's sandboxes are reconciled: remove the head node's private key file (and the login-node staging copy on request).
     H=$(head_node); ROOT=$(node_root)
     on_node "$H" bash -c "set -e; f=$ROOT/work/private/daytona.key; stat -c 'before: %n mode=%a uid=%u' \$f; shred -u \$f; test ! -e \$f && echo removed=\$f"
-    if [ "${1:-}" = "--also-staging" ]; then shred -u "$KEY_STAGING" && echo "removed=$KEY_STAGING"; fi ;;
+    if [ "${1:-}" = "--also-staging" ]; then KEY_STAGING=${KEY_STAGING:?set KEY_STAGING to the login-node key file to shred}; shred -u "$KEY_STAGING" && echo "removed=$KEY_STAGING"; fi ;;
   cleanup-containers)
     # Remove exactly this run's containers (label miles.run=<run id>); never other containers, never Slurm.
     for n in $(hosts); do

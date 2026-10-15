@@ -44,7 +44,7 @@ each piece comes from, with the revisions this run used:
 |---|---|---|
 | Miles | `0d9d726e0f9b9d487c36a0c342012b917820fb04` | in the image, `/opt/miles` |
 | SGLang | `6b5f3dfc5a395d6fd56d105c34c8e3542846ca4c` | in the image |
-| Megatron-LM | `fd15ee20a4f03b03680529baf4b8f7eeed64df1d` | in the image, `/root/Megatron-LM`; `install_deps.py` copies it to `/opt/Megatron-LM` so the run user can read it |
+| Megatron-LM | `fd15ee20a4f03b03680529baf4b8f7eeed64df1d` | in the image, `/root/Megatron-LM`; `install_deps.py` relocates it to `/opt/Megatron-LM` when `/root` is unreadable for the run user, which is the normal case |
 | Daytona SDK | `0.224.1` | added by `install_deps.py` |
 | OpenEnv incl. `tbench2_env` | `38b2a31354d1d4d627894412b9d469e92f4a2c61` | checkout staged at `/work/OpenEnv`, installed editable by `install_deps.py` |
 | Terminal-Bench-2 tasks | `2fd12b88aafdd04a52c298e3940bcb189f9766d6` | checkout staged at `/work/terminal-bench-2`, `origin` set to GitHub: the sandbox build downloads each task directory from that origin at this commit |
@@ -66,9 +66,11 @@ leaves the rest of the image's Python stack as it is:
   2.7.2, `mcp` 2.3.0 → 1.30.0); everything else stays.
 - `apply` (as root): installs exactly that lock with `pip install --no-deps --require-hashes`,
   installs OpenEnv and `tbench2_env` editable from `/work/OpenEnv` (copied to `/opt/OpenEnv`),
-  copies Megatron-LM to `/opt/Megatron-LM` so the non-root run user can import it, and applies
-  the patch from section 2. It refuses to run if the installer, the lock or the installed
-  packages changed after `plan`.
+  relocates Megatron-LM to `/opt/Megatron-LM` when `/root` is unreadable for the run user (the
+  launcher takes the resulting path from the install receipt), and applies the patch from
+  section 2. It refuses to run if the installer, the lock or the installed packages changed
+  after `plan`. The run user is the owner of the bind-mounted `/work`; pass `--uid`/`--gid` if
+  that is not the user the training runs as.
 - `verify` (as the run user): imports everything the launcher needs and prints a receipt.
 
 Run the three steps in every container:
@@ -100,41 +102,53 @@ revision only; on a newer Miles tree use the PR itself.
 | [`fig5_collect.py`](fig5_collect.py) | Builds the Figure 5 series (JSON, CSV, PNG) from the driver log. |
 | [`reconcile_sandboxes.py`](reconcile_sandboxes.py) | Lists and deletes the Daytona sandboxes a run leaves behind (see "After a run"). |
 | [`assets/`](assets/) | The figure and its per-step CSV. |
+| [`data/`](data/) | The frozen Terminal-Bench-2 task split: 69 training tasks and 20 held-out tasks, one row per task in the format [`../make_tbench2_data.py`](../make_tbench2_data.py) produces. |
 | [`site/`](site/) | The preparation work between "Slurm gave us N nodes" and "`launch_train.sh` can run in the head container", as we did it on our Slurm + Docker cluster. Kept as a reference; another cluster needs its own equivalents, and the container flags and layout below are what they have to reproduce. |
 
 What `site/` does, in order:
 
-1. `prepare_run.sh`: the login-node entry point, one sub-command per step; each step reaches
+1. `make_inputs.sh`: builds the login-node run root once (`tools/`, `inputs/`; see below).
+2. `prepare_run.sh`: the login-node entry point, one sub-command per step; each step reaches
    the nodes through `srun` and runs one of the scripts below.
-2. `stage_model_node.py`: on every node, verify the node-local copy of the checkpoint against
+3. `stage_model_node.py`: on every node, verify the node-local copy of the checkpoint against
    the reference manifest (file set, sizes, SHA256); copy it from the read-only source if absent.
-3. `make_run_spec.py`: ask Slurm for the node list, read each node's fabric IP, order the nodes
+4. `make_run_spec.py`: ask Slurm for the node list, read each node's fabric IP, order the nodes
    by IP (the lowest is the Ray head) and write `run-spec.json`: image, node root, per-node
    verified model path.
-4. `bootstrap_node.py`: on every node, `docker run` one idle container from the spec
+5. `bootstrap_node.py`: on every node, `docker run` one idle container from the spec
    (`--user uid:gid --gpus all --network host --ipc host --ulimit nofile=65536:524288`, the IMEX
    channel device, `/work`, `/tmp` and the read-only model mounts, lifetime bounded by the Slurm
-   end time, label `miles.run=<run id>`).
-5. `receive_key_node.py`: write the Daytona key from stdin into the head container's
+   end time, label `miles.run=<run id>`, and the environment the launcher relies on:
+   `MASTER_ADDR=<head fabric IP>`, `MILES_NODE_EXTERNAL_IP=<this node's fabric IP>`,
+   `NCCL_SOCKET_IFNAME==<fabric NIC>`, `GLOO_SOCKET_IFNAME=<fabric NIC>`, `NCCL_CUMEM_ENABLE=1`,
+   `HOME=/work/home`, `TMPDIR=/tmp`).
+6. `receive_key_node.py`: write the Daytona key from stdin into the head container's
    `/work/private/daytona.key` (exclusive create, `0600`, never echoed).
-6. `rubin_node.py`: start Ray in each container (head or worker), pinned to the fabric interface.
-7. `ray_ready.py`: wait until Ray reports every node and GPU.
+7. `rubin_node.py`: start Ray in each container (head or worker), pinned to the fabric interface.
+8. `ray_ready.py`: wait until Ray reports every node and GPU.
 
-Slurm, `srun`, the `/raid` paths and the CIFS fallback are specific to our cluster; the
+Slurm, `srun`, the `/raid` paths and the optional CIFS view of the scratch root are specific to
+our cluster; the
 `docker run` flags and the Ray start are the generic part.
 
-### Inputs the site scripts expect
+### Before the first run: build the run root
 
-`prepare_run.sh` stages these from `$SCRATCH_ROOT/<run id>/inputs/` onto every node; nothing
-in this directory generates them:
+`prepare_run.sh` works from a run root on the login node, `$SCRATCH_ROOT/<run id>/`, and stages
+its `tools/` and `inputs/` onto every node. `site/make_inputs.sh` builds that root:
 
-| Input | Content |
-|---|---|
-| `OpenEnv.bundle` | `git bundle` of the OpenEnv commit above (cloned to `/work/OpenEnv`). |
-| `terminal-bench-2.bundle` | `git bundle` of the Terminal-Bench-2 commit above (cloned to `/work/terminal-bench-2`; `origin` is reset to the GitHub URL after the clone). |
-| `data/tbench2_train69.jsonl`, `data/tbench2_eval.jsonl` | The frozen task split: 69 training tasks and 20 held-out tasks, one row per task in the format [`../make_tbench2_data.py`](../make_tbench2_data.py) produces. The prompt files for the sampling check are subsets of the training file. |
-| `model-reference-manifest.json` | Per-file sizes and SHA256 of the original GLM-5.3-Flash HF checkpoint, read by `stage_model_node.py`. |
-| `initial-snapshot-retry.patch`, `known-versions.json` | Copies of the files in this directory. |
+```bash
+bash site/make_inputs.sh files $SCRATCH_ROOT/<run id>              # login node; clones from GitHub
+bash site/make_inputs.sh manifest <run root> <checkpoint directory> # where the checkpoint reads at disk speed
+```
+
+`files` copies this directory's scripts into `tools/` and fills `inputs/` with git bundles of the
+pinned OpenEnv and Terminal-Bench-2 commits (the nodes clone from the bundles, not from the
+network), the frozen task split from [`data/`](data/), the patch and `known-versions.json`.
+`manifest` hashes every file of the GLM-5.3-Flash checkpoint into
+`inputs/model-reference-manifest.json`, which `stage_model_node.py` uses to verify each node's
+copy; the checkpoint is about 330 GB, so run it against a local copy (for example a node that
+already has the cache, through `srun`) and copy the file into the run root if that machine
+cannot write there. The prompt files for the sampling check are subsets of the training file.
 
 ### Node layout used by the scripts
 
@@ -179,16 +193,18 @@ the numerically lowest fabric IP; `site/ray_ready.py` confirms every node and GP
 `tbench2_train69.jsonl` (69 rows) and `tbench2_eval.jsonl` (20 rows) are under `/work/data`,
 and the model directory is mounted at `/inputs/GLM-5.3-Flash`.
 
-**Sandbox check, no model** (any container with the dependencies installed): run one task's
-reference solution in a Daytona sandbox through the upstream `scan_golden.py`; it writes one JSON
-line per task with the reward, which must be 1.0 for `fix-git`.
+**Sandbox check, no model** (in the head container, which has the key file; no GPUs or Ray
+needed): run one task's reference solution in a Daytona sandbox through the upstream
+`scan_golden.py`; it writes one JSON line per task with the reward, which must be 1.0 for
+`fix-git`.
 
 ```bash
+mkdir -p /work/output/<run>-check
 OPENENV_SANDBOX_BACKEND=daytona DAYTONA_API_URL=https://app.daytona.io/api \
 DAYTONA_API_KEY_FILE=/work/private/daytona.key OPENENV_TB2_TASKS_DIR=/work/terminal-bench-2 \
 OPENENV_LAUNCHER=<you> OPENENV_RUN_ID=<run>-check \
 python3 /opt/miles/examples/experimental/openenv/scan_golden.py --tasks fix-git --concurrency 1 \
-    --out /work/output/<run>/golden.jsonl
+    --out /work/output/<run>-check/golden.jsonl
 ```
 
 **Sampling check, no weight update** (two nodes, one TP8 engine):

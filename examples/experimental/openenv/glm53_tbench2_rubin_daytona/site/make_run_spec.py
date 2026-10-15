@@ -7,10 +7,10 @@ Run on the Slurm login node after the model staging receipts exist:
         --nic <fabric interface> --model-receipts <dir with <node>.json from stage_model_node.py> \
         --out run-spec.json
 
-Queries each allocated node for its IPv4 address on --nic through srun; --image-ref/--image-id name the pinned
-container image (kept out of this file so no internal registry address is committed). Queries, orders nodes by that
-address (Miles places by numeric IP order; the first is the Ray head), and records the image,
-container name, node root and per-node verified model path.
+Queries each allocated node for its IPv4 address on --nic through srun, orders the nodes by that address
+(Miles places by numeric IP order; the first is the Ray head), and records the image, container name,
+node root and per-node verified model path. --image-ref/--image-id name the pinned container image
+(kept out of this file so no internal registry address is committed).
 """
 
 import argparse
