@@ -83,14 +83,11 @@ python3 install_deps.py verify    # imports everything the launcher needs
 
 ### 2. One source change — radixark/miles#4029
 
-The only Miles source change is
-[radixark/miles#4029](https://github.com/radixark/miles/pull/4029): keep the first successful
-inference-engine weight snapshot across reset retries, so the strict initial weight
-comparison keeps its reference. The pinned image predates it; `install_deps.py apply` applies
-the bundled [`initial-snapshot-retry.patch`](initial-snapshot-retry.patch) (one file,
-`miles/ray/rollout/server_cell.py`). Nothing else in `/opt/miles` is touched. The patch file is
-cut against the pinned Miles revision; it does not apply to current `main`, where the snapshot
-call has since changed shape, so on a newer tree take the PR itself.
+The image predates [radixark/miles#4029](https://github.com/radixark/miles/pull/4029) (keep the
+first inference-engine weight snapshot across reset retries). It is bundled here as
+[`initial-snapshot-retry.patch`](initial-snapshot-retry.patch), and `install_deps.py apply`
+applies it to `/opt/miles`; there is nothing to do by hand. The patch matches the pinned image
+revision only; on a newer Miles tree use the PR itself.
 
 ## Files in this directory
 
