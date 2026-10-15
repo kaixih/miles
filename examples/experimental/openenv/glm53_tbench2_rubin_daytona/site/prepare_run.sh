@@ -21,9 +21,9 @@
 #   apply [sha]  install_deps.py apply (root) in every container, then verify as the run UID; the optional
 #                sha256 of the reviewed planned_versions JSON skips any container whose plan differs
 #   key          pipe the login-node staging key file into the head container's /work/private/daytona.key
-#   nccl [probe] run_nccl_node.py on every node at once
 #   ray-ready    ray_ready.py inside the head container (Ray daemons must already run)
-#   fetch <node> <path> <name>   copy one node file into $R/receipts/<name>
+#   cleanup-key [--also-staging]   shred the head container's key file (and the login-node copy)
+#   cleanup-containers             remove exactly this run's containers (label miles.run=<run id>)
 #
 # Every step runs as the ordinary user through `srun --jobid=<jobid> --overlap`; nothing here cancels Slurm,
 # removes containers or touches directories of other runs.
@@ -127,22 +127,9 @@ sys.exit('planned_versions differ from the reviewed plan: '+v) if v!='$VERSIONS_
     H=$(head_node); test -s "$KEY_STAGING"
     on_node "$H" python3 -B "$STAGE/tools/receive_key_node.py" --spec "$SPEC"
     on_node "$H" python3 -B "$STAGE/tools/receive_key_node.py" --spec "$SPEC" --execute < "$KEY_STAGING" | tee "$R/receipts/key-transfer.json" ;;
-  nccl)
-    PROBE=${1:-nccl-smoke-1}
-    for n in $(hosts); do on_node "$n" python3 -B "$STAGE/tools/run_nccl_node.py" --spec "$SPEC" --probe "$PROBE" > "$R/receipts/$PROBE-$n.log" 2>&1 & done; wait
-    for n in $(hosts); do echo "$n: $(tail -1 "$R/receipts/$PROBE-$n.log")"; done ;;
   ray-ready)
     H=$(head_node); OUT=${1:-ray-ready-1}; CID=$(cid_of "$H")
     on_node "$H" docker exec "$CID" python3 -B /work/tools/ray_ready.py --spec /work/tools/run-spec.json --output "/work/$OUT.json" > "$R/receipts/$OUT.log" 2>&1 || true; tail -2 "$R/receipts/$OUT.log" ;;
-  restage-tools)
-    # Re-send only the tools after a local edit (node-local staging copy, then the node root's /work/tools if it exists).
-    ROOT=$(node_root 2>/dev/null || true)
-    for n in $(hosts); do
-      echo "== $n"
-      tar -C "$R" -czf - tools | on_node "$n" bash -c "set -e; umask 077; rm -rf $STAGE/tools; tar -xzf - -C $STAGE
-        if [ -n '$ROOT' ] && [ -d $ROOT/work/tools ]; then umask 022; cp $STAGE/tools/*.py $STAGE/tools/*.sh $STAGE/tools/known-versions.json $ROOT/work/tools/; echo refreshed=$ROOT/work/tools; fi
-        sha256sum $STAGE/tools/*.py | cut -c1-16,66- | sed 's#$STAGE/tools/##'"
-    done ;;
   cleanup-key)
     # Only after this run's sandboxes are reconciled: remove the head node's private key file (and the login-node staging copy on request).
     H=$(head_node); ROOT=$(node_root)
@@ -153,15 +140,5 @@ sys.exit('planned_versions differ from the reviewed plan: '+v) if v!='$VERSIONS_
     for n in $(hosts); do
       on_node "$n" bash -c "set -e; for c in \$(docker ps -aq --filter label=miles.run=$RUN_ID); do echo \"$n: removing \$c \$(docker inspect --format '{{.Name}}' \$c)\"; docker rm -f \$c >/dev/null; done; docker ps -a --filter label=miles.run=$RUN_ID -q | wc -l"
     done ;;
-  evidence)
-    # m3_evidence.py in every container over one run's dump_details; results fetched to $R/evidence/<train-run>/<node>.json
-    TRAIN_RUN=${1:?training run id required}; ROOT=$(node_root); mkdir -p "$R/evidence/$TRAIN_RUN"
-    for n in $(hosts); do
-      CID=$(cid_of "$n")
-      on_node "$n" docker exec "$CID" bash -c "test -d /work/output/$TRAIN_RUN/dump_details && python3 -B /work/tools/m3_evidence.py --dump /work/output/$TRAIN_RUN/dump_details --out /work/output/$TRAIN_RUN/evidence-$n.json || echo 'no dump_details on this node'" 2>&1 | tail -2
-      on_node "$n" cat "$ROOT/work/output/$TRAIN_RUN/evidence-$n.json" > "$R/evidence/$TRAIN_RUN/$n.json" 2>/dev/null || true
-    done; ls -la "$R/evidence/$TRAIN_RUN" ;;
-  fetch)
-    on_node "$1" cat "$2" > "$R/receipts/$3"; echo "fetched $R/receipts/$3 ($(wc -c < "$R/receipts/$3") bytes)" ;;
   *) echo "unknown step $STEP" >&2; exit 2 ;;
 esac

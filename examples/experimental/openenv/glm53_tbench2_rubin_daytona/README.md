@@ -93,31 +93,35 @@ revision only; on a newer Miles tree use the PR itself.
 
 | File | Role |
 |---|---|
-| [`run_glm5_3_flash_tb2_daytona.py`](run_glm5_3_flash_tb2_daytona.py) | The launcher. Derived from the GLM-5.3-Flash Rubin OpenSandbox recipe launcher (not in this tree; [`../glm52_tbench2`](../glm52_tbench2/README.md) is the upstream 64-GPU GLM-5.2 version of the same shape) with three changes: the agent function is the native `openenv_daytona_agent_function.run`, credentials go through Miles' key-file forwarding (`provision_provider`, path only), and a `--debug-rollout-only` mode samples on two nodes without an optimizer. |
-| [`launch_train.sh`](launch_train.sh) | Head-container wrapper: environment, dataset hashes, `m2` (debug sampling) and `m3` (training) entry points. |
-| [`install_deps.py`](install_deps.py), [`known-versions.json`](known-versions.json) | Dependency plan / apply / verify as above. |
-| [`initial-snapshot-retry.patch`](initial-snapshot-retry.patch) | radixark/miles#4029 as a patch file. |
-| [`site/`](site/) | Site adapters for a Slurm + Docker cluster, listed below. They are the scripts that produced the runs above; another site will need its own equivalents. |
-| [`assets/`](assets/) | The figure and its per-step series. |
+| [`run_glm5_3_flash_tb2_daytona.py`](run_glm5_3_flash_tb2_daytona.py) | The launcher: builds the `train_async.py` command (model, topology, GRPO settings, the Daytona agent function) and submits it to the Ray cluster. |
+| [`launch_train.sh`](launch_train.sh) | Head-container wrapper around the launcher: environment, dataset hashes; `sample` runs a small sampling check without an optimizer, `train` runs training. |
+| [`install_deps.py`](install_deps.py), [`known-versions.json`](known-versions.json) | The three-step dependency install above. |
+| [`initial-snapshot-retry.patch`](initial-snapshot-retry.patch) | radixark/miles#4029 as a patch file; applied by `install_deps.py`. |
+| [`fig5_collect.py`](fig5_collect.py) | Builds the Figure 5 series (JSON, CSV, PNG) from the driver log. |
+| [`reconcile_sandboxes.py`](reconcile_sandboxes.py) | Lists and deletes the Daytona sandboxes a run leaves behind (see "After a run"). |
+| [`assets/`](assets/) | The figure and its per-step CSV. |
+| [`site/`](site/) | The preparation work between "Slurm gave us N nodes" and "`launch_train.sh` can run in the head container", as we did it on our Slurm + Docker cluster. Kept as a reference; another cluster needs its own equivalents, and the container flags and layout below are what they have to reproduce. |
 
-`site/`, in the order they are used:
+What `site/` does, in order:
 
-| File | Role |
-|---|---|
-| `discover_nodes.sh` | One-shot inventory of every allocated node (GPUs, IMEX channel, `/raid` space, image presence, model caches). |
-| `prepare_run.sh` | Login-node step driver: `stage-node`, `stage-model`, `spec`, `bootstrap`, `stage-tools`, `install`, `apply`, `key`, `nccl`, `ray-ready`, `evidence`, `restage-tools`, `cleanup-key`, `cleanup-containers`, `fetch`. Site settings come from `SCRATCH_ROOT`, `RUN_PREFIX`, `KEY_STAGING`, `IMAGE_REF`, `IMAGE_ID`, `MODEL_SOURCE`, `MODEL_CACHE`, `KNOWN_GOOD_CACHE`, `NODE_ROOT`, `CIFS_VIEW` (documented in its header). |
-| `stage_model_node.py` | Node-local checkpoint cache: reuse a cache whose file set, sizes and SHA256 match the reference manifest, else copy from the read-only source while hashing. |
-| `make_run_spec.py` | Writes `run-spec.json` for the allocation: nodes ordered by fabric IP (first = Ray head), image reference and id, node root, per-node verified model path. |
-| `bootstrap_node.py` | Starts one idle run container per node from the spec (`--user uid:gid --gpus all --network host --ipc host`, IMEX device, `/work` `/tmp` and the read-only model mounts, lifetime bounded by the Slurm end time, label `miles.run=<run id>`). |
-| `receive_key_node.py` | Pipes the Daytona key from stdin into `/work/private/daytona.key` in the head container (exclusive create, `0600`); never echoes it. |
-| `nccl_smoke.py`, `run_nccl_node.py` | All-rank NCCL all-reduce across the allocation; passes only when the transport is MNNVL (no `via NET/` path). |
-| `rubin_node.py` | Per-container Ray daemon (head or worker), pinned to the fabric interface. |
-| `ray_ready.py` | Waits until Ray reports every node and GPU. |
-| `m1_golden_fixgit.py` | M1: `scan_golden.py` on one Daytona sandbox plus post-delete 404 check, label sweep and credential scan. |
-| `sandbox_count.py`, `reconcile_sandboxes.py` | Count / list / delete the sandboxes carrying this run's `openenv-run-id` label. |
-| `m3_evidence.py` | Per-update evidence from one node's `dump_details` (trainer ranks, controller outcomes, weight checksums, dumped samples). |
-| `fig5_collect.py` | Figure-5 series (JSON, CSV, PNG) from the driver log. |
-| `closeout_m3.sh` | Evidence, per-node archive, reconcile, optional key and container removal, in that order. |
+1. `prepare_run.sh`: the login-node entry point, one sub-command per step; each step reaches
+   the nodes through `srun` and runs one of the scripts below.
+2. `stage_model_node.py`: on every node, verify the node-local copy of the checkpoint against
+   the reference manifest (file set, sizes, SHA256); copy it from the read-only source if absent.
+3. `make_run_spec.py`: ask Slurm for the node list, read each node's fabric IP, order the nodes
+   by IP (the lowest is the Ray head) and write `run-spec.json`: image, node root, per-node
+   verified model path.
+4. `bootstrap_node.py`: on every node, `docker run` one idle container from the spec
+   (`--user uid:gid --gpus all --network host --ipc host --ulimit nofile=65536:524288`, the IMEX
+   channel device, `/work`, `/tmp` and the read-only model mounts, lifetime bounded by the Slurm
+   end time, label `miles.run=<run id>`).
+5. `receive_key_node.py`: write the Daytona key from stdin into the head container's
+   `/work/private/daytona.key` (exclusive create, `0600`, never echoed).
+6. `rubin_node.py`: start Ray in each container (head or worker), pinned to the fabric interface.
+7. `ray_ready.py`: wait until Ray reports every node and GPU.
+
+Slurm, `srun`, the `/raid` paths and the CIFS fallback are specific to our cluster; the
+`docker run` flags and the Ray start are the generic part.
 
 ### Inputs the site scripts expect
 
@@ -128,7 +132,7 @@ in this directory generates them:
 |---|---|
 | `OpenEnv.bundle` | `git bundle` of the OpenEnv commit above (cloned to `/work/OpenEnv`). |
 | `terminal-bench-2.bundle` | `git bundle` of the Terminal-Bench-2 commit above (cloned to `/work/terminal-bench-2`; `origin` is reset to the GitHub URL after the clone). |
-| `data/tbench2_train69.jsonl`, `data/tbench2_eval.jsonl` | The frozen task split: 69 training tasks and 20 held-out tasks, one row per task in the format [`../make_tbench2_data.py`](../make_tbench2_data.py) produces. The M2 prompt files (`m2-fixgit.jsonl`, one row; `m2-4tasks.jsonl`, four rows) are subsets of the training file. |
+| `data/tbench2_train69.jsonl`, `data/tbench2_eval.jsonl` | The frozen task split: 69 training tasks and 20 held-out tasks, one row per task in the format [`../make_tbench2_data.py`](../make_tbench2_data.py) produces. The prompt files for the sampling check are subsets of the training file. |
 | `model-reference-manifest.json` | Per-file sizes and SHA256 of the original GLM-5.3-Flash HF checkpoint, read by `stage_model_node.py`. |
 | `initial-snapshot-retry.patch`, `known-versions.json` | Copies of the files in this directory. |
 
@@ -175,25 +179,25 @@ the numerically lowest fabric IP; `site/ray_ready.py` confirms every node and GP
 `tbench2_train69.jsonl` (69 rows) and `tbench2_eval.jsonl` (20 rows) are under `/work/data`,
 and the model directory is mounted at `/inputs/GLM-5.3-Flash`.
 
-**M1 — one real Daytona TB2 environment, no model** (any container with the deps):
+**Sandbox check, no model** (any container with the dependencies installed): run one task's
+reference solution in a Daytona sandbox through the upstream `scan_golden.py`; it writes one JSON
+line per task with the reward, which must be 1.0 for `fix-git`.
 
 ```bash
 OPENENV_SANDBOX_BACKEND=daytona DAYTONA_API_URL=https://app.daytona.io/api \
 DAYTONA_API_KEY_FILE=/work/private/daytona.key OPENENV_TB2_TASKS_DIR=/work/terminal-bench-2 \
-OPENENV_LAUNCHER=<you> OPENENV_RUN_ID=<run>-m1 \
-python3 site/m1_golden_fixgit.py --tasks fix-git --concurrency 1 --out-dir /work/output/<run>/m1
+OPENENV_LAUNCHER=<you> OPENENV_RUN_ID=<run>-check \
+python3 /opt/miles/examples/experimental/openenv/scan_golden.py --tasks fix-git --concurrency 1 \
+    --out /work/output/<run>/golden.jsonl
 ```
 
-Pass criterion: `golden.jsonl` reward 1.0 from the canonical harness, the created sandbox ID
-recorded, and `GET /sandbox/<id>` returning 404 after the delete (`m1-summary.json`).
-
-**M2 — a few GLM trajectories, no weight update** (two nodes, one TP8 engine):
+**Sampling check, no weight update** (two nodes, one TP8 engine):
 
 ```bash
-M2_NUM_ROLLOUT=1 M2_PROMPTS=1 M2_SAMPLES=1 M2_CONCURRENCY=1 \
-bash launch_train.sh m2 <run>-m2a /work/data/m2-fixgit.jsonl
-M2_NUM_ROLLOUT=1 M2_PROMPTS=4 M2_SAMPLES=2 M2_CONCURRENCY=8 \
-bash launch_train.sh m2 <run>-m2b /work/data/m2-4tasks.jsonl
+SAMPLE_NUM_ROLLOUT=1 SAMPLE_PROMPTS=1 SAMPLE_SAMPLES=1 SAMPLE_CONCURRENCY=1 \
+bash launch_train.sh sample <run>-sample1 /work/data/<one-task>.jsonl
+SAMPLE_NUM_ROLLOUT=1 SAMPLE_PROMPTS=4 SAMPLE_SAMPLES=2 SAMPLE_CONCURRENCY=8 \
+bash launch_train.sh sample <run>-sample2 /work/data/<four-tasks>.jsonl
 ```
 
 `--debug-rollout-only` at this Miles revision still initializes Megatron's parallel state on
@@ -203,24 +207,24 @@ Inspect `dump_details/rollout_data/0.pt`: `response_length == len(loss_mask) ==
 len(rollout_log_probs)`, `metadata.accumulated_token_ids == tokens`,
 `metadata.tito_session_mismatch` empty or only `assistant_text` entries.
 
-**M3 — formal training** (eight nodes):
+**Training** (eight nodes):
 
 ```bash
-bash launch_train.sh m3 <run>-m3 /work/data/tbench2_train69.jsonl /work/data/tbench2_eval.jsonl --num-rollout 3
+bash launch_train.sh train <run>-train /work/data/tbench2_train69.jsonl /work/data/tbench2_eval.jsonl --num-rollout 3
 ```
 
-With `--num-rollout 3` and the formal `--eval-interval 10`, this performs the baseline eval
+With `--num-rollout 3` and the default `--eval-interval 10`, this performs the baseline eval
 before training and the final eval after the last update, and no mid-run eval.
 
-**20-step series, evaluation off:**
+**20-step series, evaluation off** (the run in the figure above):
 
 ```bash
-bash launch_train.sh m3 <run>-fig5 /work/data/tbench2_train69.jsonl /work/data/tbench2_eval.jsonl \
+bash launch_train.sh train <run>-fig5 /work/data/tbench2_train69.jsonl /work/data/tbench2_eval.jsonl \
     --num-rollout 20 --eval-interval 0
-python3 site/fig5_collect.py --log <driver.log> --out fig5-series.json --csv fig5-series.csv --png fig5.png
+python3 fig5_collect.py --log <driver.log> --out fig5-series.json --csv fig5-series.csv --png fig5.png
 ```
 
-The launcher's training arguments are the OpenSandbox recipe's: TP4 / PP4 / EP4 / CP1 with
+The launcher's training arguments: TP4 / PP4 / EP4 / CP1 with
 layers 11/11/11/12, full uniform recompute, dynamic batching at 8192 tokens per GPU, optimizer
 state streamed to local disk in FP32, two TP8 / EP8 FP8 rollout engines with Triton MoE,
 TileLang DSA and BF16 KV cache, 8 prompts × 8 samples = 64 per update, 128 trajectories in
@@ -231,10 +235,8 @@ max sequence, 30 turns and 3600 s per episode, GRPO with Adam at 1e-6, clip 0.2/
 
 ## After a run
 
-1. Collect `dump_details` and the evidence from every node (trainer ranks log on their own
-   nodes); `site/m3_evidence.py` summarizes per-update controller outcomes, metrics and weight
-   checksums.
-2. Reconcile sandboxes: `site/reconcile_sandboxes.py --run-id <run> --out <reconcile.json> --delete`. When the Ray
+1. Collect `dump_details` from every node (trainer ranks log on their own nodes).
+2. Reconcile sandboxes: `python3 reconcile_sandboxes.py --run-id <run> --out <reconcile.json> --delete`. When the Ray
    job ends, the fully-async producer still has prefetched episodes in flight; their agent
    processes are killed before the provider can delete their sandboxes (98 were left after the
    20-step run, 5 after an 8-trajectory sampling run). Daytona's auto-stop / auto-delete

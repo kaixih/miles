@@ -1,8 +1,8 @@
 """GLM-5.3-Flash + OpenEnv Terminal-Bench-2 on per-episode Daytona sandboxes, Rubin nodes (4 GPUs each).
 
-Derived from the GLM-5.3-Flash Rubin OpenSandbox recipe launcher used by the earlier experiment (not
-part of this tree), with the provider swapped for the native Daytona agent function; the model,
-topology, algorithm, memory and backend settings are unchanged. Requires the prepared image, an external Ray cluster
+The agent function is the native Daytona provider (openenv_daytona_agent_function.run); the model,
+topology, algorithm, memory and backend settings are the validated GLM-5.3-Flash Rubin ones.
+Requires the prepared image, an external Ray cluster
 (MILES_SCRIPT_EXTERNAL_RAY=1), the original HF FP8 weights and the frozen task split.
 
 Two modes:

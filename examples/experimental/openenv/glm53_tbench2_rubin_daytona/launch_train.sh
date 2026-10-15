@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Submit M2 (sampling diagnostics) or M3 (training) from inside the HEAD run container, as the run UID.
+# Submit a sampling check or a training run from inside the HEAD run container, as the run UID.
 #
-#   bash launch_train.sh m2 <run-id> <prompt-jsonl> [launcher args...]
-#       small diagnostic batch; defaults M2_NUM_ROLLOUT=1 M2_PROMPTS=1 M2_SAMPLES=1 M2_CONCURRENCY=1 (env overrides)
-#   bash launch_train.sh m3 <run-id> <train-jsonl> <eval-jsonl> [launcher args...]
-#       formal run; evaluation stays at --eval-interval 10, which with a short --num-rollout means a baseline
+#   bash launch_train.sh sample <run-id> <prompt-jsonl> [launcher args...]
+#       small sampling batch, no optimizer (two nodes); defaults SAMPLE_NUM_ROLLOUT=1 SAMPLE_PROMPTS=1
+#       SAMPLE_SAMPLES=1 SAMPLE_CONCURRENCY=1 (env overrides)
+#   bash launch_train.sh train <run-id> <train-jsonl> <eval-jsonl> [launcher args...]
+#       training run (eight nodes); evaluation stays at --eval-interval 10, which with a short --num-rollout means a baseline
 #       eval before training and the forced final eval, no mid-run eval. Pass --eval-interval 0 to skip both.
 #
 # Expects the container env from bootstrap (MASTER_ADDR = head compute IP), the Ray cluster started by
@@ -32,16 +33,16 @@ COMMON=(--run-id "$RUN_ID" --hf-checkpoint /inputs/GLM-5.3-Flash --tasks-dir /wo
         --cluster-backend ray --deploy-component all)
 sha() { sha256sum "$1" | cut -c1-64; }
 case "$MODE" in
-  m2)
+  sample)
     PROMPT=$1; shift
     exec python3 "$LAUNCHER" train "${COMMON[@]}" --num-nodes 2 --debug-rollout-only --eval-interval 0 \
-      --num-rollout "${M2_NUM_ROLLOUT:-1}" --rollout-batch-size "${M2_PROMPTS:-1}" \
-      --n-samples-per-prompt "${M2_SAMPLES:-1}" --async-max-concurrent-samples "${M2_CONCURRENCY:-1}" \
+      --num-rollout "${SAMPLE_NUM_ROLLOUT:-1}" --rollout-batch-size "${SAMPLE_PROMPTS:-1}" \
+      --n-samples-per-prompt "${SAMPLE_SAMPLES:-1}" --async-max-concurrent-samples "${SAMPLE_CONCURRENCY:-1}" \
       --prompt-data "$PROMPT" --prompt-data-sha256 "$(sha "$PROMPT")" "$@" ;;
-  m3)
+  train)
     TRAIN=$1; EVAL=$2; shift 2
     exec python3 "$LAUNCHER" train "${COMMON[@]}" --num-nodes 8 \
       --prompt-data "$TRAIN" --prompt-data-sha256 "$(sha "$TRAIN")" \
       --eval-prompt-data "$EVAL" --eval-prompt-data-sha256 "$(sha "$EVAL")" "$@" ;;
-  *) echo "mode must be m2 or m3" >&2; exit 2 ;;
+  *) echo "mode must be sample or train" >&2; exit 2 ;;
 esac
