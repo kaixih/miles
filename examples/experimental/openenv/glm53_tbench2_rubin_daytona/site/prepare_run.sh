@@ -17,6 +17,7 @@
 #                node-local staging dir on every node (compute nodes need not mount the login node's scratch)
 #   stage-model  stage_model_node.py on every node (parallel); receipts fetched to $R/receipts/model/<node>.json
 #   spec <nic>   make_run_spec.py on the login node from the model receipts, then push run-spec.json to every node
+#   pull-image   docker pull the pinned IMAGE_REF on every node that lacks it; verifies IMAGE_ID
 #   bootstrap    bootstrap_node.py on every node (fresh node root + idle container)
 #   stage-tools  copy tools/inputs/data into each node root and clone OpenEnv/TB2 from GitHub at the pinned commits
 #   install      install_deps.py plan in every container (root); prints each plan SHA for review
@@ -77,6 +78,13 @@ case "$STEP" in
     NIC=${1:?fabric interface name required}
     python3 "$R/tools/make_run_spec.py" --job-id "$JOB" --run-id "$RUN_ID" --nic "$NIC" --model-receipts "$R/receipts/model" --out "$SPEC_LOCAL" --image-ref "${IMAGE_REF:?}" --image-id "${IMAGE_ID:?}"
     for n in $(hosts); do on_node "$n" bash -c "cat > $SPEC" < "$SPEC_LOCAL"; done ;;
+  pull-image)
+    for n in $(hosts); do
+      ( on_node "$n" bash -c "docker image inspect --format '{{.Id}}' '${IMAGE_REF:?set IMAGE_REF}' >/dev/null 2>&1 || docker pull -q '${IMAGE_REF:?}' >/dev/null; echo \"\$(hostname -s): \$(docker image inspect --format '{{.Id}} {{.Architecture}}' '${IMAGE_REF:?}')\"" > "$R/receipts/pull-image-$n.log" 2>&1 ) &
+    done; wait
+    FAIL=0; for n in $(hosts); do
+      if grep -q "${IMAGE_ID:?set IMAGE_ID}" "$R/receipts/pull-image-$n.log"; then grep "$IMAGE_ID" "$R/receipts/pull-image-$n.log"; else echo "$n: image pull FAILED: $(tail -c 300 "$R/receipts/pull-image-$n.log" | tr '\n' ' ')"; FAIL=1; fi
+    done; exit $FAIL ;;
   bootstrap)
     test -f "$SPEC_LOCAL"
     for n in $(hosts); do on_node "$n" python3 -B "$STAGE/tools/bootstrap_node.py" --spec "$SPEC" > "$R/receipts/bootstrap-$n.summary.json" 2>&1 & done; wait

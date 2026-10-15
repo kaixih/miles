@@ -132,15 +132,22 @@ What `site/` does, in order:
 8. `ray_ready.py`: wait until Ray reports every node and GPU.
 
 `site/` is written for our cluster and assumes: Slurm, with `srun --overlap` into an existing
-allocation; Docker on every node, usable by the ordinary user; the image already pulled on every
-node; a node-local NVMe directory (`/raid/dldata`) with room for a 330 GB checkpoint copy and the
+allocation; Docker on every node, usable by the ordinary user, with registry access for
+`prepare_run.sh pull-image`; a node-local NVMe directory (`/raid/dldata`) with room for a 330 GB checkpoint copy and the
 run; an NVL72 IMEX channel device owned by the run user; one fabric interface per node that
 carries the IP the other nodes route to; outbound HTTPS from the nodes (GitHub, PyPI and the
 Daytona API are reachable directly); and no mount of the login node's scratch directory on the
 nodes except a read-only CIFS view under a service identity, so the run root has to be
 world-readable to be read from there (`CIFS_VIEW`), otherwise `stage-node` pipes it through
-`srun` stdin. Another cluster needs its own version of these steps; what it has to reproduce is
-the container below.
+`srun` stdin. Two practical limits we hit: the login node caps our user at 128 processes, and
+every fan-out step holds one `srun` per node, so run one step at a time; and the read-only
+checkpoint source delivers about 60 MB/s per node, so a node without a verified cache needs
+about 1.5 hours for the 328 GB copy (keep the node-local caches). Another cluster needs its
+own version of these steps; what it has to reproduce is the container below.
+
+The same scripts ran unchanged on 8 GB300 nodes of this cluster (4 GPUs each) with these
+settings: fabric interface `enP5p9s0` instead of the Rubin one, `prepare_run.sh pull-image`
+to fetch the image (it was not on those nodes), and the GB300 nodes' own checkpoint caches.
 
 ### Layout
 
