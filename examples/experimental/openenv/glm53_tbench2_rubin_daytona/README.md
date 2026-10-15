@@ -21,17 +21,15 @@ Setup:
 5. **Container**: `miles-rubin-dev:sgfix-20261011-j2460554` (internal), built from
    `docker/Dockerfile.rubin` in radixark/miles#4011. On top of the image: the Daytona SDK and
    OpenEnv added by `install_deps.py`, and the one-file fix from radixark/miles#4029.
-6. **Results** (all 20 updates completed; 16/16 trainer ranks healthy and weights broadcast to
-   both engines on every step):
-
-   | Series (Fig. 5 analogue) | This run |
-   |---|---|
-   | (a) wall-clock per step | median 367 s over steps 1–19; 355–385 s from step 5 on (step 0 includes the first rollout, 2213 s) |
-   | (b) mean \|trainer − rollout\| log-prob at sampled tokens | 0.0787 on average, 0.0875 → 0.0627 |
-   | (c) raw task reward per step | mean 0.188; 9-step moving average 0.219 → 0.189 (flat, as expected for 20 steps) |
+6. **Results**: all 20 updates completed (16/16 trainer ranks healthy, weights broadcast to
+   both engines on every step). The three Figure 5 series are below.
 
 ![Figure 5-style series from the 20-step run](assets/fig5.png)
 
+(a) wall-clock per training step: median 367 s over steps 1–19, 355–385 s from step 5 on
+(step 0 includes the first rollout, 2213 s, and is clipped). (b) mean |trainer − rollout|
+log-probability at sampled tokens: 0.0787 on average, 0.0875 → 0.0627. (c) raw task reward per
+step: mean 0.188, 9-step moving average 0.219 → 0.189, flat as expected for 20 steps.
 Per-step values are in [`assets/fig5-series.csv`](assets/fig5-series.csv).
 
 ## Container
