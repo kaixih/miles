@@ -6,7 +6,7 @@
 #   KEY_STAGING   0600 file holding the Daytona key on the login node (steps `key` and `cleanup-key --also-staging`)
 #   IMAGE_REF / IMAGE_ID   pinned container image reference and image id (step `spec`)
 #   MODEL_SOURCE  read-only directory holding the original HF checkpoint (step `stage-model`)
-#   MODEL_CACHE / KNOWN_GOOD_CACHE   node-local checkpoint cache to create / an existing verified cache to reuse
+#   MODEL_CACHE / KNOWN_GOOD_CACHE   node-local checkpoint cache to create / existing caches to try first (colon-separated)
 #   NODE_ROOT     node-local run root (default /raid/dldata/$USER-<run id>); CIFS_VIEW optional compute-node view of SCRATCH_ROOT
 #
 #   bash prepare_run.sh <step> <jobid> [step args]
@@ -69,9 +69,11 @@ case "$STEP" in
     done ;;
   stage-model)
     mkdir -p "$R/receipts/model"
+    # KNOWN_GOOD_CACHE may list several colon-separated existing caches; the first one that verifies is used
+    CANDIDATES=(); IFS=: read -ra _cands <<< "$KNOWN_GOOD_CACHE"; for c in "${_cands[@]}"; do [ -n "$c" ] && CANDIDATES+=(--candidate "$c"); done
     for n in $(hosts); do
       on_node "$n" python3 -B "$STAGE/tools/stage_model_node.py" --manifest "$STAGE/inputs/model-reference-manifest.json" \
-        --source "${MODEL_SOURCE:?set MODEL_SOURCE to the read-only checkpoint source directory}" --dest "$MODEL_CACHE" --receipt "$STAGE/receipts/model.json" --candidate "$KNOWN_GOOD_CACHE" > "$R/receipts/model/$n.log" 2>&1 &
+        --source "${MODEL_SOURCE:?set MODEL_SOURCE to the read-only checkpoint source directory}" --dest "$MODEL_CACHE" --receipt "$STAGE/receipts/model.json" "${CANDIDATES[@]}" > "$R/receipts/model/$n.log" 2>&1 &
     done; wait
     for n in $(hosts); do on_node "$n" cat "$STAGE/receipts/model.json" > "$R/receipts/model/$n.json"; echo "$n: $(tail -1 "$R/receipts/model/$n.log")"; done ;;
   spec)
